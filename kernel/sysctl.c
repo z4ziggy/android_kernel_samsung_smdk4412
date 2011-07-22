@@ -1672,17 +1672,12 @@ void sysctl_head_get(struct ctl_table_header *head)
         spin_unlock(&sysctl_lock);
 }
 
-static void free_head(struct rcu_head *rcu)
-{
-        kfree(container_of(rcu, struct ctl_table_header, rcu));
-}
-
 void sysctl_head_put(struct ctl_table_header *head)
 {
-        spin_lock(&sysctl_lock);
-        if (!--head->count)
-                call_rcu(&head->rcu, free_head);
-        spin_unlock(&sysctl_lock);
+	spin_lock(&sysctl_lock);
+	if (!--head->count)
+		kfree_rcu(head, rcu);
+	spin_unlock(&sysctl_lock);
 }
 
 struct ctl_table_header *sysctl_head_grab(struct ctl_table_header *head)
@@ -2049,15 +2044,15 @@ void unregister_sysctl_table(struct ctl_table_header * header)
         if (header == NULL)
                 return;
 
-        spin_lock(&sysctl_lock);
-        start_unregistering(header);
-        if (!--header->parent->count) {
-                WARN_ON(1);
-                call_rcu(&header->parent->rcu, free_head);
-        }
-        if (!--header->count)
-                call_rcu(&header->rcu, free_head);
-        spin_unlock(&sysctl_lock);
+	spin_lock(&sysctl_lock);
+	start_unregistering(header);
+	if (!--header->parent->count) {
+		WARN_ON(1);
+		kfree_rcu(header->parent, rcu);
+	}
+	if (!--header->count)
+		kfree_rcu(header, rcu);
+	spin_unlock(&sysctl_lock);
 }
 
 int sysctl_is_seen(struct ctl_table_header *p)
