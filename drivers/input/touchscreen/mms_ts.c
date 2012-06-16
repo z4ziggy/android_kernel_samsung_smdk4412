@@ -54,6 +54,9 @@
 #include <mach/midas-tsp.h>
 #endif
 
+#include "../keyboard/cypress/cypress-touchkey.h"
+
+
 #ifdef CONFIG_MACH_SUPERIOR_KOR_SKT
 #define FW_465GS37
 #endif
@@ -702,6 +705,10 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 				, angle, palm);
 #else
 			if (info->finger_state[id] != 0) {
+                
+                // report state to cypress-touchkey for backlight timeout
+                touchscreen_state_report(0);
+
 #if defined(SEC_TSP_EVENT_DEBUG) && defined(CONFIG_TARGET_LOCALE_KOR)
 				printk(KERN_DEBUG "[TSP] POS[%d](%4d,%4d)[U] tp = %d\n",
 					id, x, y, touch_is_pressed);
@@ -749,6 +756,10 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 #if defined(SEC_TSP_DEBUG)
 		if (info->finger_state[id] == 0) {
 			info->finger_state[id] = 1;
+
+            // report state to cypress-touchkey for backlight timeout
+            touchscreen_state_report(1);
+
 #if defined(SEC_TSP_EVENT_DEBUG) && defined(CONFIG_TARGET_LOCALE_KOR)
 			printk(KERN_DEBUG "[TSP] POS[%d](%4d,%4d)[D] tp = %d\n",
 					id, x, y, touch_is_pressed);
