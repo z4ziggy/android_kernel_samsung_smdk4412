@@ -744,6 +744,7 @@ static irqreturn_t touchkey_interrupt(int irq, void *dev_id)
 	if (pressed) {
 		set_touchkey_debug('P');
 
+AOSPROM {
         // enable lights on keydown
         if (touch_led_disabled == 0) {
             if (touchkey_led_status == TK_CMD_LED_OFF) {
@@ -755,8 +756,9 @@ static irqreturn_t touchkey_interrupt(int irq, void *dev_id)
                 mod_timer(&touch_led_timer, jiffies + (HZ * touch_led_timeout));
             }
         }
-        
+}
     } else {
+AOSPROM {
         // touch led timeout on keyup
         if (touch_led_disabled == 0) {
             if (timer_pending(&touch_led_timer) == 0) {
@@ -767,6 +769,7 @@ static irqreturn_t touchkey_interrupt(int irq, void *dev_id)
                 mod_timer(&touch_led_timer, jiffies + (HZ * touch_led_timeout));
             }
         }
+}
     }
 
 	if (get_tsp_status() && pressed)
@@ -1168,6 +1171,10 @@ static ssize_t touchkey_led_control(struct device *dev,
 	data = ledCmd[data-1];
 #endif
 
+SAMSUNGROM
+	ret = i2c_touchkey_write(tkey_i2c->client, (u8 *) &data, 1);
+else
+{
     if (touch_led_disabled == 0) {
         ret = i2c_touchkey_write(tkey_i2c->client, (u8 *) &data, 1);
     }
@@ -1188,8 +1195,9 @@ static ssize_t touchkey_led_control(struct device *dev,
             del_timer(&touch_led_timer);
         }
     }
-
-	if (ret == -ENODEV)
+}
+	if (ret == -ENODEV) {
+		printk(KERN_DEBUG"[Touchkey] error to write i2c\n");
 		touchled_cmd_reversed = 1;
 
     pr_debug("[TouchKey] %s touchkey_led_status=%d\n", __func__, data);
