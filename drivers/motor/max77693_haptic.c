@@ -24,11 +24,8 @@
 #include <linux/mfd/max77693.h>
 #include <linux/mfd/max77693-private.h>
 
-#define SEC_DEBUG_VIB
-#ifdef CONFIG_AOSP_ROM_SUPPORT
-static unsigned long pwm_val = 50; /* duty in percent */
-static int pwm_duty = 27787; /* duty value, 37050=100%, 27787=50%, 18525=0% */
-#endif
+unsigned long pwm_val = 50; /* duty in percent */
+int pwm_duty = 27787; /* duty value, 37050=100%, 27787=50%, 18525=0% */
 
 struct max77693_haptic_data {
 	struct max77693_dev *max77693;
@@ -110,15 +107,13 @@ static void haptic_enable(struct timed_output_dev *tout_dev, int value)
 			HRTIMER_MODE_REL);
 	}
 	spin_unlock_irqrestore(&hap_data->lock, flags);
-#ifdef SEC_DEBUG_VIB
-	printk(KERN_DEBUG "[VIB] haptic_enable is called\n");
-#endif
 }
 
 static enum hrtimer_restart haptic_timer_func(struct hrtimer *timer)
 {
 	struct max77693_haptic_data *hap_data
 		= container_of(timer, struct max77693_haptic_data, timer);
+	unsigned long flags;
 
 	hap_data->timeout = 0;
 	queue_work(hap_data->workqueue, &hap_data->work);
@@ -162,19 +157,14 @@ static void haptic_work(struct work_struct *work)
 
 		max77693_haptic_i2c(hap_data, true);
 
-#ifdef CONFIG_AOSP_ROM_SUPPORT
 		pwm_config(hap_data->pwm, pwm_duty, hap_data->pdata->period);
-		pr_info("[VIB] %s: pwm_config duty=%d\n", __func__, pwm_duty);
-#else
-		pwm_config(hap_data->pwm, hap_data->pdata->duty,
-		     hap_data->pdata->period);
-#endif
+        pr_info("[VIB] %s: pwm_config duty=%d\n", __func__, pwm_duty);
 		pwm_enable(hap_data->pwm);
 
 		if (hap_data->pdata->motor_en)
 			hap_data->pdata->motor_en(true);
-
-		regulator_enable(hap_data->regulator);
+		else
+			regulator_enable(hap_data->regulator);
 
 		hap_data->running = true;
 	} else {
@@ -183,20 +173,15 @@ static void haptic_work(struct work_struct *work)
 
 		if (hap_data->pdata->motor_en)
 			hap_data->pdata->motor_en(false);
-#ifdef CONFIG_MACH_GC1
-		regulator_disable(hap_data->regulator);
-#else
-		regulator_force_disable(hap_data->regulator);
-#endif
+		else
+			regulator_force_disable(hap_data->regulator);
+
 		pwm_disable(hap_data->pwm);
 
 		max77693_haptic_i2c(hap_data, false);
 
 		hap_data->running = false;
 	}
-#ifdef SEC_DEBUG_VIB
-	printk(KERN_DEBUG "[VIB] haptic_work is called\n");
-#endif
 	return;
 }
 
@@ -236,9 +221,6 @@ void vibtonz_en(bool en)
 
 		g_hap_data->running = false;
 	}
-#ifdef SEC_DEBUG_VIB
-	printk(KERN_DEBUG "[VIB] vibtonz_en is called\n");
-#endif
 }
 EXPORT_SYMBOL(vibtonz_en);
 
@@ -246,18 +228,13 @@ void vibtonz_pwm(int nForce)
 {
 	/* add to avoid the glitch issue */
 	static int prev_duty;
-#ifdef CONFIG_AOSP_ROM_SUPPORT
 	int pwm_period = 0;
-#else
-	int pwm_period = 0, pwm_duty = 0;
-#endif
 
 	if (g_hap_data == NULL) {
-		printk(KERN_ERR "[VIB] the motor is not ready!!!");
+		pr_err("[VIB] %s: the motor is not ready!!!", __func__);
 		return ;
 	}
-
-#ifndef CONFIG_AOSP_ROM_SUPPORT
+SAMSUNGROM{
 	pwm_period = g_hap_data->pdata->period;
 	pwm_duty = pwm_period / 2 + ((pwm_period / 2 - 2) * nForce) / 127;
 
@@ -265,25 +242,18 @@ void vibtonz_pwm(int nForce)
 		pwm_duty = g_hap_data->pdata->duty;
 	else if (pwm_period - pwm_duty > g_hap_data->pdata->duty)
 		pwm_duty = pwm_period - g_hap_data->pdata->duty;
-#endif
-
+}
 	/* add to avoid the glitch issue */
 	if (prev_duty != pwm_duty) {
 		prev_duty = pwm_duty;
 
-#ifdef CONFIG_AOSP_ROM_SUPPORT
         pr_debug("[VIB] %s: setting pwm_duty=%d", __func__, pwm_duty);
-#endif
 		pwm_config(g_hap_data->pwm, pwm_duty, pwm_period);
 	}
-#ifdef SEC_DEBUG_VIB
-	printk(KERN_DEBUG "[VIB] vibtonz_pwm is called(%d)\n", nForce);
-#endif
 }
 EXPORT_SYMBOL(vibtonz_pwm);
 #endif
 
-#ifdef CONFIG_AOSP_ROM_SUPPORT
 static ssize_t pwm_val_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -342,7 +312,6 @@ static int create_vibrator_sysfs(void)
 
 	return 0;
 }
-#endif
 
 static int max77693_haptic_probe(struct platform_device *pdev)
 {
@@ -387,9 +356,9 @@ static int max77693_haptic_probe(struct platform_device *pdev)
 
 	if (pdata->init_hw)
 		pdata->init_hw();
-
-	hap_data->regulator
-		= regulator_get(NULL, pdata->regulator_name);
+	else
+		hap_data->regulator
+			= regulator_get(NULL, pdata->regulator_name);
 
 	if (IS_ERR(hap_data->regulator)) {
 		pr_err("[VIB] Failed to get vmoter regulator.\n");
@@ -406,9 +375,7 @@ static int max77693_haptic_probe(struct platform_device *pdev)
 	hap_data->tout_dev.get_time = haptic_get_time;
 	hap_data->tout_dev.enable = haptic_enable;
 
-#ifdef CONFIG_AOSP_ROM_SUPPORT
     create_vibrator_sysfs();
-#endif
 
 #ifdef CONFIG_ANDROID_TIMED_OUTPUT
 	error = timed_output_dev_register(&hap_data->tout_dev);
@@ -418,7 +385,7 @@ static int max77693_haptic_probe(struct platform_device *pdev)
 		goto err_timed_output_register;
 	}
 #endif
-	printk(KERN_DEBUG "[VIB] timed_output device is registrated\n");
+
 	pr_debug("[VIB] -- %s\n", __func__);
 
 	return error;
