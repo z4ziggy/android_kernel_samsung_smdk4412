@@ -38,6 +38,10 @@
 #include <mach/sec_debug.h>
 #endif
 
+#ifdef CONFIG_CPU_EXYNOS4210
+#define CPUFREQ_LEVEL_END  L16
+#endif
+
 struct exynos_dvfs_info *exynos_info;
 
 static struct regulator *arm_regulator;
@@ -726,6 +730,7 @@ static struct notifier_block exynos_cpufreq_policy_notifier = {
 
 static int exynos_cpufreq_cpu_init(struct cpufreq_policy *policy)
 {
+	int ret;
 	policy->cur = policy->min = policy->max = exynos_getspeed(policy->cpu);
 
 	cpufreq_frequency_table_get_attr(exynos_info->freq_table, policy->cpu);
@@ -749,9 +754,11 @@ static int exynos_cpufreq_cpu_init(struct cpufreq_policy *policy)
 	cpufreq_frequency_table_cpuinfo(policy, exynos_info->freq_table);
 
 	/* Safe default startup limits */
+#ifndef CONFIG_CPU_EXYNOS4210
 	if (samsung_rev() >= EXYNOS4412_REV_2_0)
 		policy->max = 1600000;
 	else
+#endif
 		policy->max = 1400000;
 	policy->min = 200000;
 
