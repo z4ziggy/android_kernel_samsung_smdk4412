@@ -166,4 +166,11 @@ struct t48_median_config_t {
 
 int get_tsp_status(void);
 extern struct class *sec_class;
+#ifdef CONFIG_S2W
+extern struct input_dev *input_device;
+extern void slide2wake_setdev(struct input_dev *input_device);
+extern void mxt224_gpio_sleep_mode(bool);
+extern bool s2w_enabled;
+extern bool s2w_prox_near;
+#endif
 #endif

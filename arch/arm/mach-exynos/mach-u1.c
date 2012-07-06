@@ -5368,6 +5368,16 @@ static void mxt224_power_off(void)
         /* printk("mxt224_power_off is finished\n"); */
 }
 
+#ifdef CONFIG_S2W
+void mxt224_gpio_sleep_mode(bool enable)
+{
+	if (enable)
+		s3c_gpio_slp_cfgpin(GPIO_TSP_LDO_ON, S3C_GPIO_SLP_PREV);
+	else
+		s3c_gpio_slp_cfgpin(GPIO_TSP_LDO_ON, S3C_GPIO_SLP_OUT0);
+}
+#endif
+
 /*
   Configuration for MXT224
 */

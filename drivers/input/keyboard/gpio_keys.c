@@ -34,6 +34,9 @@
 #include <linux/touch_wake.h>
 #endif
 
+#ifdef CONFIG_S2W 
+#include <linux/i2c/mxt224_u1.h>
+#endif
 
 extern struct class *sec_class;
 
@@ -895,6 +898,9 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 #ifdef CONFIG_TOUCH_WAKE
       pr_info("powerkey device set to: %p \n", input);
       set_powerkeydev(input);
+#endif
+#ifdef CONFIG_S2W
+		slide2wake_setdev(input);
 #endif
 	}
 
