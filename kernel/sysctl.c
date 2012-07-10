@@ -231,7 +231,7 @@ int sysctl_legacy_va_layout;
 #endif
 
 extern int late_init_android_gadget(int romtype);
-//extern int mfc_late_init(void);
+extern int mfc_late_init(void);
 #ifdef CONFIG_CPU_EXYNOS4210
 extern int u1_gps_ntt_init(void);
 #endif
@@ -274,10 +274,10 @@ rom_feature_set_sysctl(struct ctl_table *table, int write,
 #ifdef CONFIG_MALI_CONTROL
                 register_mali_control();
 #endif
-/*
+
 #ifndef CONFIG_CPU_EXYNOS4210
                 mfc_late_init();
-#endif*/
+#endif
         }
         return 0;
 }
