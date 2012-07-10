@@ -232,7 +232,8 @@ static int mfc_open(struct inode *inode, struct file *file)
 #endif
 
 #if SUPPORT_SLICE_ENCODING
-_SUPPORT_SLICE_ENCODING {
+_SUPPORT_SLICE_ENCODING
+{
 	mfcdev->frame_working_flag = 1;
 	mfcdev->frame_sys = 0;
 }
@@ -376,7 +377,8 @@ _SUPPORT_SLICE_ENCODING {
 	file->private_data = (struct mfc_inst_ctx *)mfc_ctx;
 
 #if SUPPORT_SLICE_ENCODING
-_SUPPORT_SLICE_ENCODING {
+_SUPPORT_SLICE_ENCODING
+{
 	if (atomic_read(&mfcdev->inst_cnt) == 1) {
 		mfcdev->slice_encoding_flag = 0;
 		mfcdev->slice_sys = 0;
@@ -390,6 +392,7 @@ _SUPPORT_SLICE_ENCODING {
 		wake_up(&mfcdev->wait_frame);
 }
 #endif
+
 #ifdef CONFIG_SLP_DMABUF
 	ret = mfc_queue_alloc(mfc_ctx);
 	if (ret < 0) {
@@ -455,7 +458,8 @@ static int mfc_release(struct inode *inode, struct file *file)
 
 	mutex_lock(&dev->lock);
 #if SUPPORT_SLICE_ENCODING
-_SUPPORT_SLICE_ENCODING {
+_SUPPORT_SLICE_ENCODING
+{
 	dev->frame_working_flag = 1;
 	dev->frame_sys = 0;
 	if (dev->slice_encoding_flag == 1) {
@@ -558,7 +562,8 @@ _SUPPORT_SLICE_ENCODING {
 		pm_qos_remove_request(&bus_qos_pm_qos_req);
 #endif
 #if SUPPORT_SLICE_ENCODING
-_SUPPORT_SLICE_ENCODING {
+_SUPPORT_SLICE_ENCODING
+{
 		dev->slice_encoding_flag = 0;
 		dev->slice_sys = 0;
 		dev->wait_slice_timeout = 0;
@@ -582,13 +587,15 @@ _SUPPORT_SLICE_ENCODING {
 
 	ret = 0;
 #if SUPPORT_SLICE_ENCODING
-_SUPPORT_SLICE_ENCODING {
+_SUPPORT_SLICE_ENCODING
+{
 	dev->frame_sys = 1;
 	dev->frame_working_flag = 0;
 	if (mfcdev->wait_frame_timeout == 1)
 		wake_up(&dev->wait_frame);
 }
 #endif
+
 #ifdef CONFIG_SLP_DMABUF
 	mfc_queue_free(mfc_ctx);
 #endif
@@ -611,12 +618,12 @@ err_pwr_disable:
 }
 
 /* FIXME: add request firmware ioctl */
-static long mfc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long mfc_ioctl_cm(struct file *file, unsigned int cmd, unsigned long arg)
 {
 
 	struct mfc_inst_ctx *mfc_ctx;
 	int ret, ex_ret;
-	struct mfc_common_args in_param;
+	struct mfc_common_args_cm in_param;
 	struct mfc_buf_alloc_arg buf_arg;
 	struct mfc_config_arg *cfg_arg;
 	int port;
@@ -633,7 +640,7 @@ static long mfc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	mutex_lock(&dev->lock);
 
 	ret = copy_from_user(&in_param, (struct mfc_common_args *)arg,
-			sizeof(struct mfc_common_args));
+			sizeof(struct mfc_common_args_cm));
 	if (ret < 0) {
 		mfc_err("failed to copy parameters\n");
 		ret = -EIO;
@@ -652,7 +659,8 @@ static long mfc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case IOCTL_MFC_DEC_INIT:
 		mutex_lock(&dev->lock);
 #if SUPPORT_SLICE_ENCODING
-_SUPPORT_SLICE_ENCODING {
+_SUPPORT_SLICE_ENCODING
+{
 		dev->frame_working_flag = 1;
 		dev->frame_sys = 0;
 		if (dev->slice_encoding_flag == 1) {
@@ -691,7 +699,8 @@ _SUPPORT_SLICE_ENCODING {
 		ret = in_param.ret_code;
 		mfc_clock_off(mfcdev);
 #if SUPPORT_SLICE_ENCODING
-_SUPPORT_SLICE_ENCODING {
+_SUPPORT_SLICE_ENCODING
+{
 		dev->frame_sys = 1;
 		dev->frame_working_flag = 0;
 		if (dev->wait_frame_timeout == 1)
@@ -705,7 +714,8 @@ _SUPPORT_SLICE_ENCODING {
 	case IOCTL_MFC_ENC_INIT:
 		mutex_lock(&dev->lock);
 #if SUPPORT_SLICE_ENCODING
-_SUPPORT_SLICE_ENCODING {
+_SUPPORT_SLICE_ENCODING
+{
 		dev->frame_working_flag = 1;
 		dev->frame_sys = 0;
 		if (dev->slice_encoding_flag == 1) {
@@ -741,11 +751,12 @@ _SUPPORT_SLICE_ENCODING {
 		}
 
 		mfc_clock_on(mfcdev);
-		in_param.ret_code = mfc_init_encoding(mfc_ctx, &(in_param.args));
+		in_param.ret_code = mfc_init_encoding_cm(mfc_ctx, &(in_param.args));
 		ret = in_param.ret_code;
 		mfc_clock_off(mfcdev);
 #if SUPPORT_SLICE_ENCODING
-_SUPPORT_SLICE_ENCODING {
+_SUPPORT_SLICE_ENCODING
+{
 		dev->frame_sys = 1;
 		dev->frame_working_flag = 0;
 		if (dev->wait_frame_timeout == 1)
@@ -759,7 +770,8 @@ _SUPPORT_SLICE_ENCODING {
 	case IOCTL_MFC_DEC_EXE:
 		mutex_lock(&dev->lock);
 #if SUPPORT_SLICE_ENCODING
-_SUPPORT_SLICE_ENCODING {
+_SUPPORT_SLICE_ENCODING
+{
 		dev->frame_working_flag = 1;
 		dev->frame_sys = 0;
 		if (dev->slice_encoding_flag == 1) {
@@ -799,7 +811,8 @@ _SUPPORT_SLICE_ENCODING {
 		ret = in_param.ret_code;
 		mfc_clock_off(mfcdev);
 #if SUPPORT_SLICE_ENCODING
-_SUPPORT_SLICE_ENCODING {
+_SUPPORT_SLICE_ENCODING
+{
 		dev->frame_sys = 1;
 		dev->frame_working_flag = 0;
 		if (dev->wait_frame_timeout == 1)
@@ -813,7 +826,8 @@ _SUPPORT_SLICE_ENCODING {
 	case IOCTL_MFC_ENC_EXE:
 		mutex_lock(&dev->lock);
 #if SUPPORT_SLICE_ENCODING
-_SUPPORT_SLICE_ENCODING {
+_SUPPORT_SLICE_ENCODING
+{
 		if (mfc_ctx->slice_flag == 0) {
 			dev->frame_working_flag = 1;
 			dev->frame_sys = 0;
@@ -878,7 +892,8 @@ _SUPPORT_SLICE_ENCODING {
 		ret = in_param.ret_code;
 		mfc_clock_off(mfcdev);
 #if SUPPORT_SLICE_ENCODING
-_SUPPORT_SLICE_ENCODING {
+_SUPPORT_SLICE_ENCODING
+{
 		if (mfc_ctx->slice_flag == 0) {
 			dev->frame_sys = 1;
 			dev->frame_working_flag = 0;
@@ -1057,7 +1072,462 @@ _SUPPORT_SLICE_ENCODING {
 out_ioctl:
 	ex_ret = copy_to_user((struct mfc_common_args *)arg,
 			&in_param,
-			sizeof(struct mfc_common_args));
+			sizeof(struct mfc_common_args_cm));
+	if (ex_ret < 0) {
+		mfc_err("Outparm copy to user error\n");
+		ret = -EIO;
+	}
+
+	mfc_dbg("return = %d\n", ret);
+
+	return ret;
+}
+
+static long mfc_ioctl_3sung(struct file *file, unsigned int cmd, unsigned long arg)
+{
+
+	struct mfc_inst_ctx *mfc_ctx;
+	int ret, ex_ret;
+	struct mfc_common_args_3sung in_param;
+	struct mfc_buf_alloc_arg buf_arg;
+	struct mfc_config_arg *cfg_arg;
+	int port;
+
+	struct mfc_dev *dev;
+	int i;
+
+	mfc_ctx = (struct mfc_inst_ctx *)file->private_data;
+	if (!mfc_ctx)
+		return -EINVAL;
+
+	dev = mfc_ctx->dev;
+
+	mutex_lock(&dev->lock);
+
+	ret = copy_from_user(&in_param, (struct mfc_common_args *)arg,
+			sizeof(struct mfc_common_args_3sung));
+	if (ret < 0) {
+		mfc_err("failed to copy parameters\n");
+		ret = -EIO;
+		in_param.ret_code = MFC_INVALID_PARAM_FAIL;
+		goto out_ioctl;
+	}
+
+	mutex_unlock(&dev->lock);
+
+	/* FIXME: add locking */
+
+	mfc_dbg("cmd: 0x%08x\n", cmd);
+
+	switch (cmd) {
+
+	case IOCTL_MFC_DEC_INIT:
+		mutex_lock(&dev->lock);
+#if SUPPORT_SLICE_ENCODING
+_SUPPORT_SLICE_ENCODING
+{
+		dev->frame_working_flag = 1;
+		dev->frame_sys = 0;
+		if (dev->slice_encoding_flag == 1) {
+			mutex_unlock(&dev->lock);
+			dev->wait_slice_timeout = 1;
+			if (wait_event_timeout(dev->wait_slice, dev->slice_sys,
+				SLICE_ENC_TIMEOUT) == 0) {
+				mfc_err("Slice encoding done timeout : %d\n",
+					dev->slice_sys);
+				dev->slice_encoding_flag = 0;
+				dev->slice_sys = 0;
+				dev->wait_slice_timeout = 0;
+				ret = -EINVAL;
+
+				mutex_lock(&dev->lock);
+				break;
+			}
+			mutex_lock(&dev->lock);
+			dev->slice_sys = 0;
+			dev->wait_slice_timeout = 0;
+		}
+}
+#endif
+		if (mfc_chk_inst_state(mfc_ctx, INST_STATE_CREATE) < 0) {
+			mfc_err("IOCTL_MFC_DEC_INIT invalid state: 0x%08x\n",
+				 mfc_ctx->state);
+			in_param.ret_code = MFC_STATE_INVALID;
+			ret = -EINVAL;
+
+			mutex_unlock(&dev->lock);
+			break;
+		}
+
+		mfc_clock_on(mfcdev);
+		in_param.ret_code = mfc_init_decoding(mfc_ctx, &(in_param.args));
+		ret = in_param.ret_code;
+		mfc_clock_off(mfcdev);
+#if SUPPORT_SLICE_ENCODING
+_SUPPORT_SLICE_ENCODING
+{
+		dev->frame_sys = 1;
+		dev->frame_working_flag = 0;
+		if (dev->wait_frame_timeout == 1)
+			wake_up(&dev->wait_frame);
+}
+#endif
+
+		mutex_unlock(&dev->lock);
+		break;
+
+	case IOCTL_MFC_ENC_INIT:
+		mutex_lock(&dev->lock);
+#if SUPPORT_SLICE_ENCODING
+_SUPPORT_SLICE_ENCODING
+{
+		dev->frame_working_flag = 1;
+		dev->frame_sys = 0;
+		if (dev->slice_encoding_flag == 1) {
+			mutex_unlock(&dev->lock);
+			dev->wait_slice_timeout = 1;
+			if (wait_event_timeout(dev->wait_slice, dev->slice_sys,
+				SLICE_ENC_TIMEOUT) == 0) {
+				mfc_err("Slice encoding done timeout : %d\n",
+					dev->slice_sys);
+				dev->slice_encoding_flag = 0;
+				dev->slice_sys = 0;
+				dev->wait_slice_timeout = 0;
+				ret = -EINVAL;
+
+				mutex_lock(&dev->lock);
+				break;
+			}
+			mutex_lock(&dev->lock);
+			dev->slice_sys = 0;
+			dev->wait_slice_timeout = 0;
+		}
+}
+#endif
+
+		if (mfc_chk_inst_state(mfc_ctx, INST_STATE_CREATE) < 0) {
+			mfc_err("IOCTL_MFC_ENC_INIT invalid state: 0x%08x\n",
+				 mfc_ctx->state);
+			in_param.ret_code = MFC_STATE_INVALID;
+			ret = -EINVAL;
+
+			mutex_unlock(&dev->lock);
+			break;
+		}
+
+		mfc_clock_on(mfcdev);
+		in_param.ret_code = mfc_init_encoding_3sung(mfc_ctx, &(in_param.args));
+		ret = in_param.ret_code;
+		mfc_clock_off(mfcdev);
+#if SUPPORT_SLICE_ENCODING
+_SUPPORT_SLICE_ENCODING
+{
+		dev->frame_sys = 1;
+		dev->frame_working_flag = 0;
+		if (dev->wait_frame_timeout == 1)
+			wake_up(&dev->wait_frame);
+}
+#endif
+
+		mutex_unlock(&dev->lock);
+		break;
+
+	case IOCTL_MFC_DEC_EXE:
+		mutex_lock(&dev->lock);
+#if SUPPORT_SLICE_ENCODING
+_SUPPORT_SLICE_ENCODING
+{
+		dev->frame_working_flag = 1;
+		dev->frame_sys = 0;
+		if (dev->slice_encoding_flag == 1) {
+			mutex_unlock(&dev->lock);
+			dev->wait_slice_timeout = 1;
+			if (wait_event_timeout(dev->wait_slice, dev->slice_sys,
+				SLICE_ENC_TIMEOUT) == 0) {
+				mfc_err("Slice encoding done timeout : %d\n",
+					dev->slice_sys);
+				dev->slice_encoding_flag = 0;
+				dev->slice_sys = 0;
+				dev->wait_slice_timeout = 0;
+				ret = -EINVAL;
+
+				mutex_lock(&dev->lock);
+				break;
+			}
+			mutex_lock(&dev->lock);
+			dev->slice_sys = 0;
+			dev->wait_slice_timeout = 0;
+		}
+}
+#endif
+
+		if (mfc_ctx->state < INST_STATE_INIT) {
+			mfc_err("IOCTL_MFC_DEC_EXE invalid state: 0x%08x\n",
+					mfc_ctx->state);
+			in_param.ret_code = MFC_STATE_INVALID;
+			ret = -EINVAL;
+
+			mutex_unlock(&dev->lock);
+			break;
+		}
+
+		mfc_clock_on(mfcdev);
+		in_param.ret_code = mfc_exec_decoding(mfc_ctx, &(in_param.args));
+		ret = in_param.ret_code;
+		mfc_clock_off(mfcdev);
+#if SUPPORT_SLICE_ENCODING
+_SUPPORT_SLICE_ENCODING
+{
+		dev->frame_sys = 1;
+		dev->frame_working_flag = 0;
+		if (dev->wait_frame_timeout == 1)
+			wake_up(&dev->wait_frame);
+}
+#endif
+
+		mutex_unlock(&dev->lock);
+		break;
+
+	case IOCTL_MFC_ENC_EXE:
+		mutex_lock(&dev->lock);
+#if SUPPORT_SLICE_ENCODING
+_SUPPORT_SLICE_ENCODING
+{
+		if (mfc_ctx->slice_flag == 0) {
+			dev->frame_working_flag = 1;
+			dev->frame_sys = 0;
+		}
+
+		if ((dev->slice_encoding_flag == 1)
+			&& (mfc_ctx->slice_flag == 0)) {
+			mutex_unlock(&dev->lock);
+			dev->wait_slice_timeout = 1;
+			if (wait_event_timeout(dev->wait_slice, dev->slice_sys,
+				SLICE_ENC_TIMEOUT) == 0) {
+				mfc_err("Slice encoding done timeout : %d\n",
+					dev->slice_sys);
+				dev->slice_encoding_flag = 0;
+				dev->slice_sys = 0;
+				dev->wait_slice_timeout = 0;
+				ret = -EINVAL;
+
+				mutex_lock(&dev->lock);
+				break;
+			}
+			mutex_lock(&dev->lock);
+			dev->slice_sys = 0;
+			dev->wait_slice_timeout = 0;
+		}
+
+		if ((dev->frame_working_flag == 1) && (mfc_ctx->slice_flag == 1)
+			&& (dev->slice_encoding_flag == 0)) {
+			mutex_unlock(&dev->lock);
+			dev->wait_frame_timeout = 1;
+			if (wait_event_timeout(dev->wait_frame, dev->frame_sys,
+				SLICE_ENC_TIMEOUT) == 0) {
+				mfc_err("frame working done timeout : %d\n",
+					dev->frame_sys);
+				dev->frame_working_flag = 0;
+				dev->frame_sys = 0;
+				dev->wait_frame_timeout = 0;
+				ret = -EINVAL;
+
+				mutex_lock(&dev->lock);
+				break;
+			}
+			mutex_lock(&dev->lock);
+			dev->frame_sys = 0;
+			dev->wait_frame_timeout = 0;
+		}
+}
+#endif
+
+		if (mfc_ctx->state < INST_STATE_INIT) {
+			mfc_err("IOCTL_MFC_DEC_EXE invalid state: 0x%08x\n",
+					mfc_ctx->state);
+			in_param.ret_code = MFC_STATE_INVALID;
+			ret = -EINVAL;
+
+			mutex_unlock(&dev->lock);
+			break;
+		}
+
+		mfc_clock_on(mfcdev);
+		in_param.ret_code = mfc_exec_encoding(mfc_ctx, &(in_param.args));
+		ret = in_param.ret_code;
+		mfc_clock_off(mfcdev);
+#if SUPPORT_SLICE_ENCODING
+_SUPPORT_SLICE_ENCODING
+{
+		if (mfc_ctx->slice_flag == 0) {
+			dev->frame_sys = 1;
+			dev->frame_working_flag = 0;
+			if (dev->wait_frame_timeout == 1)
+				wake_up(&dev->wait_frame);
+		}
+}
+#endif
+
+		mutex_unlock(&dev->lock);
+		break;
+
+	case IOCTL_MFC_GET_IN_BUF:
+		mutex_lock(&dev->lock);
+
+		if (in_param.args.mem_alloc.type == ENCODER) {
+			buf_arg.type = ENCODER;
+			port = 1;
+		} else {
+			buf_arg.type = DECODER;
+			port = 0;
+		}
+
+		/* FIXME: consider the size */
+		buf_arg.size = in_param.args.mem_alloc.buff_size;
+		/*
+		buf_arg.mapped = in_param.args.mem_alloc.mapped_addr;
+		*/
+		/* FIXME: encodeing linear: 2KB, tile: 8KB */
+		buf_arg.align = ALIGN_2KB;
+
+		if (buf_arg.type == ENCODER)
+			in_param.ret_code = mfc_alloc_buf(mfc_ctx, &buf_arg, MBT_DPB | port);
+		else
+			in_param.ret_code = mfc_alloc_buf(mfc_ctx, &buf_arg, MBT_CPB | port);
+#if defined(CONFIG_VIDEO_MFC_VCM_UMP)
+		in_param.args.mem_alloc.secure_id = buf_arg.secure_id;
+#elif defined(CONFIG_S5P_VMEM)
+		in_param.args.mem_alloc.cookie = buf_arg.cookie;
+#else
+		in_param.args.mem_alloc.offset = buf_arg.offset;
+#endif
+		ret = in_param.ret_code;
+
+		mutex_unlock(&dev->lock);
+		break;
+
+	case IOCTL_MFC_FREE_BUF:
+		mutex_lock(&dev->lock);
+
+		in_param.ret_code =
+			mfc_free_buf(mfc_ctx, in_param.args.mem_free.key);
+		ret = in_param.ret_code;
+
+		mutex_unlock(&dev->lock);
+		break;
+
+	case IOCTL_MFC_GET_REAL_ADDR:
+		mutex_lock(&dev->lock);
+
+		in_param.args.real_addr.addr =
+			mfc_get_buf_real(mfc_ctx->id, in_param.args.real_addr.key);
+
+		mfc_dbg("real addr: 0x%08x", in_param.args.real_addr.addr);
+
+		if (in_param.args.real_addr.addr)
+			in_param.ret_code = MFC_OK;
+		else
+			in_param.ret_code = MFC_MEM_INVALID_ADDR_FAIL;
+
+		ret = in_param.ret_code;
+
+		mutex_unlock(&dev->lock);
+		break;
+
+	case IOCTL_MFC_GET_MMAP_SIZE:
+		if (mfc_chk_inst_state(mfc_ctx, INST_STATE_CREATE) < 0) {
+			mfc_err("IOCTL_MFC_GET_MMAP_SIZE invalid state: \
+				0x%08x\n", mfc_ctx->state);
+			in_param.ret_code = MFC_STATE_INVALID;
+			ret = -EINVAL;
+
+			break;
+		}
+
+		in_param.ret_code = MFC_OK;
+		ret = 0;
+#ifdef CONFIG_EXYNOS_CONTENT_PATH_PROTECTION
+		for (i = 0; i < MFC_MAX_MEM_CHUNK_NUM; i++)
+			ret += mfc_mem_data_size(i);
+
+		ret += mfc_mem_hole_size();
+#else
+		for (i = 0; i < dev->mem_ports; i++)
+			ret += mfc_mem_data_size(i);
+#endif
+
+		break;
+
+#if defined(CONFIG_VIDEO_MFC_VCM_UMP)
+	case IOCTL_MFC_SET_IN_BUF:
+		if (in_param.args.mem_alloc.type == ENCODER) {
+			buf_arg.secure_id = in_param.args.mem_alloc.secure_id;
+			buf_arg.align = ALIGN_2KB;
+			port = 1;
+			ret = mfc_vcm_bind_from_others(mfc_ctx, &buf_arg, MBT_OTHER | port);
+		} else {
+		in_param.args.real_addr.addr =
+			mfc_ump_get_virt(in_param.args.real_addr.key);
+
+		mfc_dbg("real addr: 0x%08x", in_param.args.real_addr.addr);
+
+		if (in_param.args.real_addr.addr)
+			in_param.ret_code = MFC_OK;
+		else
+			in_param.ret_code = MFC_MEM_INVALID_ADDR_FAIL;
+
+		ret = in_param.ret_code;
+		}
+
+		break;
+#endif
+
+	case IOCTL_MFC_SET_CONFIG:
+		/* FIXME: mfc_chk_inst_state*/
+		/* RMVME: need locking ? */
+		mutex_lock(&dev->lock);
+
+		/* in_param.ret_code = mfc_set_config(mfc_ctx, &(in_param.args)); */
+
+		cfg_arg = (struct mfc_config_arg *)&in_param.args;
+
+		in_param.ret_code = mfc_set_inst_cfg(mfc_ctx, cfg_arg->type,
+				(void *)&cfg_arg->args);
+		ret = in_param.ret_code;
+
+		mutex_unlock(&dev->lock);
+		break;
+
+	case IOCTL_MFC_GET_CONFIG:
+		/* FIXME: mfc_chk_inst_state */
+		/* RMVME: need locking ? */
+		mutex_lock(&dev->lock);
+
+		cfg_arg = (struct mfc_config_arg *)&in_param.args;
+
+		in_param.ret_code = mfc_get_inst_cfg(mfc_ctx, cfg_arg->type,
+				(void *)&cfg_arg->args);
+		ret = in_param.ret_code;
+
+		mutex_unlock(&dev->lock);
+		break;
+
+	case IOCTL_MFC_SET_BUF_CACHE:
+		mfc_ctx->buf_cache_type = in_param.args.mem_alloc.buf_cache_type;
+		in_param.ret_code = MFC_OK;
+		break;
+
+	default:
+		mfc_err("failed to execute ioctl cmd: 0x%08x\n", cmd);
+
+		in_param.ret_code = MFC_INVALID_PARAM_FAIL;
+		ret = -EINVAL;
+	}
+
+out_ioctl:
+	ex_ret = copy_to_user((struct mfc_common_args_3sung *)arg,
+			&in_param,
+			sizeof(struct mfc_common_args_3sung));
 	if (ex_ret < 0) {
 		mfc_err("Outparm copy to user error\n");
 		ret = -EIO;
@@ -1406,18 +1876,32 @@ static int mfc_open_with_retry(struct inode *inode, struct file *file)
 #define MFC_OPEN mfc_open
 #endif
 
-static const struct file_operations mfc_fops = {
+static const struct file_operations mfc_fops_cm = {
 	.owner		= THIS_MODULE,
-	.open		= MFC_OPEN,
+	.open		= mfc_open,
 	.release	= mfc_release,
-	.unlocked_ioctl	= mfc_ioctl,
+	.unlocked_ioctl	= mfc_ioctl_cm,
 	.mmap		= mfc_mmap,
 };
 
-static struct miscdevice mfc_miscdev = {
+static const struct file_operations mfc_fops_3sung = {
+	.owner		= THIS_MODULE,
+	.open		= MFC_OPEN,
+	.release	= mfc_release,
+	.unlocked_ioctl	= mfc_ioctl_3sung,
+	.mmap		= mfc_mmap,
+};
+
+static struct miscdevice mfc_miscdev_cm = {
 	.minor	= MFC_MINOR,
 	.name	= MFC_DEV_NAME,
-	.fops	= &mfc_fops,
+	.fops	= &mfc_fops_cm,
+};
+
+static struct miscdevice mfc_miscdev_3sung = {
+	.minor	= MFC_MINOR,
+	.name	= MFC_DEV_NAME,
+	.fops	= &mfc_fops_3sung,
 };
 
 static void mfc_firmware_request_complete_handler(const struct firmware *fw,
@@ -1487,7 +1971,8 @@ static int __devinit mfc_probe(struct platform_device *pdev)
 	init_waitqueue_head(&mfcdev->wait_codec[0]);
 	init_waitqueue_head(&mfcdev->wait_codec[1]);
 #if SUPPORT_SLICE_ENCODING
-_SUPPORT_SLICE_ENCODING {
+_SUPPORT_SLICE_ENCODING
+{
 	init_waitqueue_head(&mfcdev->wait_slice);
 	init_waitqueue_head(&mfcdev->wait_frame);
 }
@@ -1505,7 +1990,8 @@ _SUPPORT_SLICE_ENCODING {
 #endif
 	mfcdev->device = &pdev->dev;
 #if SUPPORT_SLICE_ENCODING
-_SUPPORT_SLICE_ENCODING {
+_SUPPORT_SLICE_ENCODING
+{
 	mfcdev->slice_encoding_flag = 0;
 	mfcdev->slice_sys = 0;
 	mfcdev->frame_sys = 0;
@@ -1619,9 +2105,15 @@ _SUPPORT_SLICE_ENCODING {
 
 	/* FIXME: final dec & enc */
 	mfc_init_decoders();
-	mfc_init_encoders();
+SAMSUNGROM
+	mfc_init_encoders_3sung();
+else
+	mfc_init_encoders_cm();
 
-	ret = misc_register(&mfc_miscdev);
+SAMSUNGROM
+	ret = misc_register(&mfc_miscdev_3sung);
+else
+	ret = misc_register(&mfc_miscdev_cm);
 	if (ret) {
 		mfc_err("MFC can't misc register on minor=%d\n", MFC_MINOR);
 		goto err_misc_reg;
@@ -1700,7 +2192,10 @@ static int __devexit mfc_remove(struct platform_device *pdev)
 
 	/* FIXME: close all instance? or check active instance? */
 
-	misc_deregister(&mfc_miscdev);
+SAMSUNGROM
+	misc_deregister(&mfc_miscdev_3sung);
+else
+	misc_deregister(&mfc_miscdev_cm);
 
 	mfc_final_buf();
 #ifdef SYSMMU_MFC_ON
@@ -1862,6 +2357,11 @@ static struct platform_driver mfc_driver = {
 };
 
 static int __init mfc_init(void)
+{
+	return 0;
+}
+
+int mfc_late_init(void)
 {
 	if (platform_driver_register(&mfc_driver) != 0) {
 		printk(KERN_ERR "FIMV MFC platform device registration failed\n");
