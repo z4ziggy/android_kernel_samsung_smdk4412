@@ -402,7 +402,7 @@ static void change_dvfs_lock(struct work_struct *work)
 		pr_err("%s: dev change bud lock failed(%d)\n",\
 				__func__, __LINE__);
 	else
-		pr_info("[TSP] change_dvfs_lock");
+		pr_debug("[TSP] change_dvfs_lock");
 	mutex_unlock(&info->dvfs_lock);
 }
 static void set_dvfs_off(struct work_struct *work)
@@ -763,7 +763,7 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 #if defined(SEC_TSP_EVENT_DEBUG) && defined(CONFIG_TARGET_LOCALE_KOR)
 			printk(KERN_DEBUG "[TSP] POS[%d](%4d,%4d)[D] tp = %d\n",
 					id, x, y, touch_is_pressed);
-#else
+#elif defined(SEC_TSP_DEBUG)
 			dev_notice(&client->dev,
 				"finger [%d] down, palm %d\n", id, palm);
 #endif
