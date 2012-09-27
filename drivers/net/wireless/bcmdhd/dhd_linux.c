@@ -646,6 +646,9 @@ void dhd_enable_packet_filter(int value, dhd_pub_t *dhd)
 bool wifi_pm = false;
 module_param(wifi_pm, bool, 0755);
 
+bool wifi_pm = false;
+module_param(wifi_pm, bool, 0755);
+
 static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 {
 #ifndef SUPPORT_PM2_ONLY
