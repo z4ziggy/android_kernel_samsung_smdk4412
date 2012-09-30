@@ -373,8 +373,11 @@ static int ump_file_ioctl(struct inode *inode, struct file *filp, unsigned int c
 			break;
 
 		case UMP_IOC_MSYNC:
+			err = ump_msync_wrapper((u32 __user *)argument, session_data, false);
+			break;
+
 		case UMP_IOC_MSYNC_OLD:
-			err = ump_msync_wrapper((u32 __user *)argument, session_data);
+			err = ump_msync_wrapper((u32 __user *)argument, session_data, true);
 			break;
 
 		case UMP_IOC_CACHE_OPERATIONS_CONTROL:
