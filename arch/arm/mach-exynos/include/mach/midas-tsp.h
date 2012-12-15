@@ -16,7 +16,11 @@
 #elif defined(CONFIG_TOUCHSCREEN_CYTTSP4)
 #include <linux/platform_data/cypress_cyttsp4.h>
 #else
+#if defined(CONFIG_TOUCHSCREEN_MELFAS_NOTE)
+#include <linux/platform_data/mms152_ts.h>
+#else
 #include <linux/melfas_ts.h>
+#endif
 #endif
 
 extern int melfas_power(int on);
