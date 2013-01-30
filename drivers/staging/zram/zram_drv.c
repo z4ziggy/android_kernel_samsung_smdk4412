@@ -526,16 +526,13 @@ static int zram_make_request(struct request_queue *queue, struct bio *bio)
 {
 	struct zram *zram = queue->queuedata;
 
-	if (unlikely(!zram->init_done) && zram_init_device(zram))
-		goto error;
-
 	down_read(&zram->init_lock);
 	if (unlikely(!zram->init_done))
-		goto error_unlock;
+		goto error;
 
 	if (!valid_io_request(zram, bio)) {
 		zram_stat64_inc(zram, &zram->stats.invalid_io);
-		goto error_unlock;
+		goto error;
 	}
 
 	__zram_make_request(zram, bio, bio_data_dir(bio));
@@ -543,9 +540,8 @@ static int zram_make_request(struct request_queue *queue, struct bio *bio)
 
 	return 0;
 
-error_unlock:
-	up_read(&zram->init_lock);
 error:
+	up_read(&zram->init_lock);
 	bio_io_error(bio);
 	return 0;
 }
@@ -595,6 +591,7 @@ void zram_reset_device(struct zram *zram)
 	up_write(&zram->init_lock);
 }
 
+/* zram->init_lock should be held */
 int zram_init_device(struct zram *zram)
 {
 	int ret;
@@ -603,13 +600,6 @@ int zram_init_device(struct zram *zram)
 	struct page *page;
 	union swap_header *swap_header;
 #endif /* CONFIG_ZRAM_FOR_ANDROID */
-
-	down_write(&zram->init_lock);
-
-	if (zram->init_done) {
-		up_write(&zram->init_lock);
-		return 0;
-	}
 
 	if (zram->disksize > 2 * (totalram_pages << PAGE_SHIFT)) {
 		pr_info(
@@ -673,7 +663,6 @@ int zram_init_device(struct zram *zram)
 	}
 
 	zram->init_done = 1;
-	up_write(&zram->init_lock);
 
 	pr_debug("Initialization done!\n");
 	return 0;
@@ -683,7 +672,6 @@ fail_no_table:
 	zram->disksize = 0;
 fail:
 	__zram_reset_device(zram);
-	up_write(&zram->init_lock);
 	pr_err("Initialization failed: err=%d\n", ret);
 	return ret;
 }
