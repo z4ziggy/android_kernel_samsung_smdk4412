@@ -39,6 +39,8 @@ DHDCFLAGS += -DDUAL_ESCAN_RESULT_BUFFER
 
 DHDCFLAGS += -DROAM_ENABLE -DROAM_CHANNEL_CACHE -DROAM_API
 DHDCFLAGS += -DDISABLE_FW_ROAM_SUSPEND
+DHDCFLAGS += -DCUSTOM_ROAM_TRIGGER_SETTING=-65
+DHDCFLAGS += -DCUSTOM_ROAM_DELTA_SETTING=15
 
 # For Static Buffer
 ifeq ($(CONFIG_BROADCOM_WIFI_RESERVED_MEM),y)
@@ -84,14 +86,17 @@ ifneq ($(CONFIG_BCM4334),)
   DHDCFLAGS += -DUSE_CID_CHECK -DCONFIG_CONTROL_PM
   DHDCFLAGS += -DPROP_TXSTATUS
   DHDCFLAGS += -DVSDB -DHT40_GO
-  DHDCFLAGS += -DWL_CFG80211_VSDB_PRIORITIZE_SCAN_REQUEST
+  DHDCFLAGS += -DWL_CFG80211_VSDB_PRIORITIZE_SCAN_REQUEST -DSDIO_CRC_ERROR_FIX
+  DHDCFLAGS += -DCUSTOM_SDIO_F2_BLKSIZE=128
   DHDCFLAGS += -DDHD_USE_IDLECOUNT
   DHDCFLAGS += -DSUPPORT_AMPDU_MPDU_CMD
   DHDCFLAGS += -DVSDB_DYNAMIC_F2_BLKSIZE -DSDIO_F2_BLKSIZE=512 -DVSDB_F2_BLKSIZE=64
   DHDCFLAGS += -DCUSTOM_GLOM_SETTING=5 -DENABLE_BCN_LI_BCN_WAKEUP
-#  DHDCFLAGS += -DUSE_WEP_AUTH_SHARED_OPEN
+
+# DHDCFLAGS += -DUSE_WEP_AUTH_SHARED_OPEN
   DHDCFLAGS += -DROAM_AP_ENV_DETECTION
   DHDCFLAGS += -DWES_SUPPORT
+  DHDCFLAGS += -DPASS_ARP_PACKET
 endif
 
 ifneq ($(CONFIG_BCM4330),)
@@ -117,7 +122,6 @@ ifneq ($(CONFIG_BCM43241),)
     DHDCFLAGS += -fno-pic
   endif
 endif
-
 
 #############################
 # Platform dependent feature
@@ -209,17 +213,6 @@ DHDOFILES :=$(filter-out bcmsdh_sdmmc.o,$(DHDOFILES))
 DHDOFILES :=$(filter-out bcmsdh_sdmmc_linux.o,$(DHDOFILES))
 endif
 
-dhd-y := $(DHDOFILES)
-obj-m   += dhd.o
+obj-$(CONFIG_BCMDHD) += dhd.o
+dhd-objs += $(DHDOFILES)
 
-all:
-	@echo "$(MAKE) --no-print-directory -C $(KDIR) SUBDIRS=$(CURDIR) modules"
-	@$(MAKE) --no-print-directory -C $(KDIR) SUBDIRS=$(CURDIR) modules
-
-clean:
-	rm -rf *.o *.ko *.mod.c *~ .*.cmd *.o.cmd .*.o.cmd \
-	Module.symvers modules.order .tmp_versions modules.builtin
-
-install:
-	@$(MAKE) --no-print-directory -C $(KDIR) \
-		SUBDIRS=$(CURDIR) modules_install
