@@ -19,7 +19,7 @@ KERNEL_PATH="/home/dominik/android/android_4.2/kernel/samsung/smdk4412"
 # Set toolchain and root filesystem path
 TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin"
 TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
-ROOTFS_PATH="$KERNEL_PATH/ramdisk-samsung-lte"
+ROOTFS_PATH="$KERNEL_PATH/redpill_initramfs"
 
 export KBUILD_BUILD_VERSION="Devil-N7105-SAMSUNG-0.1"
 export KERNELDIR=$KERNEL_PATH
@@ -33,8 +33,8 @@ make modules -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$
 
 # Copying kernel modules
 
-#find -name '*.ko' -exec cp -av {} $ROOTFS_PATH/lib/modules/ \;
-#        for i in $ROOTFS_PATH/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
+find -name '*.ko' -exec cp -av {} $ROOTFS_PATH/lib/modules/ \;
+        for i in $ROOTFS_PATH/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
 
 #unzip $KERNEL_PATH/proprietary-modules/proprietary-modules.zip -d $ROOTFS_PATH/lib/modules
 
