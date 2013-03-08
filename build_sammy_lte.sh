@@ -19,7 +19,7 @@ KERNEL_PATH="/home/dominik/android/android_4.2/kernel/samsung/smdk4412"
 # Set toolchain and root filesystem path
 TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin"
 TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
-ROOTFS_PATH="$KERNEL_PATH/redpill_initramfs"
+ROOTFS_PATH="$KERNEL_PATH/ramdisk-samsung-lte"
 
 export KBUILD_BUILD_VERSION="Devil-N7105-SAMSUNG-0.1"
 export KERNELDIR=$KERNEL_PATH
