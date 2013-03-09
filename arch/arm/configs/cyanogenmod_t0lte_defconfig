@@ -2,6 +2,7 @@
 # Automatically generated make config: don't edit
 # Linux/arm 3.0.31 Kernel Configuration
 #
+CONFIG_AOSP_ROM_SUPPORT=y
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -558,6 +559,9 @@ CONFIG_QC_MODEM_M3=y
 CONFIG_USB_CDFS_SUPPORT=y
 CONFIG_SAMSUNG_PRODUCT_SHIP=y
 # CONFIG_CORESIGHT_ETM is not set
+
+# CONFIG_CPU_FREQ_TETHERING is not set
+
 
 #
 # Processor Type
@@ -1357,6 +1361,7 @@ CONFIG_WIFI_CONTROL_FUNC=y
 # CONFIG_ATH_COMMON is not set
 # CONFIG_BCM4330 is not set
 CONFIG_BCM4334=y
+CONFIG_BCM4334_CM=m
 # CONFIG_BCM43241 is not set
 CONFIG_BCMDHD_FW_PATH="/system/etc/firmware/fw_bcmdhd.bin"
 CONFIG_BCMDHD_NVRAM_PATH="/system/etc/wifi/bcmdhd.cal"
@@ -3306,3 +3311,5 @@ CONFIG_HAS_DMA=y
 CONFIG_CPU_RMAP=y
 CONFIG_NLATTR=y
 # CONFIG_AVERAGE is not set
+
+CONFIG_UMP_R3P0_LSI=y
