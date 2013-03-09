@@ -1,0 +1,103 @@
+#!/sbin/busybox sh
+
+SETTING=$2
+
+if [ -z $3 ]; then
+	if [ -z $eq_presets ]; then
+
+		# Use as an group initialization flag
+		eq_presets="shenanigans"
+
+		eq_selection=1
+		eq_preset=5
+		digital_gain=0
+		eq_band1=`cat /sys/class/misc/scoobydoo_sound/headphone_eq_b1_gain`
+		eq_band2=`cat /sys/class/misc/scoobydoo_sound/headphone_eq_b2_gain`
+		eq_band3=`cat /sys/class/misc/scoobydoo_sound/headphone_eq_b3_gain`
+		eq_band4=`cat /sys/class/misc/scoobydoo_sound/headphone_eq_b4_gain`
+		eq_band5=`cat /sys/class/misc/scoobydoo_sound/headphone_eq_b5_gain`
+
+		echo "eq_presets=$eq_presets" >> $DEFAULT_PROFILE
+
+		echo "eq_selection=$eq_selection" >> $DEFAULT_PROFILE
+		echo "eq_preset=$eq_preset" >> $DEFAULT_PROFILE
+		echo "digital_gain=$digital_gain" >> $DEFAULT_PROFILE
+		echo "eq_band1=$eq_band1" >> $DEFAULT_PROFILE
+		echo "eq_band2=$eq_band2" >> $DEFAULT_PROFILE
+		echo "eq_band3=$eq_band3" >> $DEFAULT_PROFILE
+		echo "eq_band4=$eq_band4" >> $DEFAULT_PROFILE
+		echo "eq_band5=$eq_band5" >> $DEFAULT_PROFILE
+	fi
+else
+	eval $SETTING=$3
+
+	echo -${digital_gain}000 > /sys/class/misc/scoobydoo_sound/digital_gain
+
+	if [ "$eq_selection" == "0" ]; then
+		case "$eq_preset" in
+			0)
+				eq_band1=0
+				eq_band2=0
+				eq_band3=0
+				eq_band4=0
+				eq_band5=0
+		    		;;
+			1)
+				eq_band1=12
+				eq_band2=8
+				eq_band3=3
+				eq_band4=-1
+				eq_band5=1
+				;;
+			2)
+				eq_band1=10
+				eq_band2=7
+				eq_band3=0
+				eq_band4=2
+				eq_band5=5
+				;;
+			3)
+				eq_band1=-5
+				eq_band2=1
+				eq_band3=0
+				eq_band4=4
+				eq_band5=3
+				;;
+			4)
+				eq_band1=0
+				eq_band2=0
+				eq_band3=0
+				eq_band4=-3
+				eq_band5=-5
+				;;
+			5)
+				eq_band1=4
+				eq_band2=3
+				eq_band3=2
+				eq_band4=3
+				eq_band5=1
+				;;
+			6)
+				eq_band1=12
+				eq_band2=8
+				eq_band3=4
+				eq_band4=2
+				eq_band5=3
+				;;
+		esac;
+	fi
+
+	echo $eq_band1 > /sys/class/misc/scoobydoo_sound/headphone_eq_b1_gain
+	echo $eq_band2 > /sys/class/misc/scoobydoo_sound/headphone_eq_b2_gain
+	echo $eq_band3 > /sys/class/misc/scoobydoo_sound/headphone_eq_b3_gain
+	echo $eq_band4 > /sys/class/misc/scoobydoo_sound/headphone_eq_b4_gain
+	echo $eq_band5 > /sys/class/misc/scoobydoo_sound/headphone_eq_b5_gain
+	echo 1 > /sys/class/misc/scoobydoo_sound/headphone_eq
+
+	if [ "$eq_selection" == "0" -a "$eq_preset" == "0" ]; then
+		echo 0 > /sys/class/misc/scoobydoo_sound/headphone_eq
+	fi
+
+fi
+
+eval echo \$$SETTING
