@@ -20,24 +20,29 @@ KERNEL_PATH="/home/dominik/android/android_4.2/kernel/samsung/smdk4412"
 TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin"
 TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
 ROOTFS_PATH="$KERNEL_PATH/ramdisk-samsung-lte"
+version=Devil-N7105-SAMSUNG-0.1_$(date +%Y%m%d)
 
-export KBUILD_BUILD_VERSION="Devil-N7105-SAMSUNG-0.1"
+export KBUILD_BUILD_VERSION="$version"
 export KERNELDIR=$KERNEL_PATH
 
 export USE_SEC_FIPS_MODE=true
 
+if [ "$1" = "clean" ]; then
+echo "Cleaning latest build"
+make ARCH=arm CROSS_COMPILE=$TOOLCHAIN -j`grep 'processor' /proc/cpuinfo | wc -l` mrproper
+fi
+
 # Making our .config
 make samsung_t0lte_defconfig
 
-make modules -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$TOOLCHAIN #>> compile.log 2>&1 || exit -1
+# make the modules
+make modules -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$TOOLCHAIN || exit -1
 
-# Copying kernel modules
-
+# Copying and stripping kernel modules
 find -name '*.ko' -exec cp -av {} $ROOTFS_PATH/lib/modules/ \;
         for i in $ROOTFS_PATH/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
 
-#unzip $KERNEL_PATH/proprietary-modules/proprietary-modules.zip -d $ROOTFS_PATH/lib/modules
-
+# make kernel zImage
 make zImage -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$TOOLCHAIN || exit -1
 
 # Copy Kernel Image
