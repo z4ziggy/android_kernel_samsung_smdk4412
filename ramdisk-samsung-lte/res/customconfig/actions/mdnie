@@ -1,0 +1,333 @@
+#!/sbin/busybox sh
+
+# @Author	: Andrei F. for Perseus kernel
+# @Date 	: January 2013
+
+_08_SCENARIOS="tune_dynamic_gallery tune_dynamic_ui tune_dynamic_video tune_dynamic_vt tune_standard_gallery tune_standard_ui tune_standard_video tune_standard_vt tune_natural_gallery tune_natural_ui tune_natural_video tune_natural_vt tune_camera tune_camera_outdoor tune_cold tune_cold_outdoor tune_normal_outdoor tune_warm tune_warm_outdoor"
+
+_08_tune_dynamic_gallery=8C
+_08_tune_dynamic_ui=8C
+_08_tune_dynamic_video=8C
+_08_tune_dynamic_vt=8E
+_08_tune_standard_gallery=8C
+_08_tune_standard_ui=8C
+_08_tune_standard_video=8C
+_08_tune_standard_vt=8E
+_08_tune_natural_gallery=AC
+_08_tune_natural_ui=AC
+_08_tune_natural_video=AC
+_08_tune_natural_vt=AE
+_08_tune_camera=0C
+_08_tune_camera_outdoor=AC
+_08_tune_cold=AC
+_08_tune_cold_outdoor=040C
+_08_tune_normal_outdoor=040C
+_08_tune_warm=EC
+_08_tune_warm_outdoor=040C
+
+_DE_SCENARIOS="tune_dynamic_gallery tune_dynamic_video tune_dynamic_vt tune_movie_vt tune_standard_gallery tune_standard_ui tune_standard_video tune_standard_vt tune_natural_gallery tune_natural_video tune_natural_vt tune_camera tune_camera_outdoor"
+
+_DE_tune_dynamic_gallery=80
+_DE_tune_dynamic_video=80
+_DE_tune_dynamic_vt=E0
+
+_DE_tune_movie_vt=40
+
+_DE_tune_standard_gallery=60
+_DE_tune_standard_ui=20
+_DE_tune_standard_video=60
+_DE_tune_standard_vt=C0
+
+_DE_tune_natural_gallery=60
+_DE_tune_natural_video=60
+_DE_tune_natural_vt=C0
+
+_DE_tune_camera=60
+_DE_tune_camera_outdoor=AC
+
+_CS_SCENARIOS="tune_dynamic_gallery tune_dynamic_ui tune_dynamic_video tune_dynamic_vt tune_movie_video tune_movie_vt tune_standard_gallery tune_standard_ui tune_standard_video tune_standard_vt tune_natural_gallery tune_natural_ui tune_natural_video tune_natural_vt tune_camera tune_camera_outdoor"
+
+_CS_HG_RY_global=10
+_CS_HG_GC_global=10
+_CS_HG_BM_global=10
+
+_CS_RY_global=10
+_CS_GC_global=10
+_CS_BM_global=10
+
+_CS_greyTH_global=04
+
+_CS_weight_tune_dynamic_gallery=14
+_CS_weight_tune_dynamic_ui=18
+_CS_weight_tune_dynamic_video=14
+_CS_weight_tune_dynamic_vt=1A
+
+_CS_weight_tune_movie_video=10
+_CS_weight_tune_movie_vt=12
+
+_CS_weight_tune_standard_gallery=12
+_CS_weight_tune_standard_ui=16
+_CS_weight_tune_standard_video=12
+_CS_weight_tune_standard_vt=18
+
+_CS_weight_tune_natural_gallery=18
+_CS_weight_tune_natural_ui=18
+_CS_weight_tune_natural_video=18
+_CS_weight_tune_natural_vt=18
+
+_CS_weight_tune_camera=12
+_CS_weight_tune_camera_outdoor=12
+
+if [ -z $3 ]; then
+	case "$2" in
+		DITHER_DELTA)
+			if [ -z $DITHER_DELTA ]; then
+				DITHER_DELTA=-4
+				echo "DITHER_DELTA=$DITHER_DELTA" >> $DEFAULT_PROFILE
+			fi
+			;;
+		DE_DELTA)
+			if [ -z $DE_DELTA ]; then
+				DE_DELTA=0
+				echo "DE_DELTA=$DE_DELTA" >> $DEFAULT_PROFILE
+			fi
+			;;
+		DE_KILL)
+			if [ -z $DE_KILL ]; then
+				DE_KILL=1
+				echo "DE_KILL=$DE_KILL" >> $DEFAULT_PROFILE
+			fi
+			;;
+		DE_MIN)
+			if [ -z $DE_MIN ]; then
+				DE_MIN=1
+				echo "DE_MIN=$DE_MIN" >> $DEFAULT_PROFILE
+			fi
+			;;
+		DE_MAX)
+			if [ -z $DE_MAX ]; then
+				DE_MAX=128
+				echo "DE_MAX=$DE_MAX" >> $DEFAULT_PROFILE
+			fi
+			;;
+
+	esac
+
+	if [ $2 == "CS_WEIGHT_DELTA" -o $2 == "CS_GREY_DELTA" ]; then
+		if [ "a" == "a$CS_GREY_DELTA" ]; then
+			CS_GREY_DELTA=0
+			echo "CS_GREY_DELTA=$CS_GREY_DELTA" >> $DEFAULT_PROFILE
+		fi
+		if [ "a" == "a$CS_WEIGHT_DELTA" ]; then
+			CS_WEIGHT_DELTA=0
+			echo "CS_WEIGHT_DELTA=$CS_WEIGHT_DELTA" >> $DEFAULT_PROFILE
+		fi
+	fi
+
+	if [ $2 == "CS_HG_RY_DELTA" -o $2 == "CS_RY_DELTA" ]; then
+		if [ "a" == "a$CS_HG_RY_DELTA" ]; then
+			CS_HG_RY_DELTA=0
+			echo "CS_HG_RY_DELTA=$CS_HG_RY_DELTA" >> $DEFAULT_PROFILE
+		fi
+
+		if [ "a" == "a$CS_RY_DELTA" ]; then
+			CS_RY_DELTA=0
+			echo "CS_RY_DELTA=$CS_RY_DELTA" >> $DEFAULT_PROFILE
+		fi
+	fi
+
+	if [ $2 == "CS_HG_GC_DELTA" -o $2 == "CS_GC_DELTA" ]; then
+		if [ "a" == "a$CS_HG_GC_DELTA" ]; then
+			CS_HG_GC_DELTA=0
+			echo "CS_HG_GC_DELTA=$CS_HG_GC_DELTA" >> $DEFAULT_PROFILE
+		fi
+
+		if [ "a" == "a$CS_GC_DELTA" ]; then
+			CS_GC_DELTA=0
+			echo "CS_GC_DELTA=$CS_GC_DELTA" >> $DEFAULT_PROFILE
+		fi
+	fi
+
+	if [ $2 == "CS_HG_BM_DELTA" -o $2 == "CS_BM_DELTA" ]; then
+		if [ "a" == "a$CS_HG_BM_DELTA" ]; then
+			CS_HG_BM_DELTA=0
+			echo "CS_HG_BM_DELTA=$CS_HG_BM_DELTA" >> $DEFAULT_PROFILE
+		fi
+
+		if [ "a" == "a$CS_BM_DELTA" ]; then
+			CS_BM_DELTA=0
+			echo "CS_BM_DELTA=$CS_BM_DELTA" >> $DEFAULT_PROFILE
+		fi
+	fi
+else
+	if [ $2 == "DITHER_DELTA" ]; then
+		DITHER_DELTA=$3
+
+		for scenario in `echo $_08_SCENARIOS`; do
+			scenval="\$_08_$scenario"
+			eval "scenval=$scenval"
+			cmd="echo \$(( 0x$scenval + $DITHER_DELTA ))"
+			VAL=`eval $cmd`
+	
+			if [ $VAL -gt 255 ]; then
+				VAL=255
+			fi
+
+			if [ $VAL -lt 0 ]; then
+				VAL=0
+			fi
+	
+			echo 0x8 0x`printf "%X" $VAL` > /sys/class/misc/mdnie/$scenario
+		done;
+	fi
+	
+	if [ $2 == "DE_KILL" -o $2 == "DE_MIN" -o $2 == "DE_MAX" -o $2 == "DE_DELTA" ]; then
+		if [ $2 == "DE_KILL" ]; then
+			if [ $3 == "off" ]; then
+				DE_KILL=0
+			else
+				DE_KILL=1
+			fi
+		fi
+
+		if [ $2 == "DE_MIN" ]; then
+			DE_MIN=$3
+		fi
+
+		if [ $DE_KILL -eq 0 ]; then
+			VAL=$DE_MIN
+		else
+			VAL=0
+		fi
+
+		for scenario in `echo $_DE_SCENARIOS`; do
+			echo 0x98 0x`printf "%X" $VAL`00 > /sys/class/misc/mdnie/$scenario
+		done;
+
+		if [ $2 == "DE_MIN" ]; then
+			BREAK=YES
+		fi
+
+		if [ -z $BREAK ]; then
+			if [ $2 == "DE_MAX" ]; then
+				DE_MAX=$3
+			fi
+
+			if [ $DE_KILL -eq 0 ]; then
+				VAL=$DE_MAX
+			else
+				VAL=0
+			fi
+
+			for scenario in `echo $_DE_SCENARIOS`; do
+				echo 0x99 0x`printf "%X" $VAL`00 > /sys/class/misc/mdnie/$scenario
+			done;
+
+			if [ $2 == "DE_MAX" ]; then
+				BREAK=YES
+			fi
+		fi
+
+		if [ -z $BREAK ]; then
+			if [ $2 == "DE_DELTA" ]; then
+				DE_DELTA=$3
+			fi
+
+			for scenario in `echo $_DE_SCENARIOS`; do
+				if [ $DE_KILL -eq 0 ]; then
+					scenval="\$_DE_$scenario"
+					eval "scenval=$scenval"
+					cmd="echo \$(( 0x$scenval + $DITHER_DELTA ))"
+					VAL=`eval $cmd`
+
+					if [ $VAL -gt 255 ]; then
+						VAL=255
+					fi
+
+					if [ $VAL -lt 0 ]; then
+						VAL=0
+					fi
+				else
+					VAL=0
+				fi
+
+				for reg in {92..97}; do
+					echo 0x$reg 0x$VAL > /sys/class/misc/mdnie/$scenario
+				done;
+			done;
+		fi
+	fi
+
+	if [ $2 == "CS_HG_RY_DELTA" -o $2 == "CS_RY_DELTA" ]; then
+		if [ -n $3 ]; then
+			[ $2 == "CS_HG_RY_DELTA" ] && CS_HG_RY_DELTA=$3
+			[ $2 == "CS_RY_DELTA" ] && CS_RY_DELTA=$3
+	
+			for scenario in `echo $_CS_SCENARIOS`; do
+				cmd="echo \$(( 0x$_CS_HG_RY_global + $CS_HG_RY_DELTA ))"
+				HGVAL=`eval $cmd`
+		
+				cmd="echo \$(( 0x$_CS_RY_global + $CS_RY_DELTA ))"
+				CRVAL=`eval $cmd`
+
+				echo 0xB0 0x`printf "%0.2X" $HGVAL``printf "%0.2X" $CRVAL` > /sys/class/misc/mdnie/$scenario
+			done;
+		fi
+	fi
+
+	if [ $2 == "CS_HG_GC_DELTA" -o $2 == "CS_GC_DELTA" ]; then
+		if [ -n $3 ]; then
+			[ $2 == "CS_HG_GC_DELTA" ] && CS_HG_GC_DELTA=$3
+			[ $2 == "CS_GC_DELTA" ] && CS_GC_DELTA=$3
+	
+			for scenario in `echo $_CS_SCENARIOS`; do
+				cmd="echo \$(( 0x$_CS_HG_GC_global + $CS_HG_GC_DELTA ))"
+				HGVAL=`eval $cmd`
+		
+				cmd="echo \$(( 0x$_CS_GC_global + $CS_GC_DELTA ))"
+				CRVAL=`eval $cmd`
+
+				echo 0xB1 0x`printf "%X" $HGVAL``printf "%0.2X" $CRVAL` > /sys/class/misc/mdnie/$scenario
+			done;
+		fi
+	fi
+
+	if [ $2 == "CS_HG_BM_DELTA" -o $2 == "CS_BM_DELTA" ]; then
+		if [ -n $3 ]; then
+			[ $2 == "CS_HG_BM_DELTA" ] && CS_HG_BM_DELTA=$3
+			[ $2 == "CS_BM_DELTA" ] && CS_BM_DELTA=$3
+
+			for scenario in `echo $_CS_SCENARIOS`; do
+				cmd="echo \$(( 0x$_CS_HG_BM_global + $CS_HG_BM_DELTA ))"
+				HGVAL=`eval $cmd`
+	
+				cmd="echo \$(( 0x$_CS_BM_global + $CS_BM_DELTA ))"
+				CRVAL=`eval $cmd`
+
+				echo 0xB2 0x`printf "%X" $HGVAL``printf "%0.2X" $CRVAL` > /sys/class/misc/mdnie/$scenario
+			done;
+		fi
+	fi
+
+	if [ $2 == "CS_WEIGHT_DELTA" -o $2 == "CS_GREY_DELTA" ]; then
+		if [ -n $3 ]; then
+			[ $2 == "CS_WEIGHT_DELTA" ] && CS_WEIGHT_DELTA=$3
+			[ $2 == "CS_GREY_DELTA" ] && CS_GREY_DELTA=$3
+	
+			for scenario in `echo $_CS_SCENARIOS`; do
+				scenval="\$_CS_weight_$scenario"
+				eval "scenval=$scenval"
+				cmd="echo \$(( 0x$scenval + $CS_WEIGHT_DELTA ))"
+				WVAL=`eval $cmd`
+		
+				cmd="echo \$(( 0x$_CS_greyTH_global + $CS_GREY_DELTA ))"
+				GVAL=`eval $cmd`
+
+				echo 0xB3 0x`printf "%X" $WVAL``printf "%0.2X" $GVAL` > /sys/class/misc/mdnie/$scenario
+			done;
+		fi
+	fi
+fi
+
+evalcmd='eval echo \$$2'
+eval $evalcmd
