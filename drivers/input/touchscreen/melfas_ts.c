@@ -1409,7 +1409,7 @@ static void melfas_ts_get_data(struct work_struct *work)
 			msecs_to_jiffies(TOUCH_BOOSTER_TIME));
 
 		if (!dvfs_lock_status && press_status) {
-			ret = exynos_cpufreq_lock(DVFS_LOCK_ID_TSP, L7);
+			ret = exynos_cpufreq_lock(DVFS_LOCK_ID_TSP, L11);
 			if (ret < 0) {
 				pr_err("%s: cpufreq lock failed(%d)\n",
 					__func__, __LINE__);
