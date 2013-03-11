@@ -554,7 +554,7 @@ power_attr(cpufreq_min_limit);
 #ifdef CONFIG_ROTATION_BOOSTER_SUPPORT
 static inline void rotation_booster_on(void)
 {
-	exynos_cpufreq_lock(DVFS_LOCK_ID_ROTATION_BOOSTER, L0);
+	exynos_cpufreq_lock(DVFS_LOCK_ID_ROTATION_BOOSTER, L4);
 	exynos4_busfreq_lock(DVFS_LOCK_ID_ROTATION_BOOSTER, BUS_L0);
 	exynos_gpufreq_lock();
 }
