@@ -115,6 +115,7 @@ config STACKTRACE_SUPPORT
 
 config HAVE_LATENCYTOP_SUPPORT
 	bool
+	depends on !SMP
 	default y
 
 config LOCKDEP_SUPPORT

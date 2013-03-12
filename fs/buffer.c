@@ -813,7 +813,7 @@ static int fsync_buffers_list(spinlock_t *lock, struct list_head *list)
 		brelse(bh);
 		spin_lock(lock);
 	}
-	
+
 	spin_unlock(lock);
 	err2 = osync_buffers_list(lock, list);
 	if (err)
@@ -984,7 +984,7 @@ init_page_buffers(struct page *page, struct block_device *bdev,
 		block++;
 		bh = bh->b_this_page;
 	} while (bh != head);
-	
+
 	/*
  	 * Caller needs to validate requested block against end of device.
  	 */
@@ -1447,7 +1447,7 @@ static void invalidate_bh_lru(void *arg)
 	}
 	put_cpu_var(bh_lrus);
 }
-	
+
 void invalidate_bh_lrus(void)
 {
 	on_each_cpu(invalidate_bh_lru, NULL, 1);
@@ -2816,7 +2816,7 @@ int block_truncate_page(struct address_space *mapping,
 
 	length = blocksize - length;
 	iblock = (sector_t)index << (PAGE_CACHE_SHIFT - inode->i_blkbits);
-	
+
 	page = grab_cache_page(mapping, index);
 	err = -ENOMEM;
 	if (!page)

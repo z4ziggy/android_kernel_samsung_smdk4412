@@ -21,9 +21,6 @@
 #include <linux/tick.h>
 #include <linux/stop_machine.h>
 
-static void notrace sched_clock_clksrc_install(struct clocksource *clock);
-static void notrace sched_clock_clksrc_update(void);
-
 /* Structure holding internal timekeeping values. */
 struct timekeeper {
 	/* Current clocksource used for timekeeping. */
@@ -68,9 +65,6 @@ static void timekeeper_setup_internals(struct clocksource *clock)
 {
 	cycle_t interval;
 	u64 tmp, ntpinterval;
-
-	if (clock->flags & CLOCK_SOURCE_SCHED_CLOCK)
-		sched_clock_clksrc_install(clock);
 
 	timekeeper.clock = clock;
 	clock->cycle_last = clock->read(clock);
@@ -388,7 +382,7 @@ int do_settimeofday(const struct timespec *tv)
 	struct timespec ts_delta;
 	unsigned long flags;
 
-	if ((unsigned long)tv->tv_nsec >= NSEC_PER_SEC)
+	if (!timespec_valid_strict(tv))
 		return -EINVAL;
 
 	write_seqlock_irqsave(&xtime_lock, flags);
@@ -423,6 +417,8 @@ EXPORT_SYMBOL(do_settimeofday);
 int timekeeping_inject_offset(struct timespec *ts)
 {
 	unsigned long flags;
+	struct timespec tmp;
+	int ret = 0;
 
 	if ((unsigned long)ts->tv_nsec >= NSEC_PER_SEC)
 		return -EINVAL;
@@ -431,9 +427,16 @@ int timekeeping_inject_offset(struct timespec *ts)
 
 	timekeeping_forward_now();
 
+	tmp = timespec_add(xtime,  *ts);
+	if (!timespec_valid_strict(&tmp)) {
+		ret = -EINVAL;
+		goto error;
+	}
+
 	xtime = timespec_add(xtime, *ts);
 	wall_to_monotonic = timespec_sub(wall_to_monotonic, *ts);
 
+error: /* even if we error out, we forwarded the time, so call update */
 	timekeeping_update(true);
 
 	write_sequnlock_irqrestore(&xtime_lock, flags);
@@ -441,7 +444,7 @@ int timekeeping_inject_offset(struct timespec *ts)
 	/* signal hrtimers about time change */
 	clock_was_set();
 
-	return 0;
+	return ret;
 }
 EXPORT_SYMBOL(timekeeping_inject_offset);
 
@@ -588,7 +591,20 @@ void __init timekeeping_init(void)
 	struct timespec now, boot;
 
 	read_persistent_clock(&now);
+	if (!timespec_valid_strict(&now)) {
+		pr_warn("WARNING: Persistent clock returned invalid value!\n"
+			"         Check your CMOS/BIOS settings.\n");
+		now.tv_sec = 0;
+		now.tv_nsec = 0;
+	}
+
 	read_boot_clock(&boot);
+	if (!timespec_valid_strict(&boot)) {
+		pr_warn("WARNING: Boot clock returned invalid value!\n"
+			"         Check your CMOS/BIOS settings.\n");
+		boot.tv_sec = 0;
+		boot.tv_nsec = 0;
+	}
 
 	write_seqlock_irqsave(&xtime_lock, flags);
 
@@ -633,7 +649,7 @@ static void update_sleep_time(struct timespec t)
  */
 static void __timekeeping_inject_sleeptime(struct timespec *delta)
 {
-	if (!timespec_valid(delta)) {
+	if (!timespec_valid_strict(delta)) {
 		printk(KERN_WARNING "__timekeeping_inject_sleeptime: Invalid "
 					"sleep delta value!\n");
 		return;
@@ -909,6 +925,10 @@ static void update_wall_time(void)
 #else
 	offset = (clock->read(clock) - clock->cycle_last) & clock->mask;
 #endif
+	/* Check if there's really nothing to do */
+	if (offset < timekeeper.cycle_interval)
+		return;
+
 	timekeeper.xtime_nsec = (s64)xtime.tv_nsec << timekeeper.shift;
 
 	/*
@@ -1033,7 +1053,7 @@ void get_monotonic_boottime(struct timespec *ts)
 	} while (read_seqretry(&xtime_lock, seq));
 
 	set_normalized_timespec(ts, ts->tv_sec + tomono.tv_sec + sleep.tv_sec,
-			ts->tv_nsec + tomono.tv_nsec + sleep.tv_nsec + nsecs);
+		(s64)ts->tv_nsec + tomono.tv_nsec + sleep.tv_nsec + nsecs);
 }
 EXPORT_SYMBOL_GPL(get_monotonic_boottime);
 
@@ -1116,7 +1136,6 @@ void do_timer(unsigned long ticks)
 {
 	jiffies_64 += ticks;
 	update_wall_time();
-	sched_clock_clksrc_update();
 	calc_global_load(ticks);
 }
 
@@ -1201,121 +1220,3 @@ void xtime_update(unsigned long ticks)
 	do_timer(ticks);
 	write_sequnlock(&xtime_lock);
 }
-
-/**
- * struct sched_clksrc - clocksource based sched_clock
- * @clock:		Pointer to the clocksource
- * @nsecs:		Nanoseconds base value
- * @seqcnt:		Sequence counter for sched_clock
- * @last_update:	Counter value at last update
- * @mult:		Multiplier for nsec conversion
- * @shift:		Shift value (divisor) for nsec conversion
- * @mask:		Mask for the delta
- * @update_cycles:	Cycles after which we update nsecs and last_update
- * @update_nsesc:	Nanoseconds value corresponding to @update_cycles
- */
-struct sched_clksrc {
-	struct clocksource	*clock;
-	u64			nsecs;
-	struct seqcount		seqcnt;
-	u64			last_update;
-	u32			mult;
-	u32			shift;
-	u64			mask;
-	u64			update_cycles;
-	u64			update_nsecs;
-};
-
-static struct sched_clksrc sched_clksrc;
-
-/*
- * Called from clocksource code when a clocksource usable for
- * sched_clock is installed.
- */
-static void notrace sched_clock_clksrc_install(struct clocksource *clock)
-{
-	u64 nsecs, cyc = clock->mask & CLOCKSOURCE_MASK(32);
-
-	if (sched_clksrc.clock)
-		return;
-
-	/* Make sure we get the wraparounds */
-	cyc >>= 2;
-
-	/* Use the raw mult/shift values */
-	sched_clksrc.mult = clock->mult;
-	sched_clksrc.shift = clock->shift;
-	sched_clksrc.mask = clock->mask;
-	sched_clksrc.update_cycles = cyc;
-	nsecs = clocksource_cyc2ns(cyc, sched_clksrc.mult, sched_clksrc.shift);
-	sched_clksrc.update_nsecs = nsecs;
-	/* Establish the base line */
-	sched_clksrc.nsecs = (u64)(jiffies - INITIAL_JIFFIES) *
-		(NSEC_PER_SEC / HZ);
-	sched_clksrc.last_update = clock->read(clock) & sched_clksrc.mask;
-	sched_clksrc.clock = clock;
-}
-
-/*
- * Called from timekeeping code with xtime lock held and interrupts
- * disabled, so we have only one updater at a time. Note that readers
- * of sched_clock are _NOT_ affected by xtime_lock. We have our own
- * sequence counter for sched_clksrc.
- */
-static void notrace sched_clock_clksrc_update(void)
-{
-	struct clocksource *clock = sched_clksrc.clock;
-	u64 delta;
-
-	if (!clock)
-		return;
-
-	delta = clock->read(clock) - sched_clksrc.last_update;
-	delta &= sched_clksrc.mask;
-	while (delta >= sched_clksrc.update_cycles) {
-		delta -= sched_clksrc.update_cycles;
-		write_seqcount_begin(&sched_clksrc.seqcnt);
-		sched_clksrc.last_update += sched_clksrc.update_cycles;
-		sched_clksrc.nsecs += sched_clksrc.update_nsecs;
-		write_seqcount_end(&sched_clksrc.seqcnt);
-	}
-}
-
-/*
- * Scheduler clock clocksource based - returns current time in nanosec units.
- *
- * Can be called from the default implementation below or from
- * architecture code if it overrides the default implementation.
- */
-unsigned long long notrace sched_clock_clksrc(void)
-{
-	struct clocksource *clock = sched_clksrc.clock;
-	unsigned int seq;
-	u64 nsecs, last, delta;
-
-	if (!sched_clksrc.clock)
-		return (unsigned long long)(jiffies - INITIAL_JIFFIES) *
-			(NSEC_PER_SEC / HZ);
-
-	do {
-		seq = read_seqcount_begin(&sched_clksrc.seqcnt);
-		last = sched_clksrc.last_update;
-		nsecs = sched_clksrc.nsecs;
-	} while (read_seqcount_retry(&sched_clksrc.seqcnt, seq));
-
-	delta = (clock->read(clock) - last) & sched_clksrc.mask;
-
-	return nsecs + clocksource_cyc2ns(delta, sched_clksrc.mult,
-					  sched_clksrc.shift);
-}
-
-/*
- * Scheduler clock - returns current time in nanosec units.
- * This is default implementation.
- * Architectures and sub-architectures can override this.
- */
-unsigned long long __attribute__((weak)) sched_clock(void)
-{
-	return sched_clock_clksrc();
-}
-EXPORT_SYMBOL_GPL(sched_clock);

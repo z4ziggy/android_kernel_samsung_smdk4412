@@ -123,6 +123,10 @@ EXPORT_SYMBOL(cad_pid);
 
 void (*pm_power_off_prepare)(void);
 
+int (*timer_slack_check)(struct task_struct *task, unsigned long slack_ns) =
+	NULL;
+EXPORT_SYMBOL_GPL(timer_slack_check);
+
 /*
  * Returns true if current's euid is same as p's uid or euid,
  * or has CAP_SYS_NICE to p's user_ns.
@@ -498,7 +502,7 @@ void ctrl_alt_del(void)
 	else
 		kill_cad_pid(SIGINT, 1);
 }
-	
+
 /*
  * Unprivileged users may change the real gid to the effective gid
  * or vice versa.  (BSD-style)
@@ -676,7 +680,7 @@ error:
 	abort_creds(new);
 	return retval;
 }
-		
+
 /*
  * setuid() is implemented like SysV with SAVED_IDS 
  * 
@@ -1138,15 +1142,16 @@ DECLARE_RWSEM(uts_sem);
  * Work around broken programs that cannot handle "Linux 3.0".
  * Instead we map 3.x to 2.6.40+x, so e.g. 3.0 would be 2.6.40
  */
-static int override_release(char __user *release, int len)
+static int override_release(char __user *release, size_t len)
 {
 	int ret = 0;
-	char buf[65];
 
 	if (current->personality & UNAME26) {
-		char *rest = UTS_RELEASE;
+		const char *rest = UTS_RELEASE;
+		char buf[65] = { 0 };
 		int ndots = 0;
 		unsigned v;
+		size_t copy;
 
 		while (*rest) {
 			if (*rest == '.' && ++ndots >= 3)
@@ -1156,8 +1161,9 @@ static int override_release(char __user *release, int len)
 			rest++;
 		}
 		v = ((LINUX_VERSION_CODE >> 8) & 0xff) + 40;
-		snprintf(buf, len, "2.6.%u%s", v, rest);
-		ret = copy_to_user(release, buf, len);
+		copy = clamp_t(size_t, len, 1, sizeof(buf));
+		copy = scnprintf(buf, copy, "2.6.%u%s", v, rest);
+		ret = copy_to_user(release, buf, copy + 1);
 	}
 	return ret;
 }
@@ -1764,12 +1770,15 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 			error = current->timer_slack_ns;
 			break;
 		case PR_SET_TIMERSLACK:
-			if (arg2 <= 0)
-				current->timer_slack_ns =
-					current->default_timer_slack_ns;
-			else
-				current->timer_slack_ns = arg2;
-			error = 0;
+			if (arg2 <= 0) {
+				me->timer_slack_ns = me->default_timer_slack_ns;
+				break;
+			}
+
+			error = timer_slack_check ?
+				timer_slack_check(me, arg2) : 0;
+			if (!error)
+				me->timer_slack_ns = arg2;
 			break;
 		case PR_MCE_KILL:
 			if (arg4 | arg5)

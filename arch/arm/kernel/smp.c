@@ -265,6 +265,7 @@ static void __cpuinit smp_store_cpu_info(unsigned int cpuid)
 	struct cpuinfo_arm *cpu_info = &per_cpu(cpu_data, cpuid);
 
 	cpu_info->loops_per_jiffy = loops_per_jiffy;
+
 }
 
 /*
@@ -288,18 +289,24 @@ static inline int skip_secondary_calibrate(void)
 asmlinkage void __cpuinit secondary_start_kernel(void)
 {
 	struct mm_struct *mm = &init_mm;
-	unsigned int cpu = smp_processor_id();
+	unsigned int cpu;
+
+	/*
+	 * The identity mapping is uncached (strongly ordered), so
+	 * switch away from it before attempting any exclusive accesses.
+	 */
+	cpu_switch_mm(mm->pgd, mm);
+	enter_lazy_tlb(mm, current);
+	local_flush_tlb_all();
 
 	/*
 	 * All kernel threads share the same mm context; grab a
 	 * reference and switch to it.
 	 */
+	cpu = smp_processor_id();
 	atomic_inc(&mm->mm_count);
 	current->active_mm = mm;
 	cpumask_set_cpu(cpu, mm_cpumask(mm));
-	cpu_switch_mm(mm->pgd, mm);
-	enter_lazy_tlb(mm, current);
-	local_flush_tlb_all();
 
 	printk("CPU%u: Booted secondary processor\n", cpu);
 
@@ -366,6 +373,7 @@ void __init smp_prepare_boot_cpu(void)
 void __init smp_prepare_cpus(unsigned int max_cpus)
 {
 	unsigned int ncores = num_possible_cpus();
+
 
 	smp_store_cpu_info(smp_processor_id());
 
@@ -666,7 +674,9 @@ asmlinkage void __exception_irq_entry do_IPI(int ipinr, struct pt_regs *regs)
 		break;
 
 	case IPI_CPU_BACKTRACE:
+		irq_enter();
 		ipi_cpu_backtrace(cpu, regs);
+		irq_exit();
 		break;
 
 	default:

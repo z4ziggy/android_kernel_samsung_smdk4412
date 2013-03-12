@@ -710,6 +710,7 @@ static enum page_references page_check_references(struct page *page,
 	if (referenced_ptes) {
 		if (PageSwapBacked(page))
 			return PAGEREF_ACTIVATE;
+
 		/*
 		 * All mapped pages start out with page table
 		 * references from the instantiating fault, so we need
@@ -3066,6 +3067,8 @@ static int kswapd(void *p)
 						&balanced_classzone_idx);
 		}
 	}
+
+	current->reclaim_state = NULL;
 	return 0;
 }
 
