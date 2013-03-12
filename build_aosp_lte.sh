@@ -17,16 +17,22 @@ TOP_DIR=$PWD
 KERNEL_PATH="/home/dominik/android/android_4.2/kernel/samsung/smdk4412"
 
 # Set toolchain and root filesystem path
-#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/linaro/bin"
-TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin"
+#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin"
+#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-linaro-toolchain-4.8/bin"
+TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.7.2/bin"
 TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
-ROOTFS_PATH="ramdisk-aosp-lte"
+ROOTFS_PATH="$KERNEL_PATH/ramdisk-aosp-lte"
+version=Devil-N7105-AOSP-0.3_$(date +%Y%m%d)
 
-export KBUILD_BUILD_VERSION="Devil-N7105-CM-0.1"
+export KBUILD_BUILD_VERSION="$version"
 export KERNELDIR=$KERNEL_PATH
 
 export USE_SEC_FIPS_MODE=true
 
+if [ "$1" = "clean" ]; then
+echo "Cleaning latest build"
+make ARCH=arm CROSS_COMPILE=$TOOLCHAIN -j`grep 'processor' /proc/cpuinfo | wc -l` mrproper
+fi
 # Cleaning old kernel and modules
 find -name '*.ko' -exec rm -rf {} \;
 rm -rf $KERNEL_PATH/arch/arm/boot/zImage
@@ -34,14 +40,10 @@ rm -rf $KERNEL_PATH/arch/arm/boot/zImage
 # Making our .config
 make cyanogenmod_t0lte_defconfig
 
-make modules -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$TOOLCHAIN || exit -1
-
-# Copying kernel modules
-
-#find -name '*.ko' -exec cp -av {} $ROOTFS_PATH/lib/modules/ \;
-#        for i in $ROOTFS_PATH/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
-
-make zImage -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$TOOLCHAIN || exit -1
+make -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$TOOLCHAIN || exit -1
+# Copying and stripping kernel modules
+find -name '*.ko' -exec cp -av {} $ROOTFS_PATH/lib/modules/ \;
+        for i in $ROOTFS_PATH/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
 
 # Copy Kernel Image
 rm -f $KERNEL_PATH/releasetools/tar/$KBUILD_BUILD_VERSION.tar

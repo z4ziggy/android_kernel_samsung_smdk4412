@@ -17,10 +17,12 @@ TOP_DIR=$PWD
 KERNEL_PATH="/home/dominik/android/android_4.2/kernel/samsung/smdk4412"
 
 # Set toolchain and root filesystem path
-TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin"
+#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin"
+#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-linaro-toolchain-4.8/bin"
+TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.7.2/bin"
 TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
 ROOTFS_PATH="$KERNEL_PATH/ramdisk-samsung-lte"
-version=Devil-N7105-SAMSUNG-0.1_$(date +%Y%m%d)
+version=Devil-N7105-SAMSUNG-0.3_$(date +%Y%m%d)
 
 export KBUILD_BUILD_VERSION="$version"
 export KERNELDIR=$KERNEL_PATH
@@ -31,19 +33,17 @@ if [ "$1" = "clean" ]; then
 echo "Cleaning latest build"
 make ARCH=arm CROSS_COMPILE=$TOOLCHAIN -j`grep 'processor' /proc/cpuinfo | wc -l` mrproper
 fi
+# Cleaning old kernel and modules
+find -name '*.ko' -exec rm -rf {} \;
+rm -rf $KERNEL_PATH/arch/arm/boot/zImage
 
 # Making our .config
 make samsung_t0lte_defconfig
 
-# make the modules
-make modules -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$TOOLCHAIN || exit -1
-
+make -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$TOOLCHAIN || exit -1
 # Copying and stripping kernel modules
 find -name '*.ko' -exec cp -av {} $ROOTFS_PATH/lib/modules/ \;
         for i in $ROOTFS_PATH/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
-
-# make kernel zImage
-make zImage -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$TOOLCHAIN || exit -1
 
 # Copy Kernel Image
 rm -f $KERNEL_PATH/releasetools/tar/$KBUILD_BUILD_VERSION.tar
