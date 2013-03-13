@@ -22,7 +22,7 @@ KERNEL_PATH="/home/dominik/android/android_4.2/kernel/samsung/smdk4412"
 TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.7.2/bin"
 TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
 ROOTFS_PATH="$KERNEL_PATH/ramdisk-samsung-lte"
-version=Devil-N7105-SAMSUNG-0.3_$(date +%Y%m%d)
+version=Devil-N7105-SAMSUNG-0.4_$(date +%Y%m%d)
 
 export KBUILD_BUILD_VERSION="$version"
 export KERNELDIR=$KERNEL_PATH
