@@ -1,7 +1,7 @@
 #!/bin/bash
 
 TARGET=$1
-if [ "$TARGET" = "n7100" ] || [ "$TARGET" = "t0lte" ] ; then
+if [ "$TARGET" = "n7100" ] || [ "$TARGET" = "t0lte" ] || [ "$TARGET" = "i317" ] || [ "$TARGET" = "i9300" ]; then
 	echo "starting your build for $TARGET"
 else
 	echo ""
@@ -54,6 +54,7 @@ make $defconfig
 
 make -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$TOOLCHAIN || exit -1
 # Copying and stripping kernel modules
+mkdir -p $ROOTFS_PATH/lib/modules
 find -name '*.ko' -exec cp -av {} $ROOTFS_PATH/lib/modules/ \;
         for i in $ROOTFS_PATH/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
 

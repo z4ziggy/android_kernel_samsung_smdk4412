@@ -1,7 +1,7 @@
 #!/bin/bash
 
 TARGET=$1
-if [ "$TARGET" = "n7100" ] || [ "$TARGET" = "t0lte" ] ; then
+if [ "$TARGET" = "n7100" ] || [ "$TARGET" = "t0lte" ] || [ "$TARGET" = "i317" ] || [ "$TARGET" = "i9300" ]; then
 	echo "starting your build for $TARGET"
 else
 	echo ""
@@ -53,6 +53,7 @@ make $defconfig
 
 make -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$TOOLCHAIN || exit -1
 # Copying and stripping kernel modules
+mkdir -p $ROOTFS_PATH/lib/modules
 find -name '*.ko' -exec cp -av {} $ROOTFS_PATH/lib/modules/ \;
         for i in $ROOTFS_PATH/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
 
@@ -64,7 +65,7 @@ cp -f $KERNEL_PATH/arch/arm/boot/zImage .
 # Create ramdisk.cpio archive
 cd $ROOTFS_PATH
 find . | cpio -o -H newc > $KERNEL_PATH/ramdisk.cpio
-$KERNEL_PATH
+cd $KERNEL_PATH
 
 # Make boot.img
 ./mkbootimg --kernel zImage --ramdisk ramdisk.cpio --board smdk4x12 --base 0x10000000 --pagesize 2048 --ramdiskaddr 0x11000000 -o $KERNEL_PATH/boot.img
