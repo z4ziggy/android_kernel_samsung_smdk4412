@@ -887,8 +887,3 @@ on property:ro.dumpstate.dmesg=1
 on property:init.svc.media=restarting
     exec icd_check
     start icd
-
-service perseusinit /sbin/perseus.sh
-    class core
-    user root
-    oneshot
