@@ -1,5 +1,16 @@
 #!/bin/bash
 
+TARGET=$1
+if [ "$TARGET" = "n7100" ] || [ "$TARGET" = "t0lte" ] ; then
+	echo "starting your build for $TARGET"
+else
+	echo ""
+	echo "you need to define your device target!"
+	echo "example: build_sammy.sh n7100"
+	exit 1
+fi
+version=Devil-$TARGET-SAMSUNG-0.6_$(date +%Y%m%d)
+
 if [ -e boot.img ]; then
 	rm boot.img
 fi
@@ -20,12 +31,8 @@ KERNEL_PATH=$PWD
 #TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-linaro-toolchain-4.8/bin"
 TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.7.2/bin"
 TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
-ROOTFS_PATH="$KERNEL_PATH/ramdisk-samsung"
-TARGET=$1
-if [ "$TARGET" = "t0lte" ]; then
 ROOTFS_PATH="$KERNEL_PATH/ramdisk-samsung-$TARGET"
-fi
-version=Devil-$TARGET-SAMSUNG-0.4_$(date +%Y%m%d)
+
 defconfig=samsung_"$TARGET"_defconfig
 
 export KBUILD_BUILD_VERSION="$version"
