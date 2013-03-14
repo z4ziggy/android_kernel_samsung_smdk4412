@@ -140,7 +140,11 @@ enum {
 struct device *sec_touchscreen;
 static struct device *bus_dev;
 
-int touch_is_pressed = 0;
+#if TOUCH_BOOSTER // Touch Boost Control
+#include <linux/touch_boost_control.h>
+unsigned int boost_freq = 1000000000;
+#endif
+int touch_is_pressed;
 
 #define ISC_DL_MODE	1
 
@@ -405,13 +409,29 @@ static void set_dvfs_off(struct work_struct *work)
 
 static void set_dvfs_lock(struct mms_ts_info *info, uint32_t on)
 {
-	int ret;
+	int ret,max_freq,cur_freq,freq_lock;
 
 	mutex_lock(&info->dvfs_lock);
-	if (info->cpufreq_level <= 0) {
-		ret = exynos_cpufreq_get_level(800000, &info->cpufreq_level);
-		if (ret < 0)
-			pr_err("[TSP] exynos_cpufreq_get_level error");
+	// Setting policy->max freq set by user as touchbooster freq
+	// only if it is less than the default touchbooster freq set by the kernel define
+	// by simone201
+	max_freq = exynos_cpufreq_get_maxfreq();
+	if(max_freq < boost_freq)
+		freq_lock = max_freq;
+	else
+		freq_lock = boost_freq;
+		
+	// Disable touchbooster if the current frequency is higher than the touchbooster dvfs freq
+	// Helps in avoiding stuttering and lags while using heavy tasks
+	// by simone201
+	cur_freq = exynos_cpufreq_get_curfreq();
+	if(cur_freq > freq_lock)
+		goto out;
+	
+	// We should force the research of the cpu lock level, because it might be changed - simone201
+	ret = exynos_cpufreq_get_level(freq_lock, &info->cpufreq_level);
+	if (ret < 0) {
+		pr_err("[TSP] exynos_cpufreq_get_level error");
 		goto out;
 	}
 	if (on == 0) {
@@ -3215,6 +3235,10 @@ static struct i2c_driver mms_ts_driver = {
 		   },
 	.id_table = mms_ts_id,
 };
+
+void update_boost_freq (unsigned int input_boost_freq) {
+  boost_freq = input_boost_freq;
+}
 
 static int __init mms_ts_init(void)
 {
