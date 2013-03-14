@@ -10,7 +10,7 @@ else
 	exit 1
 fi
 
-version=Devil-$TARGET-AOSP-0.6_$(date +%Y%m%d)
+version=Devil-$TARGET-AOSP-0.61_$(date +%Y%m%d)
 
 if [ "$TARGET" = "i9300" ] ; then
 CUSTOM_PATH=i9300
@@ -47,12 +47,6 @@ export KBUILD_BUILD_VERSION="$version"
 export KERNELDIR=$KERNEL_PATH
 
 export USE_SEC_FIPS_MODE=true
-
-# Set ramdisk files permissions
-find $ROOTFS_PATH -name "init*" -exec chmod 750 '{}' \;
-find $ROOTFS_PATH -name "ueventd*" -exec chmod 644 '{}' \;
-find $ROOTFS_PATH -name "lpm.rc*" -exec chmod 644 '{}' \;
-
 
 if [ "$2" = "clean" ]; then
 echo "Cleaning latest build"
