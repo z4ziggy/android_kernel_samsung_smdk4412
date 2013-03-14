@@ -31,7 +31,7 @@ KERNEL_PATH=$PWD
 #TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-linaro-toolchain-4.8/bin"
 TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.7.2/bin"
 TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
-ROOTFS_PATH="$KERNEL_PATH/ramdisk-samsung-$TARGET"
+ROOTFS_PATH="$KERNEL_PATH/ramdisks/ramdisk-samsung-$TARGET"
 
 defconfig=samsung_"$TARGET"_defconfig
 
@@ -63,8 +63,8 @@ cp -f $KERNEL_PATH/arch/arm/boot/zImage .
 
 # Create ramdisk.cpio archive
 cd $ROOTFS_PATH
-find . | cpio -o -H newc > ../ramdisk.cpio
-cd ..
+find . | cpio -o -H newc > $KERNEL_PATH/ramdisk.cpio
+$KERNEL_PATH
 
 # Make boot.img
 ./mkbootimg --kernel zImage --ramdisk ramdisk.cpio --board smdk4x12 --base 0x10000000 --pagesize 2048 --ramdiskaddr 0x11000000 -o $KERNEL_PATH/boot.img
