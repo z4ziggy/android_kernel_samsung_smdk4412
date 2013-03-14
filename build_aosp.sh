@@ -12,6 +12,12 @@ fi
 
 version=Devil-$TARGET-AOSP-0.6_$(date +%Y%m%d)
 
+if [ "$TARGET" = "i9300" ] ; then
+CUSTOM_PATH=i9300
+else
+CUSTOM_PATH=note
+fi
+
 if [ -e boot.img ]; then
 	rm boot.img
 fi
@@ -59,9 +65,10 @@ find -name '*.ko' -exec cp -av {} $ROOTFS_PATH/lib/modules/ \;
         for i in $ROOTFS_PATH/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
 
 # Copy Kernel Image
-rm -f $KERNEL_PATH/releasetools/tar/$KBUILD_BUILD_VERSION.tar
-rm -f $KERNEL_PATH/releasetools/zip/$KBUILD_BUILD_VERSION.zip
+rm -f $KERNEL_PATH/releasetools/$CUSTOM_PATH/tar/$KBUILD_BUILD_VERSION.tar
+rm -f $KERNEL_PATH/releasetools/$CUSTOM_PATH/zip/$KBUILD_BUILD_VERSION.zip
 cp -f $KERNEL_PATH/arch/arm/boot/zImage .
+
 
 # Create ramdisk.cpio archive
 cd $ROOTFS_PATH
@@ -72,12 +79,12 @@ cd $KERNEL_PATH
 ./mkbootimg --kernel zImage --ramdisk ramdisk.cpio --board smdk4x12 --base 0x10000000 --pagesize 2048 --ramdiskaddr 0x11000000 -o $KERNEL_PATH/boot.img
 
 # Copy boot.img
-cp boot.img $KERNEL_PATH/releasetools/zip
-cp boot.img $KERNEL_PATH/releasetools/tar
+cp boot.img $KERNEL_PATH/releasetools/$CUSTOM_PATH/zip
+cp boot.img $KERNEL_PATH/releasetools/$CUSTOM_PATH/tar
 
 # Creating flashable zip and tar
 cd $KERNEL_PATH
-cd releasetools/zip
+cd releasetools/$CUSTOM_PATH/zip
 zip -0 -r $KBUILD_BUILD_VERSION.zip *
 mkdir -p $KERNEL_PATH/release
 mv *.zip $KERNEL_PATH/release
@@ -87,6 +94,7 @@ tar cf $KBUILD_BUILD_VERSION.tar boot.img && ls -lh $KBUILD_BUILD_VERSION.tar
 mv *.tar $KERNEL_PATH/release
 
 # Cleanup
-rm $KERNEL_PATH/releasetools/zip/boot.img
-rm $KERNEL_PATH/releasetools/tar/boot.img
+cd $KERNEL_PATH
+rm $KERNEL_PATH/releasetools/$CUSTOM_PATH/zip/boot.img
+rm $KERNEL_PATH/releasetools/$CUSTOM_PATH/tar/boot.img
 rm $KERNEL_PATH/zImage
