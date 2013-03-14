@@ -78,8 +78,9 @@ cd $KERNEL_PATH
 ./mkbootimg --kernel zImage --ramdisk ramdisk.cpio --board smdk4x12 --base 0x10000000 --pagesize 2048 --ramdiskaddr 0x11000000 -o $KERNEL_PATH/boot.img
 
 # Copy boot.img
-cp boot.img $KERNEL_PATH/releasetools/zip
-cp boot.img $KERNEL_PATH/releasetools/tar
+cp boot.img $KERNEL_PATH/releasetools/$CUSTOM_PATH/zip
+cp boot.img $KERNEL_PATH/releasetools/$CUSTOM_PATH/tar
+
 
 # Creating flashable zip and tar
 cd $KERNEL_PATH
