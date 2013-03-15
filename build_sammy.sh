@@ -1,7 +1,7 @@
 #!/bin/bash
 
 TARGET=$1
-if [ "$TARGET" = "n7100" ] || [ "$TARGET" = "t0lte" ] || [ "$TARGET" = "i317" ] || [ "$TARGET" = "i9300" ]; then
+if [ "$TARGET" != "" ]; then
 	echo "starting your build for $TARGET"
 else
 	echo ""
@@ -9,7 +9,12 @@ else
 	echo "example: build_sammy.sh n7100"
 	exit 1
 fi
-version=Devil-$TARGET-SAMSUNG-0.61_$(date +%Y%m%d)
+
+if [ "$TARGET" = "i317" ] || [ "$TARGET" = "att" ] || [ "$TARGET" = "t889" ] || [ "$TARGET" = "tmo" ]; then
+TARGET=t0lte
+fi
+
+version=Devil-$TARGET-SAMSUNG-0.63_$(date +%Y%m%d)
 
 if [ "$TARGET" = "i9300" ] ; then
 CUSTOM_PATH=i9300
