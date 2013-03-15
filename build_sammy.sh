@@ -48,6 +48,11 @@ export KERNELDIR=$KERNEL_PATH
 
 export USE_SEC_FIPS_MODE=true
 
+# Set ramdisk files permissions
+chmod 750 $ROOTFS_PATH/init*
+chmod 644 $ROOTFS_PATH/ueventd*
+chmod 644 $ROOTFS_PATH/lpm.rc
+
 if [ "$2" = "clean" ]; then
 echo "Cleaning latest build"
 make ARCH=arm CROSS_COMPILE=$TOOLCHAIN -j`grep 'processor' /proc/cpuinfo | wc -l` mrproper
