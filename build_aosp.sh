@@ -1,13 +1,17 @@
 #!/bin/bash
 
 TARGET=$1
-if [ "$TARGET" = "n7100" ] || [ "$TARGET" = "t0lte" ] || [ "$TARGET" = "i317" ] || [ "$TARGET" = "i9300" ]; then
+if [ "$TARGET" != "" ]; then
 	echo "starting your build for $TARGET"
 else
 	echo ""
 	echo "you need to define your device target!"
-	echo "example: build_aosp.sh n7100"
+	echo "example: build_sammy.sh n7100"
 	exit 1
+fi
+
+if [ "$TARGET" = "i317" ] || [ "$TARGET" = "att" ] || [ "$TARGET" = "t889" ] || [ "$TARGET" = "tmo" ]; then
+TARGET=t0lte
 fi
 
 version=Devil-$TARGET-AOSP-0.62_$(date +%Y%m%d)
