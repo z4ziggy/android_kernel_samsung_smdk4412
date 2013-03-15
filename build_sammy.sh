@@ -9,7 +9,7 @@ else
 	echo "example: build_sammy.sh n7100"
 	exit 1
 fi
-version=Devil-$TARGET-SAMSUNG-0.61_$(date +%Y%m%d)
+version=Devil-$TARGET-SAMSUNG-0.62_$(date +%Y%m%d)
 
 if [ "$TARGET" = "i9300" ] ; then
 CUSTOM_PATH=i9300

@@ -10,7 +10,7 @@ else
 	exit 1
 fi
 
-version=Devil-$TARGET-AOSP-0.61_$(date +%Y%m%d)
+version=Devil-$TARGET-AOSP-0.62_$(date +%Y%m%d)
 
 if [ "$TARGET" = "i9300" ] ; then
 CUSTOM_PATH=i9300
