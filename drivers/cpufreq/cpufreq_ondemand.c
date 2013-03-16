@@ -34,6 +34,7 @@
 #define DEF_FREQUENCY_UP_THRESHOLD		(80)
 #define DEF_SAMPLING_DOWN_FACTOR		(1)
 #define MAX_SAMPLING_DOWN_FACTOR		(100000)
+#define DEF_GRAD_UP_THRESHOLD      (50)
 
 #if defined(CONFIG_MACH_SLP_PQ)
 #define MICRO_FREQUENCY_DOWN_DIFFERENTIAL	(5)
@@ -96,6 +97,7 @@ struct cpu_dbs_info_s {
 	unsigned int freq_lo_jiffies;
 	unsigned int freq_hi_jiffies;
 	unsigned int rate_mult;
+	unsigned int prev_load_freq;
 	int cpu;
 	unsigned int sample_type:1;
 	/*
@@ -128,6 +130,8 @@ static struct dbs_tuners {
 	unsigned int ignore_nice;
 	unsigned int sampling_down_factor;
 	unsigned int powersave_bias;
+	unsigned int grad_up_threshold;
+	unsigned int early_demand;
 	unsigned int io_is_busy;
 	struct notifier_block dvfs_lat_qos_db;
 	unsigned int dvfs_lat_qos_wants;
@@ -140,6 +144,8 @@ static struct dbs_tuners {
 	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
 	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,
 	.down_differential = DEF_FREQUENCY_DOWN_DIFFERENTIAL,
+	.grad_up_threshold = DEF_GRAD_UP_THRESHOLD,
+	.early_demand = 0,
 	.ignore_nice = 0,
 	.powersave_bias = 0,
 	.freq_step = 100,
@@ -300,6 +306,8 @@ show_one(ignore_nice_load, ignore_nice);
 show_one(powersave_bias, powersave_bias);
 show_one(down_differential, down_differential);
 show_one(freq_step, freq_step);
+show_one(grad_up_threshold, grad_up_threshold);
+show_one(early_demand, early_demand);
 
 /**
  * update_sampling_rate - update sampling rate effective immediately if needed.
@@ -523,6 +531,34 @@ static ssize_t store_freq_step(struct kobject *a, struct attribute *b,
 	return count;
 }
 
+static ssize_t store_grad_up_threshold(struct kobject *a,
+			struct attribute *b, const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+
+	if (ret != 1 || input > MAX_FREQUENCY_UP_THRESHOLD ||
+			input < MIN_FREQUENCY_UP_THRESHOLD) {
+		return -EINVAL;
+	}
+
+	dbs_tuners_ins.grad_up_threshold = input;
+	return count;
+}
+
+static ssize_t store_early_demand(struct kobject *a, struct attribute *b,
+				  const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+
+	ret = sscanf(buf, "%u", &input);
+	if (ret != 1)
+		return -EINVAL;
+	dbs_tuners_ins.early_demand = !!input;
+	return count;
+}
 
 define_one_global_rw(sampling_rate);
 define_one_global_rw(io_is_busy);
@@ -532,6 +568,8 @@ define_one_global_rw(ignore_nice_load);
 define_one_global_rw(powersave_bias);
 define_one_global_rw(down_differential);
 define_one_global_rw(freq_step);
+define_one_global_rw(grad_up_threshold);
+define_one_global_rw(early_demand);
 #ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_FLEXRATE
 static struct global_attr flexrate_request;
 static struct global_attr flexrate_duration;
@@ -550,6 +588,8 @@ static struct attribute *dbs_attributes[] = {
 	&io_is_busy.attr,
 	&down_differential.attr,
 	&freq_step.attr,
+  	&grad_up_threshold.attr,
+  	&early_demand.attr,
 #ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_FLEXRATE
 	&flexrate_request.attr,
 	&flexrate_duration.attr,
@@ -567,7 +607,7 @@ static struct attribute_group dbs_attr_group = {
 
 /************************** sysfs end ************************/
 
-static void franco_hotplug(struct cpu_dbs_info_s *this_dbs_info, unsigned int j, unsigned int load) {
+static void franco_hotplug(struct cpu_dbs_info_s *this_dbs_info, unsigned int j, unsigned int load, bool boost_freq) {
 	struct cpufreq_policy *policy;
 	unsigned long min_cur;
 	policy = this_dbs_info->cur_policy;
@@ -597,7 +637,7 @@ static void franco_hotplug(struct cpu_dbs_info_s *this_dbs_info, unsigned int j,
 		if (min_cur == 500000)
 			policy->min = 200000;
 	}
-	if (load > 65) {
+	if (load > 65 || boost_freq) {
 		if (!cpu_online(1))
 			cpu_up(1);
 		if (!cpu_online(2))
@@ -624,10 +664,12 @@ static void dbs_freq_increase(struct cpufreq_policy *p, unsigned int freq)
 
 static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 {
-	unsigned int max_load_freq;
+	unsigned int max_load_freq, load;
 
 	struct cpufreq_policy *policy;
 	unsigned int j;
+  	unsigned int up_threshold = dbs_tuners_ins.up_threshold;
+  	int boost_freq = 0;
 
 	this_dbs_info->freq_lo = 0;
 	policy = this_dbs_info->cur_policy;
@@ -652,7 +694,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		struct cpu_dbs_info_s *j_dbs_info;
 		cputime64_t cur_wall_time, cur_idle_time, cur_iowait_time;
 		unsigned int idle_time, wall_time, iowait_time;
-		unsigned int load, load_freq;
+		unsigned int load_freq;
 		int freq_avg;
     		bool deep_sleep_detected = false;
     		/* the evil magic numbers, only 2 at least */
@@ -745,12 +787,27 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		if (load_freq > max_load_freq)
 			max_load_freq = load_freq;
 		
-		if (tick > (HZ*5))
-			franco_hotplug(this_dbs_info, j, load);
 	}
 
+	/*
+	 * Calculate the gradient of load_freq. If it is too steep we assume
+	 * that the load will go over up_threshold in next iteration(s) and
+	 * we increase the frequency immediately
+	 */
+	if (dbs_tuners_ins.early_demand) {
+		if (max_load_freq > this_dbs_info->prev_load_freq &&
+		   (max_load_freq - this_dbs_info->prev_load_freq >
+		    dbs_tuners_ins.grad_up_threshold * policy->cur))
+			boost_freq = 1;
+
+		this_dbs_info->prev_load_freq = max_load_freq;
+	}
+
+		if (tick > (HZ*5) || boost_freq)
+			franco_hotplug(this_dbs_info, j, load, boost_freq);
+
 	/* Check for frequency increase */
-	if (max_load_freq > dbs_tuners_ins.up_threshold * policy->cur) {
+	if (max_load_freq > dbs_tuners_ins.up_threshold * policy->cur || boost_freq) {
 		int inc = (policy->max * dbs_tuners_ins.freq_step) / 100;
 		int target = min(policy->max, policy->cur + inc);
 		/* If switching to max speed, apply sampling_down_factor */
@@ -930,6 +987,7 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		}
 		this_dbs_info->cpu = cpu;
 		this_dbs_info->rate_mult = 1;
+		this_dbs_info->prev_load_freq = 0;
 		ondemand_powersave_bias_init_cpu(cpu);
 		/*
 		 * Start the timerschedule work, when this governor
