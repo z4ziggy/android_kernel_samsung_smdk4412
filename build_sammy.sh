@@ -38,11 +38,13 @@ fi
 KERNEL_PATH=$PWD
 
 # Set toolchain and root filesystem path
-#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin"
-#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-linaro-toolchain-4.8/bin"
-TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.7.2/bin"
-#TOOLCHAIN_PATH="/home/rollus/android-toolchain-eabi/bin/"
-
+if [ "$(whoami)" == "dominik" ]; then
+	#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin"
+	#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-linaro-toolchain-4.8/bin"
+	TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.7.2/bin"
+elif [ "$(whoami)" == "rollus" ]; then
+        TOOLCHAIN_PATH="/home/rollus/android-toolchain-eabi/bin/"
+fi
 TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
 ROOTFS_PATH="$KERNEL_PATH/ramdisks/ramdisk-samsung-$TARGET"
 
@@ -52,6 +54,11 @@ export KBUILD_BUILD_VERSION="$version"
 export KERNELDIR=$KERNEL_PATH
 
 export USE_SEC_FIPS_MODE=true
+
+# Set ramdisk files permissions
+chmod 750 $ROOTFS_PATH/init*
+chmod 644 $ROOTFS_PATH/ueventd*
+chmod 644 $ROOTFS_PATH/lpm.rc
 
 if [ "$2" = "clean" ]; then
 echo "Cleaning latest build"
