@@ -171,7 +171,7 @@ enum {
 struct device *sec_touchscreen;
 static struct device *bus_dev;
 
-unsigned int boost_freq = 1000000;
+unsigned int boost_freq = 800000;
 
 int touch_is_pressed;
 
