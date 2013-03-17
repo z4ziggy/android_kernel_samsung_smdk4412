@@ -610,7 +610,7 @@ static struct attribute_group dbs_attr_group = {
 static void franco_hotplug(unsigned int j, unsigned int load, bool boost_freq) {
 	tick = 0;
 	
-	if (load <= 20) {
+	if (load <= 20 && !boost_freq) {
 		if (!cpu_online(1) && !cpu_online(2) && !cpu_online(3))
 			return;
 			
@@ -619,17 +619,17 @@ static void franco_hotplug(unsigned int j, unsigned int load, bool boost_freq) {
 				cpu_down(j);
 		}
 	} 
-	if (load > 20 && load <= 40) {
+	if (load > 20 && load <= 45 && !boost_freq) {
 		if (!cpu_online(2))
 			cpu_up(2);
 	} 
-	if (load > 40 && load <= 65) {
+	if (load > 45 && load <= 70 && !boost_freq) {
 		if (!cpu_online(1))
 			cpu_up(1);
 		if (!cpu_online(2))
 			cpu_up(2);
 	}
-	if (load > 65 || boost_freq) {
+	if (load > 70 || boost_freq) {
 		if (!cpu_online(1))
 			cpu_up(1);
 		if (!cpu_online(2))
@@ -654,7 +654,7 @@ static void dbs_freq_increase(struct cpufreq_policy *p, unsigned int freq)
 
 static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 {
-	unsigned int max_load_freq, load;
+	unsigned int max_load_freq, load, previous_load;
 
 	struct cpufreq_policy *policy;
 	unsigned int j;
@@ -793,8 +793,10 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		this_dbs_info->prev_load_freq = max_load_freq;
 	}
 
-		if (tick > (HZ*5) || boost_freq)
+		if (tick > (HZ*5) || abs(previous_load - load) >= 30)
 			franco_hotplug(j, load, boost_freq);
+		
+		previous_load = load;
 
 	/* Check for frequency increase */
 	if (max_load_freq > dbs_tuners_ins.up_threshold * policy->cur || boost_freq) {
