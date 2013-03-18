@@ -607,7 +607,11 @@ static struct attribute_group dbs_attr_group = {
 
 /************************** sysfs end ************************/
 
-static void franco_hotplug(unsigned int j, unsigned int load, bool boost_freq) {
+static void franco_hotplug(struct cpu_dbs_info_s *this_dbs_info, unsigned int j, unsigned int load, bool boost_freq) {
+	struct cpufreq_policy *policy;
+	unsigned long min_cur;
+	policy = this_dbs_info->cur_policy;
+	min_cur = policy->min;
 	tick = 0;
 	
 	if (load <= 20) {
@@ -618,6 +622,8 @@ static void franco_hotplug(unsigned int j, unsigned int load, bool boost_freq) {
 			if (j > 0)
 				cpu_down(j);
 		}
+		if (min_cur < 500000)
+			policy->min = 500000;
 	} 
 	if (load > 20 && load <= 40) {
 		if (!cpu_online(2))
@@ -628,6 +634,8 @@ static void franco_hotplug(unsigned int j, unsigned int load, bool boost_freq) {
 			cpu_up(1);
 		if (!cpu_online(2))
 			cpu_up(2);
+		if (min_cur == 500000)
+			policy->min = 200000;
 	}
 	if (load > 65 || boost_freq) {
 		if (!cpu_online(1))
@@ -636,6 +644,8 @@ static void franco_hotplug(unsigned int j, unsigned int load, bool boost_freq) {
 			cpu_up(2);
 		if (!cpu_online(3))
 			cpu_up(3);
+		if (min_cur == 500000)
+			policy->min = 200000;
 	}
 }
 
@@ -794,7 +804,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	}
 
 		if (tick > (HZ*5) || boost_freq)
-			franco_hotplug(j, load, boost_freq);
+			franco_hotplug(this_dbs_info, j, load, boost_freq);
 
 	/* Check for frequency increase */
 	if (max_load_freq > dbs_tuners_ins.up_threshold * policy->cur || boost_freq) {
