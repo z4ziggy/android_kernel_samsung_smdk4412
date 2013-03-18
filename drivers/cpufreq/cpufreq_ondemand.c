@@ -23,7 +23,6 @@
 #include <linux/ktime.h>
 #include <linux/sched.h>
 #include <linux/pm_qos_params.h>
-#include <linux/workqueue.h>
 
 /*
  * dbs is used in this file as a shortform for demandbased switching
@@ -40,7 +39,7 @@
 #define MICRO_FREQUENCY_UP_THRESHOLD		(85)
 #else
 #define MICRO_FREQUENCY_DOWN_DIFFERENTIAL	(3)
-#define MICRO_FREQUENCY_UP_THRESHOLD		(85)
+#define MICRO_FREQUENCY_UP_THRESHOLD		(95)
 #endif
 
 #define MICRO_FREQUENCY_MIN_SAMPLE_RATE		(10000)
@@ -60,7 +59,6 @@
 #define MIN_SAMPLING_RATE_RATIO			(2)
 
 static unsigned int min_sampling_rate;
-unsigned int tick = 0;
 
 #define LATENCY_MULTIPLIER			(1000)
 #define MIN_LATENCY_MULTIPLIER			(100)
@@ -567,48 +565,6 @@ static struct attribute_group dbs_attr_group = {
 
 /************************** sysfs end ************************/
 
-static void franco_hotplug(struct cpu_dbs_info_s *this_dbs_info, unsigned int j, unsigned int load) {
-	struct cpufreq_policy *policy;
-	unsigned long min_cur;
-	policy = this_dbs_info->cur_policy;
-	min_cur = policy->min;
-	tick = 0;
-	
-	if (load <= 20) {
-		if (!cpu_online(1) && !cpu_online(2) && !cpu_online(3))
-			return;
-			
-		for_each_online_cpu(j) {
-			if (j > 0)
-				cpu_down(j);
-		}
-		if (min_cur < 500000)
-			policy->min = 500000;
-	} 
-	if (load > 20 && load <= 40) {
-		if (!cpu_online(2))
-			cpu_up(2);
-	} 
-	if (load > 40 && load <= 65) {
-		if (!cpu_online(1))
-			cpu_up(1);
-		if (!cpu_online(2))
-			cpu_up(2);
-		if (min_cur == 500000)
-			policy->min = 200000;
-	}
-	if (load > 65) {
-		if (!cpu_online(1))
-			cpu_up(1);
-		if (!cpu_online(2))
-			cpu_up(2);
-		if (!cpu_online(3))
-			cpu_up(3);
-		if (min_cur == 500000)
-			policy->min = 200000;
-	}
-}
-
 static void dbs_freq_increase(struct cpufreq_policy *p, unsigned int freq)
 {
 	if (dbs_tuners_ins.powersave_bias)
@@ -646,7 +602,6 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 
 	/* Get Absolute Load - in terms of freq */
 	max_load_freq = 0;
-	tick += HZ; 
 
 	for_each_cpu(j, policy->cpus) {
 		struct cpu_dbs_info_s *j_dbs_info;
@@ -744,9 +699,6 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		load_freq = load * freq_avg;
 		if (load_freq > max_load_freq)
 			max_load_freq = load_freq;
-		
-		if (tick > (HZ*5))
-			franco_hotplug(this_dbs_info, j, load);
 	}
 
 	/* Check for frequency increase */
@@ -950,8 +902,11 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 			if (latency == 0)
 				latency = 1;
 			/* Bring kernel and HW constraints together */
-			min_sampling_rate = 30000;
-			dbs_tuners_ins.sampling_rate = min_sampling_rate;
+			min_sampling_rate = max(min_sampling_rate,
+					MIN_LATENCY_MULTIPLIER * latency);
+			dbs_tuners_ins.sampling_rate =
+				max(min_sampling_rate,
+				    latency * LATENCY_MULTIPLIER);
 			dbs_tuners_ins.io_is_busy = should_io_be_busy();
 		}
 		mutex_unlock(&dbs_mutex);
