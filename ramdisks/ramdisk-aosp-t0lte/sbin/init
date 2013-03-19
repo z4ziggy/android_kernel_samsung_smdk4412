@@ -1,32 +1,63 @@
 #!/sbin/busybox sh
+BB="/sbin/busybox"
 
-BB=/sbin/busybox
-
+# initialize working dir and log
 cd /
-
 $BB date >>boot.txt
 exec >>boot.txt 2>&1
 
-$BB echo "generating mount directories..."
-$BB mkdir proc
-$BB mkdir sys
-$BB mkdir system
+$BB mkdir /proc
+$BB mkdir /sys
 
-$BB mkdir /dev
-$BB mkdir /dev/block
-
-$BB echo "generating device nodes..."
-$BB mknod /dev/block/mmcblk0 b 179 0
-$BB mknod /dev/block/mmcblk0p13 b 179 13
-
-$BB echo "mounting devices..."
 $BB mount -t proc proc /proc
 $BB mount -t sysfs sysfs /sys
+
+$BB mkdir -p /dev/block
+$BB mkdir /dev/input
+$BB mkdir /dev/graphics
+$BB mkdir /system
+$BB mkdir /cache
+$BB mkdir /.secondrom
+$BB chown system:system /.secondrom
+$BB chmod 755 /.secondrom
+$BB mkdir /mnt
+$BB chmod 755 /mnt
+$BB mknod /dev/graphics/fb0 c 29 0
+$BB mknod /dev/input/event1 c 13 65
+$BB mknod /dev/input/event2 c 13 66
+$BB mknod /dev/input/event8 c 13 72
+$BB mknod /dev/input/event9 c 13 73
+$BB mknod /dev/ashmem c 10 60
+$BB mknod /dev/block/mmcblk0p12 b 179 12
+$BB mknod /dev/block/mmcblk0p13 b 179 13
+$BB mknod /dev/block/loop0 b 7 0
+
+$BB mount -t ext4 /dev/block/mmcblk0p12 /cache
+
+SECONDARYBOOT=0
+if $BB [ -f /cache/.secondaryboot ] ; then
+SECONDARYBOOT=`$BB cat /cache/.secondaryboot`
+fi
+
+if $BB grep -q bootmode=2 /proc/cmdline ; then
+  SECONDARYBOOT=0
+fi
+
+if $BB [ "$SECONDARYBOOT" == "secondary" ] ; then
+  $BB mv /init.smdk4x12.rc.2 /init.smdk4x12.rc
+  $BB mv /fstab.smdk4x12.2 /fstab.smdk4x12
+  $BB umount -f /cache
+  exec /sbin/init.aosp
+fi
+
 $BB mount -t ext4 /dev/block/mmcblk0p13 /system
 
-$BB echo "checking version..."
+if $BB [ ! -d /system/lib/modules ]; then
+	$BB mount -o remount,rw /system
+	$BB mkdir /system/lib/modules
+fi;
+
 KV=`$BB uname -r`
-$BB echo "current kernel version: $KV"
 CUR=`$BB cat /proc/version`
 if $BB [ -e /system/.last_version ]; then
 SAV=`$BB cat /system/.last_version`
@@ -34,12 +65,7 @@ else
 SAV=unknown
 fi
 
-if $BB [ ! -d /system/lib/modules ]; then 
-    $BB mkdir -p /system/lib/modules
-    $BB chmod 777 /system/lib/modules
-fi
-
-if $BB [ "`$BB grep $KV /system/lib/modules/dhd.ko`" ] && [ "$CUR" == "$SAV" ] && [ -f /system/lib/modules/dhd.ko ]; then
+if $BB [ "`$BB grep $KV /system/lib/modules/dhd.ko`" ] && [ "$CUR" == "$SAV" ]; then
     $BB echo "kernel modules already installed, nothing to do"
 else
   if $BB [ "$CUR" != "$SAV" ] ; then
@@ -48,8 +74,8 @@ else
     $BB rm /system/lib/modules/*
     $BB echo "updating modules..."
     $BB cp /lib/modules/* /system/lib/modules/
-    $BB ls -l /system/lib/modules/
 fi
 
-$BB umount /system
+$BB umount -f /system
+$BB umount -f /cache
 exec /sbin/init.aosp

@@ -1,10 +1,9 @@
 #!/sbin/busybox sh
 
-BB=/sbin/busybox
-
 export _PATH="$PATH"
 export PATH=/sbin
-
+BB=/sbin/busybox
+exec >>boot.txt 2>&1
 cd /
 $BB rm /init
 
@@ -12,6 +11,19 @@ if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
   # low power mode
   $BB cp -f lpm.rc init.rc
   $BB rm -f init.smdk4x12.rc
+fi
+
+if $BB grep -q bootmode=2 /proc/cmdline ; then
+$BB echo "preparing recovery boot..."
+	$BB mount -t ext4 /dev/block/mmcblk0p12 /cache
+	   if $BB [ -f /cache/.secondrom/dualboot/unsecure ]; then
+		if $BB grep -q secondary /cache/.secondrom/dualboot/unsecure ; then
+			$BB mv etc/recovery.fstab.secondary etc/recovery.fstab
+		elif $BB grep -q primary /cache/.secondrom/dualboot/unsecure ; then
+			$BB mv etc/recovery.fstab.primary etc/recovery.fstab
+		fi			
+		$BB rm -rf /cache/.secondrom/dualboot/unsecure
+	   fi
 fi
 
 $BB mv -f /init-cyano /init
