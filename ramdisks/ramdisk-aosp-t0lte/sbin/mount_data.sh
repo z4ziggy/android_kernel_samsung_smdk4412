@@ -21,12 +21,3 @@ $BB mkdir -p /.secondrom/media/.secondrom/data
 $BB mount --bind /.secondrom/media/.secondrom/data /data
 $BB mkdir /data/media
 $BB mount --bind /.secondrom/media /data/media
-$BB mount --bind /.secondrom/media /storage/sdcard0
-$BB mount --bind /.secondrom/media /mnt/shell/emulated
-
-$BB mount
-$BB echo ""
-$BB ls -l /mnt/sdcard/
-$BB echo ""
-$BB ls -l /storage/emulated/legacy
-

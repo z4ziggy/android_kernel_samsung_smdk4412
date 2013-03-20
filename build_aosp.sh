@@ -13,9 +13,9 @@ fi
 if [ "$TARGET" = "i317" ] || [ "$TARGET" = "att" ] || [ "$TARGET" = "t889" ] || [ "$TARGET" = "tmo" ]; then
 TARGET=t0lte
 fi
-###################################
-version=Devil-$TARGET-CM-dualboot6
-###################################
+
+version=Devil-$TARGET-AOSP-0.7.2_$(date +%Y%m%d)
+
 if [ "$TARGET" = "i9300" ] ; then
 CUSTOM_PATH=i9300
 else
