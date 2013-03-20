@@ -1,0 +1,54 @@
+#!/sbin/busybox sh
+BB="/sbin/busybox"
+
+# initialize working dir and log
+cd /
+$BB date >>boot.txt
+exec >>boot.txt 2>&1
+
+$BB mkdir /proc
+$BB mkdir /sys
+
+$BB mount -t proc proc /proc
+$BB mount -t sysfs sysfs /sys
+
+$BB mkdir -p /dev/block
+$BB mkdir /dev/input
+$BB mkdir /dev/graphics
+$BB mkdir /system
+$BB mkdir /cache
+$BB mkdir /.secondrom
+$BB chown system:system /.secondrom
+$BB chmod 755 /.secondrom
+$BB mkdir /mnt
+$BB chmod 755 /mnt
+$BB mknod /dev/graphics/fb0 c 29 0
+$BB mknod /dev/input/event1 c 13 65
+$BB mknod /dev/input/event2 c 13 66
+$BB mknod /dev/input/event8 c 13 72
+$BB mknod /dev/input/event9 c 13 73
+$BB mknod /dev/ashmem c 10 60
+$BB mknod /dev/block/mmcblk0p12 b 179 12
+$BB mknod /dev/block/mmcblk0p13 b 179 13
+$BB mknod /dev/block/loop0 b 7 0
+
+$BB mount -t ext4 /dev/block/mmcblk0p12 /cache
+
+SECONDARYBOOT=0
+if $BB [ -f /cache/.secondaryboot ] ; then
+SECONDARYBOOT=`$BB cat /cache/.secondaryboot`
+fi
+
+if $BB grep -q bootmode=2 /proc/cmdline ; then
+  SECONDARYBOOT=0
+fi
+
+if $BB [ "$SECONDARYBOOT" == "secondary" ] ; then
+  $BB mv /init.smdk4x12.rc.2 /init.smdk4x12.rc
+  $BB mv /fstab.smdk4x12.2 /fstab.smdk4x12
+fi
+
+
+$BB umount -f /system
+$BB umount -f /cache
+exec /sbin/init2
