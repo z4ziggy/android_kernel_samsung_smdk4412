@@ -3,21 +3,22 @@ import init.bt.rc
 
 on init
     mkdir /mnt/shell/emulated 0700 shell shell
-    mkdir /storage 0550 system sdcard_r
     mkdir /storage/emulated 0555 root root
+    mkdir /storage 0550 system sdcard_r
+    mkdir /storage/sdcard0 0555 system system
     mkdir /storage/sdcard1 0775 system system
     mkdir /storage/usbdisk0 0775 system system
 
-    export EXTERNAL_STORAGE /storage/emulated/legacy
+    export EXTERNAL_STORAGE /storage/sdcard0
     export SECONDARY_STORAGE /storage/sdcard1
     export EMULATED_STORAGE_SOURCE /mnt/shell/emulated
     export EMULATED_STORAGE_TARGET /storage/emulated
 
     # for backwards compatibility
-    symlink /storage/emulated/legacy /sdcard
-    symlink /storage/emulated/legacy /mnt/sdcard
-    symlink /storage/emulated/legacy /storage/sdcard0
-    symlink /mnt/shell/emulated/0 /storage/emulated/legacy
+    symlink /storage/sdcard0 /sdcard
+    symlink /storage/sdcard0 /mnt/sdcard
+    #symlink /storage/sdcard0 /mnt/shell/emulated
+    symlink /storage/sdcard0/0 /storage/emulated/legacy
     symlink /storage/sdcard1 /extSdCard
     symlink /storage/sdcard1 /mnt/extSdCard
     symlink /storage/usbdisk0 /usbdisk0
@@ -43,7 +44,7 @@ on fs
     exec /sbin/mount_data.sh
     #mount ext4 loop@/.secondrom/media/.secondrom/system.img /system rw noatime wait
 
-    setprop ro.crypto.fuse_sdcard true
+    #setprop ro.crypto.fuse_sdcard true
     
     chown radio system /efs
     chmod 0771 /efs
@@ -481,8 +482,8 @@ on property:ro.uart_debug=0
 # create virtual SD card at /mnt/sdcard, based on the /.secondrom/media directory
 # daemon will drop to user/group system/media_rw after initializing
 # underlying files in /.secondrom/media wil be created with user and group media_rw (1023)
-service sdcard /system/bin/sdcard /data/media /mnt/shell/emulated 1023 1023
-    class late_start
+#service sdcard /system/bin/sdcard /data/media /mnt/shell/emulated 1023 1023
+#    class late_start
 
 # AT Distributor for factory test
 service at_distributor /system/bin/at_distributor
