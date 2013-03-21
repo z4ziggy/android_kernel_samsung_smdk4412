@@ -1010,6 +1010,17 @@ static int cpufreq_add_dev(struct sys_device *sys_dev)
 		pr_debug("initialization failed\n");
 		goto err_unlock_policy;
 	}
+	/* Calling the driver can overwrite policy frequencies again */
+#ifdef CONFIG_HOTPLUG_CPU
+    	if (found) {
+		for_each_online_cpu(sibling) {
+		struct cpufreq_policy *cp = per_cpu(cpufreq_cpu_data, sibling);
+			policy->min = cp->min;
+			policy->max = cp->max;
+			break;
+		}
+	}
+#endif
 	policy->user_policy.min = policy->min;
 	policy->user_policy.max = policy->max;
 
