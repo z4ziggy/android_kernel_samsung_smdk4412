@@ -355,7 +355,7 @@ on boot
     chown radio system /sys/devices/system/cpu/cpufreq/pegasusq/min_cpu_lock
     chown radio system /sys/devices/system/cpu/cpufreq/pegasusq/hotplug_lock
     chown radio system /sys/devices/system/cpu/busfreq/curr_freq
-	chown radio system /sys/devices/system/cpu/busfreq/dmc_max_threshold
+    chown radio system /sys/devices/system/cpu/busfreq/dmc_max_threshold
     chown radio system /sys/module/mali/parameters/mali_dvfs_control
     chown system radio /sys/bus/platform/devices/s5p-tmu/lot_id
     chmod 0660 /sys/power/cpufreq_table
@@ -368,9 +368,12 @@ on boot
     chmod 0660 /sys/devices/system/cpu/cpufreq/pegasusq/min_cpu_lock
     chmod 0660 /sys/devices/system/cpu/cpufreq/pegasusq/hotplug_lock
     chmod 0660 /sys/devices/system/cpu/busfreq/curr_freq
-	chmod 0660 /sys/devices/system/cpu/busfreq/dmc_max_threshold
+    chmod 0660 /sys/devices/system/cpu/busfreq/dmc_max_threshold
     chmod 0660 /sys/module/mali/parameters/mali_dvfs_control
     chmod 0664 /sys/bus/platform/devices/s5p-tmu/lot_id
+
+# set max boot freq
+    write /sys/power/cpufreq_max_limit 1600000
 
     #chown system system /sys/devices/system/cpu/cpufreq/interactive/timer_rate
     #chmod 0660 /sys/devices/system/cpu/cpufreq/interactive/timer_rate

@@ -103,6 +103,9 @@ loglevel 3
     write /proc/sys/kernel/sched_rt_runtime_us 950000
     write /proc/sys/kernel/sched_rt_period_us 1000000
 
+# set max boot freq
+    write /sys/power/cpufreq_max_limit 1600000
+
 # Create cgroup mount points for process groups
     mkdir /dev/cpuctl
     mount cgroup none /dev/cpuctl cpu
