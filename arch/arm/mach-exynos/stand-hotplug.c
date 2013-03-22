@@ -549,7 +549,7 @@ static int __init exynos4_pm_hotplug_init(void)
 #endif
 	register_pm_notifier(&exynos4_pm_hotplug_notifier);
 	register_reboot_notifier(&hotplug_reboot_notifier);
-#if defined(CPU_FREQ_DEFAULT_GOV_HOTPLUG) || defined(CPU_FREQ_DEFAULT_GOV_PEGASUSQ)
+#if defined(CPU_FREQ_DEFAULT_GOV_HOTPLUG) || defined(CPU_FREQ_DEFAULT_GOV_PEGASUSQ) || defined(CPU_FREQ_DEFAULT_GOV_LULZACTIVEQ)
 	hotplug_on = 0;
 #else
 	hotplug_on = 1;
@@ -588,7 +588,8 @@ static int standhotplug_cpufreq_policy_notifier_call(struct notifier_block *this
 	case CPUFREQ_ADJUST:
 		if (
 			(!strnicmp(policy->governor->name, "pegasusq", CPUFREQ_NAME_LEN)) ||
-			(!strnicmp(policy->governor->name, "hotplug", CPUFREQ_NAME_LEN))
+			(!strnicmp(policy->governor->name, "hotplug", CPUFREQ_NAME_LEN)) ||
+			(!strnicmp(policy->governor->name, "lulzactiveq", CPUFREQ_NAME_LEN))
 			) 
 		{
 			if(standhotplug_enabled)
