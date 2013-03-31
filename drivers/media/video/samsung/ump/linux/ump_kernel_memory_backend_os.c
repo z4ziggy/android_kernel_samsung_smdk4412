@@ -150,6 +150,7 @@ else
                 {
 OLDMALI
                         new_page = alloc_page(GFP_KERNEL | __GFP_ZERO | __GFP_NOWARN | __GFP_COLD);
+
 else
                         new_page = alloc_page(GFP_KERNEL | __GFP_ZERO | __GFP_NORETRY | __GFP_NOWARN | __GFP_COLD);
                 }

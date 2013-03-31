@@ -427,6 +427,8 @@ static int ump_file_mmap(struct file * filp, struct vm_area_struct * vma)
 		vma->vm_flags = vma->vm_flags | VM_SHARED | VM_MAYSHARE  ;
 		DBG_MSG(3, ("UMP Map function: Forcing the CPU to use cache\n"));
 	}
+	/* By setting this flag, during a process fork; the child process will not have the parent UMP mappings */
+	if(!OLDMALIEXPR) vma->vm_flags |= VM_DONTCOPY;
 
 	DBG_MSG(4, ("UMP vma->flags: %x\n", vma->vm_flags ));
 
