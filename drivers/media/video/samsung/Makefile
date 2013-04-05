@@ -38,4 +38,6 @@ else
 obj-$(CONFIG_VIDEO_MALI400MP)	+= mali/
 endif
 
+obj-$(CONFIG_EXYNOS_MEDIA_MONITOR)	+= media_monitor/
+
 EXTRA_CFLAGS += -Idrivers/media/video
