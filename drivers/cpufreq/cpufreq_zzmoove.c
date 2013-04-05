@@ -66,6 +66,8 @@
 #include <linux/sched.h>
 #include <linux/earlysuspend.h>
 
+#include <mach/cpufreq.h>
+
 // smooth up/downscaling via lookup tables
 #define MN_SMOOTH 1
 
@@ -223,13 +225,20 @@ static struct dbs_tuners {
 #define MN_DOWN 2
 
 /*
- * Table modified for use with Samsung I9300 by ZaneZam November 2012
+ * Table modified for use with Samsung I9300 and Note2 by ZaneZam November 2012
  * zzmoove v0.3 - table modified to reach overclocking frequencies up to 1600mhz
+
+ * Table modified for use with Samsung I9300 and Note2 by DerTeufel1980 april 2013
+ * frequencies up to 2000mhz
  */
-static int mn_freqs[15][3]={
-    {1600000,1600000,1500000},
-    {1500000,1500000,1400000},
-    {1400000,1400000,1300000},
+static int mn_freqs[19][3]={
+    {2000000,2000000,1920000},
+    {1920000,2000000,1800000},
+    {1800000,1920000,1704000},
+    {1704000,1800000,1600000},
+    {1600000,1704000,1500000},
+    {1500000,1600000,1400000},
+    {1400000,1500000,1300000},
     {1300000,1400000,1200000},
     {1200000,1300000,1100000},
     {1100000,1200000,1000000},
@@ -245,12 +254,19 @@ static int mn_freqs[15][3]={
 };
 
 /*
- * Table modified for use with Samsung I9300 by ZaneZam November 2012
+ * Table modified for use with Samsung I9300 and Note2 by ZaneZam November 2012
  * zzmoove v0.3 - table modified to reach overclocking frequencies up to 1600mhz
+
+ * Table modified for use with Samsung I9300 and Note2 by DerTeufel1980 april 2013
+ * frequencies up to 2000mhz
  */
-static int mn_freqs_power[15][3]={
-    {1600000,1600000,1500000},
-    {1500000,1600000,1400000},
+static int mn_freqs_power[19][3]={
+    {2000000,2000000,1920000},
+    {1920000,2000000,1800000},
+    {1800000,2000000,1704000},
+    {1704000,1920000,1600000},
+    {1600000,1800000,1500000},
+    {1500000,1704000,1400000},
     {1400000,1600000,1300000},
     {1300000,1500000,1200000},
     {1200000,1400000,1100000},
@@ -267,21 +283,49 @@ static int mn_freqs_power[15][3]={
 };
 
 static int mn_get_next_freq(unsigned int curfreq, unsigned int updown, unsigned int load) {
-    int i=0;
+    int i=0,max_level,next_freq,max_freq = exynos_cpufreq_get_maxfreq();
+
+  if(max_freq == 2000000)
+	max_level = 19;
+  else if(max_freq == 1920000)
+	max_level = 18;
+  else if(max_freq == 1800000)
+	max_level = 17;
+  else if(max_freq == 1704000)
+	max_level = 16;
+  else if(max_freq == 1600000)
+	max_level = 15;
+  else if(max_freq == 1500000)
+	max_level = 14;
+  else if(max_freq == 1400000)
+	max_level = 13;
+  else
+	max_level = 15;
+
     if (load < dbs_tuners_ins.smooth_up)
     {
-        for(i = 0; i < 15; i++)
+        for(i = 0; i < max_level; i++)
         {
-            if(curfreq == mn_freqs[i][MN_FREQ])
-                return mn_freqs[i][updown]; // updown 1|2
+            if(curfreq == mn_freqs[i][MN_FREQ]) {
+		next_freq = mn_freqs[i][updown];
+		if (next_freq > max_freq)
+		    next_freq = max_freq;
+
+		 return next_freq;
+	    }
         }
     }
     else
     {
-        for(i = 0; i < 15; i++)
+        for(i = 0; i < max_level; i++)
         {
-            if(curfreq == mn_freqs_power[i][MN_FREQ])
-                return mn_freqs_power[i][updown]; // updown 1|2
+            if(curfreq == mn_freqs_power[i][MN_FREQ]) {
+		next_freq = mn_freqs_power[i][updown]; // updown 1|2
+		if (next_freq > max_freq)
+		    next_freq = max_freq;
+
+		 return next_freq;
+	    }
         }
     }
     return (curfreq); // not found
