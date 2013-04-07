@@ -88,3 +88,5 @@ obj-$(CONFIG_MOBICORE_SUPPORT)  += tzic.o
 
 # TouchBooster Control
 obj-$(CONFIG_TOUCHBOOST_CONTROL)  += touch_boost_control.o
+
+obj-$(CONFIG_MALI_CONTROL)  += mali_control.o

@@ -738,4 +738,9 @@ config TOUCHBOOST_CONTROL
       Say Y here to enable TouchBoost Control
 	  with sysfs.
 
+config MALI_CONTROL
+  tristate "mali gpu control interfaces"
+  depends on VIDEO_MALI400MP
+  default y
+
 endif # MISC_DEVICES
