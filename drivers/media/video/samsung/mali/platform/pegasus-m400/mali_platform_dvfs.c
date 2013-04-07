@@ -68,13 +68,36 @@ typedef struct mali_dvfs_stepTag{
 	int vol;
 }mali_dvfs_step;
 
+mali_dvfs_step step[MALI_DVFS_STEPS]={
+	/*step 0 clk*/ {160,   875000},
+#if (MALI_DVFS_STEPS > 1)
+	/*step 1 clk*/ {266,   900000},
+#if (MALI_DVFS_STEPS > 2)
+	/*step 2 clk*/ {350,   950000},
+#if (MALI_DVFS_STEPS > 3)
+	/*step 3 clk*/ {440,  1025000},
+#if (MALI_DVFS_STEPS > 4)
+	/*step 4 clk*/ {533,  1075000}
+#endif
+#endif
+#endif
+#endif
+};
 
 mali_dvfs_staycount_table mali_dvfs_staycount[MALI_DVFS_STEPS]={
 	/*step 0*/{0},
+#if (MALI_DVFS_STEPS > 1)
 	/*step 1*/{0},
+#if (MALI_DVFS_STEPS > 2)
 	/*step 2*/{0},
+#if (MALI_DVFS_STEPS > 3)
 	/*step 3*/{0},
+#if (MALI_DVFS_STEPS > 4)
 	/*step 4*/{0}
+#endif
+#endif
+#endif
+#endif
 };
 
 /* dvfs information */
@@ -83,6 +106,33 @@ mali_dvfs_staycount_table mali_dvfs_staycount[MALI_DVFS_STEPS]={
 // L2 = 350Mhz, 0.95V
 // L3 = 266Mhz, 0.90V
 // L4 = 160Mhz, 0.875V
+
+int step0_clk = 160;
+int step0_vol = 875000;
+#if (MALI_DVFS_STEPS > 1)
+int step1_clk = 266;
+int step1_vol = 900000;
+int step0_up = 70;
+int step1_down = 62;
+#if (MALI_DVFS_STEPS > 2)
+int step2_clk = 350;
+int step2_vol = 950000;
+int step1_up = 90;
+int step2_down = 85;
+#if (MALI_DVFS_STEPS > 3)
+int step3_clk = 440;
+int step3_vol = 1025000;
+int step2_up = 90;
+int step3_down = 85;
+#if (MALI_DVFS_STEPS > 4)
+int step4_clk = 533;
+int step4_vol = 1075000;
+int step3_up = 90;
+int step4_down = 95;
+#endif
+#endif
+#endif
+#endif
 
 mali_dvfs_table mali_dvfs_all[MAX_MALI_DVFS_STEPS]={
 	{160   ,1000000   ,  875000},
@@ -93,18 +143,34 @@ mali_dvfs_table mali_dvfs_all[MAX_MALI_DVFS_STEPS]={
 
 mali_dvfs_table mali_dvfs[MALI_DVFS_STEPS]={
 	{160   ,1000000   , 875000},
+#if (MALI_DVFS_STEPS > 1)
 	{266   ,1000000   , 900000},
+#if (MALI_DVFS_STEPS > 2)
 	{350   ,1000000   , 950000},
+#if (MALI_DVFS_STEPS > 3)
 	{440   ,1000000   ,1025000},
+#if (MALI_DVFS_STEPS > 4)
 	{533   ,1000000   ,1075000}
+#endif
+#endif
+#endif
+#endif
 };
 
 mali_dvfs_threshold_table mali_dvfs_threshold[MALI_DVFS_STEPS]={
 	{0   , 70},
+#if (MALI_DVFS_STEPS > 1)
 	{62  , 90},
+#if (MALI_DVFS_STEPS > 2)
 	{85  , 90},
+#if (MALI_DVFS_STEPS > 3)
 	{85  ,90},
+#if (MALI_DVFS_STEPS > 4)
 	{95  ,100}
+#endif
+#endif
+#endif
+#endif
 };
 
 #ifdef EXYNOS4_ASV_ENABLED
@@ -124,23 +190,32 @@ static unsigned int asv_3d_volt_9_table_1ghz_type[MALI_DVFS_STEPS-1][ASV_LEVEL] 
 #endif
 };
 
-static unsigned int asv_3d_volt_9_table[MALI_DVFS_STEPS-1][ASV_LEVEL] = {
+static unsigned int asv_3d_volt_9_table[MALI_DVFS_STEPS][ASV_LEVEL] = {
 	{  950000,  925000,  900000,  900000,  875000,  875000,  875000,  875000,  850000,  850000,  850000,  850000},  /* L3(160Mhz) */
+#if (MALI_DVFS_STEPS > 1)
 	{  975000,  950000,  925000,  925000,  925000,  900000,  900000,  875000,  875000,  875000,  875000,  850000},  /* L2(266Mhz) */
+#if (MALI_DVFS_STEPS > 2)
 	{ 1050000, 1025000, 1000000, 1000000,  975000,  950000,  950000,  950000,  925000,  925000,  925000,  900000},  /* L1(350Mhz) */
+#if (MALI_DVFS_STEPS > 3)
 	{ 1100000, 1075000, 1050000, 1050000, 1050000, 1025000, 1025000, 1000000, 1000000, 1000000,  975000,  950000},  /* L0(440Mhz) */
+#if (MALI_DVFS_STEPS > 4)
+	{ 1150000, 1125000, 1100000, 1100000, 1100000, 1075000, 1075000, 1050000, 1050000, 1050000, 1025000, 1025000},  /* L0(533Mhz) */
+#endif
+#endif
+#endif
+#endif
 };
 
 static unsigned int asv_3d_volt_9_table_for_prime[MALI_DVFS_STEPS][ASV_LEVEL_PRIME] = {
-	{  962500,  937500,  925000,  912500,  900000,  887500,  875000,  862500,  875000,  862500,  850000,  850000,  850000},  /* L4(160Mhz) */
+	{  950000,  937500,  925000,  912500,  900000,  887500,  875000,  862500,  875000,  862500,  850000,  850000,  850000},  /* L4(160Mhz) */
 #if (MALI_DVFS_STEPS > 1)
-	{  987500,  962500,  950000,  937500,  925000,  912500,  900000,  887500,  900000,  887500,  875000,  875000,  875000},	/* L3(266Mhz) */
+	{  975000,  962500,  950000,  937500,  925000,  912500,  900000,  887500,  900000,  887500,  875000,  875000,  875000},	/* L3(266Mhz) */
 #if (MALI_DVFS_STEPS > 2)
-	{ 1037500, 1012500, 1000000,  987500,  975000,  962500,  950000,  937500,  950000,  937500,  912500,  900000,  887500},	/* L2(350Mhz) */
+	{ 1025000, 1012500, 1000000,  987500,  975000,  962500,  950000,  937500,  950000,  937500,  912500,  900000,  887500},	/* L2(350Mhz) */
 #if (MALI_DVFS_STEPS > 3)
-	{ 1100000, 1075000, 1062500, 1050000, 1037500, 1025000, 1012500, 1000000, 1012500, 1000000,  975000,  962500,  950000},	/* L1(440Mhz) */
+	{ 1087500, 1075000, 1062500, 1050000, 1037500, 1025000, 1012500, 1000000, 1012500, 1000000,  975000,  962500,  950000},	/* L1(440Mhz) */
 #if (MALI_DVFS_STEPS > 4)
-	{ 1162500, 1137500, 1125000, 1112500, 1100000, 1087500, 1075000, 1062500, 1075000, 1062500, 1037500, 1025000, 1012500},	/* L0(533Mhz) */
+	{ 1150000, 1137500, 1125000, 1112500, 1100000, 1087500, 1075000, 1062500, 1075000, 1062500, 1037500, 1025000, 1012500},	/* L0(533Mhz) */
 #endif
 #endif
 #endif
@@ -152,7 +227,7 @@ static unsigned int asv_3d_volt_9_table_for_prime[MALI_DVFS_STEPS][ASV_LEVEL_PRI
 mali_dvfs_currentstatus maliDvfsStatus;
 int mali_dvfs_control=0;
 
-static u32 mali_dvfs_utilization = 255;
+u32 mali_dvfs_utilization = 255;
 
 static void mali_dvfs_work_handler(struct work_struct *w);
 
@@ -163,6 +238,56 @@ extern _mali_osk_lock_t *mali_dvfs_lock;
 int mali_runtime_resumed = -1;
 
 static DECLARE_WORK(mali_dvfs_work, mali_dvfs_work_handler);
+
+/* lock/unlock CPU freq by Mali */
+#include <linux/types.h>
+#include <mach/cpufreq.h>
+
+atomic_t mali_cpufreq_lock;
+
+int cpufreq_lock_by_mali(unsigned int freq)
+{
+#ifdef CONFIG_EXYNOS4_CPUFREQ
+/* #if defined(CONFIG_CPU_FREQ) && defined(CONFIG_ARCH_EXYNOS4) */
+	unsigned int level;
+
+	if (atomic_read(&mali_cpufreq_lock) == 1)
+		exynos_cpufreq_lock_free(DVFS_LOCK_ID_G3D);
+
+	if (exynos_cpufreq_get_level(freq * 1000, &level)) {
+		printk(KERN_ERR
+			"Mali: failed to get cpufreq level for %dMHz", freq);
+		if (atomic_read(&mali_cpufreq_lock) == 1)
+			atomic_set(&mali_cpufreq_lock, 0);
+		return -EINVAL;
+	}
+
+	if (exynos_cpufreq_lock(DVFS_LOCK_ID_G3D, level)) {
+		printk(KERN_ERR "Mali: failed to cpufreq lock for L%d", level);
+		if (atomic_read(&mali_cpufreq_lock) == 1)
+			atomic_set(&mali_cpufreq_lock, 0);
+		return -EINVAL;
+	}
+
+	printk(KERN_DEBUG "Mali: cpufreq locked on <%d>%dMHz\n", level, freq);
+
+	if (atomic_read(&mali_cpufreq_lock) == 0)
+		atomic_set(&mali_cpufreq_lock, 1);
+#endif
+	return 0;
+}
+
+void cpufreq_unlock_by_mali(void)
+{
+#ifdef CONFIG_EXYNOS4_CPUFREQ
+/* #if defined(CONFIG_CPU_FREQ) && defined(CONFIG_ARCH_EXYNOS4) */
+	if (atomic_read(&mali_cpufreq_lock) == 1) {
+		exynos_cpufreq_lock_free(DVFS_LOCK_ID_G3D);
+		atomic_set(&mali_cpufreq_lock, 0);
+		printk(KERN_DEBUG "Mali: cpufreq locked off\n");
+	}
+#endif
+}
 
 static unsigned int get_mali_dvfs_status(void)
 {
@@ -226,6 +351,16 @@ static mali_bool set_mali_dvfs_status(u32 step,mali_bool boostup)
 	/*for future use*/
 	maliDvfsStatus.pCurrentDvfs = &mali_dvfs[validatedStep];
 
+#if CPUFREQ_LOCK_DURING_440
+	/* lock/unlock CPU freq by Mali */
+	if (mali_dvfs[step].clock >= 533)
+		err = cpufreq_lock_by_mali(1200);
+	else if (mali_dvfs[step].clock == 440)
+		err = cpufreq_lock_by_mali(1000);
+	else
+		cpufreq_unlock_by_mali();
+#endif
+
 	return MALI_TRUE;
 }
 
@@ -267,8 +402,8 @@ static mali_bool mali_dvfs_table_update(void)
 	unsigned int i;
 	unsigned int step_num = MALI_DVFS_STEPS;
 
-	if (samsung_rev() < EXYNOS4412_REV_2_0)
-		step_num = MALI_DVFS_STEPS - 1;
+//	if (samsung_rev() < EXYNOS4412_REV_2_0)
+//		step_num = MALI_DVFS_STEPS - 1;
 
 	if (soc_is_exynos4412()) {
 		if (exynos_armclk_max == 1000000) {
@@ -327,14 +462,106 @@ static unsigned int decideNextStatus(unsigned int utilization)
 		return level;
 	}
 
-	if (utilization > (int)(255 * mali_dvfs_threshold[maliDvfsStatus.currentStep].upthreshold / 100) &&
-			level < MALI_DVFS_STEPS - 1) {
-		level++;
+	if (!mali_dvfs_control && level == maliDvfsStatus.currentStep) {
+		if (utilization > (int)(255 * mali_dvfs_threshold[maliDvfsStatus.currentStep].upthreshold / 100) &&
+				level < MALI_DVFS_STEPS - 1) {
+			level++;
+// this prevents the usage of 5th step -gm
+//			if ((samsung_rev() < EXYNOS4412_REV_2_0) && (maliDvfsStatus.currentStep == 3)) {
+//				level=get_mali_dvfs_status();
+//			}
+		}
+		if (utilization < (int)(255 * mali_dvfs_threshold[maliDvfsStatus.currentStep].downthreshold / 100) &&
+				level > 0) {
+			level--;
+		}
+	} else if (mali_dvfs_control == 999) {
+		int i = 0;
+		for (i = 0; i < MALI_DVFS_STEPS; i++) {
+			step[i].clk = mali_dvfs_all[i].clock;
+		}
+#ifdef EXYNOS4_ASV_ENABLED
+//		mali_dvfs_table_update();
+#endif
+		i = 0;
+		for (i = 0; i < MALI_DVFS_STEPS; i++) {
+			mali_dvfs[i].clock = step[i].clk;
+		}
+		mali_dvfs_control = 0;
+		level = 0;
+
+		step0_clk = step[0].clk;
+		change_dvfs_tableset(step0_clk, 0);
+#if (MALI_DVFS_STEPS > 1)
+		step1_clk = step[1].clk;
+		change_dvfs_tableset(step1_clk, 1);
+#if (MALI_DVFS_STEPS > 2)
+		step2_clk = step[2].clk;
+		change_dvfs_tableset(step2_clk, 2);
+#if (MALI_DVFS_STEPS > 3)
+		step3_clk = step[3].clk;
+		change_dvfs_tableset(step3_clk, 3);
+#if (MALI_DVFS_STEPS > 4)
+		step4_clk = step[4].clk;
+		change_dvfs_tableset(step4_clk, 4);
+#endif
+#endif
+#endif
+#endif
+	} else if (mali_dvfs_control != mali_dvfs_clk && mali_dvfs_control != 999) {
+		if (mali_dvfs_control < mali_dvfs_all[1].clock && mali_dvfs_control > 0) {
+			int i = 0;
+			for (i = 0; i < MALI_DVFS_STEPS; i++) {
+				step[i].clk = mali_dvfs_all[0].clock;
+			}
+			maliDvfsStatus.currentStep = 0;
+		} else if (mali_dvfs_control < mali_dvfs_all[2].clock && mali_dvfs_control >= mali_dvfs_all[1].clock) {
+			int i = 0;
+			for (i = 0; i < MALI_DVFS_STEPS; i++) {
+				step[i].clk = mali_dvfs_all[1].clock;
+			}
+			maliDvfsStatus.currentStep = 1;
+		} else if (mali_dvfs_control < mali_dvfs_all[3].clock && mali_dvfs_control >= mali_dvfs_all[2].clock) {
+			int i = 0;
+			for (i = 0; i < MALI_DVFS_STEPS; i++) {
+				step[i].clk = mali_dvfs_all[2].clock;
+			}
+			maliDvfsStatus.currentStep = 2;
+		} else if (mali_dvfs_control < mali_dvfs_all[4].clock && mali_dvfs_control >= mali_dvfs_all[3].clock) {
+			int i = 0;
+			for (i = 0; i < MALI_DVFS_STEPS; i++) {
+				step[i].clk  = mali_dvfs_all[3].clock;
+			}
+			maliDvfsStatus.currentStep = 3;
+		} else {
+			int i = 0;
+			for (i = 0; i < MALI_DVFS_STEPS; i++) {
+				step[i].clk  = mali_dvfs_all[4].clock;
+			}
+			maliDvfsStatus.currentStep = 4;
+		}
+		step0_clk = step[0].clk;
+		change_dvfs_tableset(step0_clk, 0);
+#if (MALI_DVFS_STEPS > 1)
+		step1_clk = step[1].clk;
+		change_dvfs_tableset(step1_clk, 1);
+#if (MALI_DVFS_STEPS > 2)
+		step2_clk = step[2].clk;
+		change_dvfs_tableset(step2_clk, 2);
+#if (MALI_DVFS_STEPS > 3)
+		step3_clk = step[3].clk;
+		change_dvfs_tableset(step3_clk, 3);
+#if (MALI_DVFS_STEPS > 4)
+		step4_clk = step[4].clk;
+		change_dvfs_tableset(step4_clk, 4);
+#endif
+#endif
+#endif
+#endif
+		level = maliDvfsStatus.currentStep;
 	}
-	if (utilization < (int)(255 * mali_dvfs_threshold[maliDvfsStatus.currentStep].downthreshold / 100) &&
-			level > 0) {
-		level--;
-	}
+
+	mali_dvfs_clk = mali_dvfs_control;
 
 	if (_mali_osk_atomic_read(&bottomlock_status) > 0) {
 		if (level < bottom_lock_step)
@@ -397,8 +624,90 @@ void mali_dvfs_late_resume(void)
 
 static void mali_dvfs_work_handler(struct work_struct *w)
 {
+	int change_clk = 0;
+	int change_step = 0;
 	bMaliDvfsRun=1;
 
+	/* dvfs table change when clock was changed */
+	if (step0_clk != mali_dvfs[0].clock) {
+		MALI_PRINT(("::: step0_clk change to %d Mhz\n", step0_clk));
+		change_clk = step0_clk;
+		change_step = 0;
+		step0_clk = change_dvfs_tableset(change_clk, change_step);
+	}
+#if (MALI_DVFS_STEPS > 1)
+	if (step1_clk != mali_dvfs[1].clock) {
+		MALI_PRINT(("::: step1_clk change to %d Mhz\n", step1_clk));
+		change_clk = step1_clk;
+		change_step = 1;
+		step1_clk = change_dvfs_tableset(change_clk, change_step);
+	}
+	if (step0_up != mali_dvfs_threshold[0].upthreshold) {
+		MALI_PRINT(("::: step0_up change to %d %\n", step0_up));
+		mali_dvfs_threshold[0].upthreshold = step0_up;
+	}
+	if (step1_down != mali_dvfs_threshold[1].downthreshold) {
+		MALI_PRINT((":::step1_down change to %d %\n", step1_down));
+		mali_dvfs_threshold[1].downthreshold = step1_down;
+	}
+#if (MALI_DVFS_STEPS > 2)
+	if (step2_clk != mali_dvfs[2].clock) {
+		MALI_PRINT(("::: step2_clk change to %d Mhz\n", step2_clk));
+		change_clk = step2_clk;
+		change_step = 2;
+		step2_clk = change_dvfs_tableset(change_clk, change_step);
+	}
+	if (step1_up != mali_dvfs_threshold[1].upthreshold) {
+		MALI_PRINT((":::step1_up change to %d %\n", step1_up));
+		mali_dvfs_threshold[1].upthreshold = step1_up;
+	}
+	if (step2_down != mali_dvfs_threshold[2].downthreshold) {
+		MALI_PRINT((":::step2_down change to %d %\n", step2_down));
+		mali_dvfs_threshold[2].downthreshold = step2_down;
+	}
+#if (MALI_DVFS_STEPS > 3)
+	if (step3_clk != mali_dvfs[3].clock) {
+		MALI_PRINT(("::: step3_clk change to %d Mhz\n", step3_clk));
+		change_clk = step3_clk;
+		change_step = 3;
+		step3_clk = change_dvfs_tableset(change_clk, change_step);
+	}
+	if (step2_up != mali_dvfs_threshold[2].upthreshold) {
+		MALI_PRINT((":::step2_up change to %d %\n", step2_up));
+		mali_dvfs_threshold[2].upthreshold = step2_up;
+	}
+	if (step3_down != mali_dvfs_threshold[3].downthreshold) {
+		MALI_PRINT((":::step3_down change to %d %\n", step3_down));
+		mali_dvfs_threshold[3].downthreshold = step3_down;
+	}
+#if (MALI_DVFS_STEPS > 4)
+	if (step4_clk != mali_dvfs[4].clock) {
+		MALI_PRINT(("::: step4_clk change to %d Mhz\n", step4_clk));
+		change_clk = step4_clk;
+		change_step = 4;
+		step4_clk = change_dvfs_tableset(change_clk, change_step);
+	}
+	if (step3_up != mali_dvfs_threshold[3].upthreshold) {
+		MALI_PRINT((":::step3_up change to %d %\n", step3_up));
+		mali_dvfs_threshold[3].upthreshold = step3_up;
+	}
+	if (step4_down != mali_dvfs_threshold[4].downthreshold) {
+		MALI_PRINT((":::step4_down change to %d %\n", step4_down));
+		mali_dvfs_threshold[4].downthreshold = step4_down;
+	}
+#endif
+#endif
+#endif
+#endif
+
+
+#ifdef DEBUG
+	mali_dvfs[0].vol = step0_vol;
+	mali_dvfs[1].vol = step1_vol;
+	mali_dvfs[2].vol = step2_vol;
+	mali_dvfs[3].vol = step3_vol;
+	mali_dvfs[4].vol = step4_vol;
+#endif
 	MALI_DEBUG_PRINT(3, ("=== mali_dvfs_work_handler\n"));
 
 	if (!mali_dvfs_status(mali_dvfs_utilization))
@@ -417,13 +726,10 @@ mali_bool init_mali_dvfs_status(int step)
 
 	_mali_osk_atomic_init(&bottomlock_status, 0);
 
+	mali_dvfs_table_update();
+
 	/*add a error handling here*/
 	set_mali_dvfs_current_step(step);
-
-#ifdef EXYNOS4_ASV_ENABLED
-	mali_dvfs_table_update();
-	change_mali_dvfs_status(1, 0);
-#endif
 
 	return MALI_TRUE;
 }
@@ -447,6 +753,48 @@ mali_bool mali_dvfs_handler(u32 utilization)
 	return MALI_TRUE;
 }
 
+int change_dvfs_tableset(int change_clk, int change_step)
+{
+	int err;
+
+	mali_dvfs[change_step].clock = change_clk;
+/* comment this part to be able to use different freq steps than the set -gm
+	if (change_clk < mali_dvfs_all[1].clock) {
+		mali_dvfs[change_step].clock = mali_dvfs_all[0].clock;
+	} else if (change_clk < mali_dvfs_all[2].clock && change_clk >= mali_dvfs_all[1].clock) {
+		mali_dvfs[change_step].clock = mali_dvfs_all[1].clock;
+	} else if (change_clk < mali_dvfs_all[3].clock && change_clk >= mali_dvfs_all[2].clock) {
+		mali_dvfs[change_step].clock = mali_dvfs_all[2].clock;
+	} else if (change_clk < mali_dvfs_all[4].clock && change_clk >= mali_dvfs_all[3].clock) {
+		mali_dvfs[change_step].clock = mali_dvfs_all[3].clock;
+	} else {
+		mali_dvfs[change_step].clock = mali_dvfs_all[4].clock;
+	}
+*/
+	MALI_PRINT((":::mali dvfs step %d clock and voltage = %d Mhz, %d V\n",change_step, mali_dvfs[change_step].clock, mali_dvfs[change_step].vol));
+
+	if (maliDvfsStatus.currentStep == change_step) {
+#ifdef CONFIG_REGULATOR
+		/*change the voltage*/
+		mali_regulator_set_voltage(mali_dvfs[change_step].vol, mali_dvfs[change_step].vol);
+#endif
+		/*change the clock*/
+		mali_clk_set_rate(mali_dvfs[change_step].clock, mali_dvfs[change_step].freq);
+
+#if CPUFREQ_LOCK_DURING_440
+		/* lock/unlock CPU freq by Mali */
+		if (mali_dvfs[change_step].clock >= 533)
+			err = cpufreq_lock_by_mali(1200);
+		else if (mali_dvfs[change_step].clock == 440)
+			err = cpufreq_lock_by_mali(1000);
+		else
+			cpufreq_unlock_by_mali();
+#endif
+	}
+
+	return mali_dvfs[change_step].clock;
+}
+
 void mali_default_step_set(int step, mali_bool boostup)
 {
 	mali_clk_set_rate(mali_dvfs[step].clock, mali_dvfs[step].freq);
@@ -463,6 +811,7 @@ int mali_dvfs_bottom_lock_push(int lock_step)
 		MALI_PRINT(("gpu bottom lock status is not valid for push\n"));
 		return -1;
 	}
+	// not a bad idea to limit locking to 4th step, so let's leave this -gm
 	if (samsung_rev() < EXYNOS4412_REV_2_0)
 		lock_step = min(lock_step, MALI_DVFS_STEPS - 2);
 	else
@@ -495,3 +844,24 @@ int mali_dvfs_bottom_lock_pop(void)
 
 	return _mali_osk_atomic_dec_return(&bottomlock_status);
 }
+
+int mali_dvfs_get_vol(int step)
+{
+	step = step % MAX_MALI_DVFS_STEPS;
+	MALI_DEBUG_ASSERT(step<MAX_MALI_DVFS_STEPS);
+
+	return mali_dvfs[step].vol;
+}
+
+#if MALI_VOLTAGE_LOCK
+int mali_vol_get_from_table(int vol)
+{
+	int i;
+	for (i = 0; i < MALI_DVFS_STEPS; i++) {
+		if (mali_dvfs[i].vol >= vol)
+			return mali_dvfs[i].vol;
+	}
+	MALI_PRINT(("Failed to get voltage from mali_dvfs table, maximum voltage is %d uV\n", mali_dvfs[MALI_DVFS_STEPS-1].vol));
+	return 0;
+}
+#endif
