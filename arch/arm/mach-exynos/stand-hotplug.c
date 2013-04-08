@@ -541,7 +541,11 @@ static int __init exynos4_pm_hotplug_init(void)
 	}
 */
 	/*get max frequency*/
+#ifdef CONFIG_MACH_M0
 	max_performance = 1400000 * NUM_CPUS;
+#else
+	max_performance = 1600000 * NUM_CPUS;
+#endif
 	freq_min = 200000;
 #else
 	max_performance = clk_get_rate(clk_get(NULL, "armclk")) / 1000 * NUM_CPUS;
