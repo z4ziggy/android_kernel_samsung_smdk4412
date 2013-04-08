@@ -150,7 +150,8 @@ static unsigned int get_nr_run_avg(void)
 #define DEF_FREQUENCY_MIN_SAMPLE_RATE		(10000)
 #define MIN_FREQUENCY_UP_THRESHOLD		(11)
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
-#define DEF_SAMPLING_RATE			(50000)
+#define DEF_GRAD_UP_THRESHOLD      		(50)
+#define DEF_SAMPLING_RATE			(30000)
 #define MIN_SAMPLING_RATE			(10000)
 #define MAX_HOTPLUG_RATE			(40u)
 
@@ -223,6 +224,7 @@ struct cpu_dbs_info_s {
 	struct work_struct down_work;
 	struct cpufreq_frequency_table *freq_table;
 	unsigned int rate_mult;
+	unsigned int prev_load_freq;
 	int cpu;
 	/*
 	 * percpu mutex that serializes governor limit change with
@@ -262,6 +264,8 @@ static struct dbs_tuners {
 	unsigned int dvfs_debug;
 	unsigned int max_freq;
 	unsigned int min_freq;
+	unsigned int grad_up_threshold;
+	unsigned int early_demand;
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	int early_suspend;
 #endif
@@ -280,6 +284,8 @@ static struct dbs_tuners {
 	.min_cpu_lock = DEF_MIN_CPU_LOCK,
 	.hotplug_lock = ATOMIC_INIT(0),
 	.dvfs_debug = 0,
+	.grad_up_threshold = DEF_GRAD_UP_THRESHOLD,
+	.early_demand = 0,
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	.early_suspend = -1,
 #endif
@@ -478,6 +484,9 @@ show_one(up_nr_cpus, up_nr_cpus);
 show_one(max_cpu_lock, max_cpu_lock);
 show_one(min_cpu_lock, min_cpu_lock);
 show_one(dvfs_debug, dvfs_debug);
+show_one(grad_up_threshold, grad_up_threshold);
+show_one(early_demand, early_demand);
+
 static ssize_t show_hotplug_lock(struct kobject *kobj,
 				struct attribute *attr, char *buf)
 {
@@ -797,6 +806,36 @@ static ssize_t store_dvfs_debug(struct kobject *a, struct attribute *b,
 	return count;
 }
 
+
+static ssize_t store_grad_up_threshold(struct kobject *a,
+      struct attribute *b, const char *buf, size_t count)
+{
+  unsigned int input;
+  int ret;
+  ret = sscanf(buf, "%u", &input);
+
+  if (ret != 1 || input > MAX_FREQUENCY_UP_THRESHOLD ||
+      input < MIN_FREQUENCY_UP_THRESHOLD) {
+    return -EINVAL;
+  }
+
+  dbs_tuners_ins.grad_up_threshold = input;
+  return count;
+}
+
+static ssize_t store_early_demand(struct kobject *a, struct attribute *b,
+          const char *buf, size_t count)
+{
+  unsigned int input;
+  int ret;
+
+  ret = sscanf(buf, "%u", &input);
+  if (ret != 1)
+    return -EINVAL;
+  dbs_tuners_ins.early_demand = !!input;
+  return count;
+}
+
 define_one_global_rw(sampling_rate);
 define_one_global_rw(io_is_busy);
 define_one_global_rw(up_threshold);
@@ -813,6 +852,8 @@ define_one_global_rw(max_cpu_lock);
 define_one_global_rw(min_cpu_lock);
 define_one_global_rw(hotplug_lock);
 define_one_global_rw(dvfs_debug);
+define_one_global_rw(grad_up_threshold);
+define_one_global_rw(early_demand);
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
@@ -846,7 +887,8 @@ static struct attribute *dbs_attributes[] = {
 	&hotplug_rq_3_0.attr,
 	&hotplug_rq_3_1.attr,
 	&hotplug_rq_4_0.attr,
-	NULL
+	&grad_up_threshold.attr,
+	&early_demand.attr,
 };
 
 static struct attribute_group dbs_attr_group = {
@@ -1056,6 +1098,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	int max_hotplug_rate = max(dbs_tuners_ins.cpu_up_rate,
 				   dbs_tuners_ins.cpu_down_rate);
 	int up_threshold = dbs_tuners_ins.up_threshold;
+	int boost_freq = 0;
 
 	policy = this_dbs_info->cur_policy;
 
@@ -1140,14 +1183,29 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	if (hotplug_history->num_hist  == max_hotplug_rate)
 		hotplug_history->num_hist = 0;
 
+  	/*
+   	* Calculate the gradient of load_freq. If it is too steep we assume
+   	* that the load will go over up_threshold in next iteration(s) and
+   	* we increase the frequency immediately
+   	*/
+  	if (dbs_tuners_ins.early_demand) {
+    	   if (max_load_freq > this_dbs_info->prev_load_freq &&
+       	   (max_load_freq - this_dbs_info->prev_load_freq >
+           dbs_tuners_ins.grad_up_threshold * policy->cur))
+     		 boost_freq = 1;
+
+    	this_dbs_info->prev_load_freq = max_load_freq;
+  	}
+
 	/* Check for frequency increase */
 	if (policy->cur < FREQ_FOR_RESPONSIVENESS) {
 		up_threshold = UP_THRESHOLD_AT_MIN_FREQ;
 	}
 
-	if (max_load_freq > up_threshold * policy->cur) {
+	if (max_load_freq > up_threshold * policy->cur || boost_freq) {
 		int inc = (policy->max * dbs_tuners_ins.freq_step) / 100;
 		int target = min(policy->max, policy->cur + inc);
+
 		/* If switching to max speed, apply sampling_down_factor */
 		if (policy->cur < policy->max && target == policy->max)
 			this_dbs_info->rate_mult =
@@ -1340,6 +1398,7 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 		dbs_tuners_ins.min_freq = policy->min;
 		hotplug_history->num_hist = 0;
 		start_rq_work();
+		this_dbs_info->prev_load_freq = 0;
 
 		mutex_lock(&dbs_mutex);
 
