@@ -36,7 +36,7 @@ static void stop_drawing_early_suspend(struct early_suspend *h)
 	unsigned long irq_flags;
 
 SAMSUNGROM{
-	msleep(400);
+	msleep(200);
 }
 
 	spin_lock_irqsave(&fb_state_lock, irq_flags);
