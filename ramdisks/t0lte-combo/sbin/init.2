@@ -15,7 +15,7 @@ if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
   $BB rm -f init.smdk4x12.rc
 fi
 
-$BB mv -f /init-cyano /init
+$BB mv -f /init-orig /init
 
 export PATH="${_PATH}"
 exec /init

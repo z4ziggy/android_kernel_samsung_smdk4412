@@ -34,8 +34,14 @@ else
 SAV=unknown
 fi
 
+CM101=0
+SAMMY42=0
+
+$BB [ -f /system/framework/framework2.jar ] || CM101=1
+$BB [ -f /system/framework/telephony-common.jar ] && SAMMY42=1
 $BB mv -f /roms/cm101/* /
 echo 7 > /proc/sys/kernel/rom_feature_set
+
 
 if $BB [ ! -d /system/lib/modules ]; then 
     $BB mkdir -p /system/lib/modules
@@ -55,4 +61,4 @@ else
 fi
 
 $BB umount /system
-exec /sbin/init.aosp
+exec /sbin/init.2
