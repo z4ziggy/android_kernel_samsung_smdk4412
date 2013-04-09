@@ -39,26 +39,31 @@ SAMMY42=0
 
 $BB [ -f /system/framework/framework2.jar ] || CM101=1
 $BB [ -f /system/framework/telephony-common.jar ] && SAMMY42=1
+
+if [ "$CM101" == 1 ]; then
+echo "using cm-10.1 initramfs"
 $BB mv -f /roms/cm101/* /
 echo 7 > /proc/sys/kernel/rom_feature_set
 
-
-if $BB [ ! -d /system/lib/modules ]; then 
+  if $BB [ ! -d /system/lib/modules ]; then 
     $BB mkdir -p /system/lib/modules
     $BB chmod 777 /system/lib/modules
+  fi
+
+  if $BB [ "`$BB grep $KV /system/lib/modules/dhd.ko`" ] && [ "$CUR" == "$SAV" ] && [ -f /system/lib/modules/dhd.ko ]; then
+    $BB echo "kernel modules already installed, nothing to do"
+  else
+    if $BB [ "$CUR" != "$SAV" ] ; then
+      $BB echo $CUR > /system/.last_version
+    fi
+      $BB rm /system/lib/modules/*
+      $BB echo "updating modules..."
+      $BB cp /lib/modules/* /system/lib/modules/
+      $BB ls -l /system/lib/modules/
+  fi
+
 fi
 
-if $BB [ "`$BB grep $KV /system/lib/modules/dhd.ko`" ] && [ "$CUR" == "$SAV" ] && [ -f /system/lib/modules/dhd.ko ]; then
-    $BB echo "kernel modules already installed, nothing to do"
-else
-  if $BB [ "$CUR" != "$SAV" ] ; then
-    $BB echo $CUR > /system/.last_version
-  fi
-    $BB rm /system/lib/modules/*
-    $BB echo "updating modules..."
-    $BB cp /lib/modules/* /system/lib/modules/
-    $BB ls -l /system/lib/modules/
-fi
 
 $BB umount /system
 exec /sbin/init.2
