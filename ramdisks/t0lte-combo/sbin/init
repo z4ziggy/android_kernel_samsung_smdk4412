@@ -61,7 +61,9 @@ echo 7 > /proc/sys/kernel/rom_feature_set
       $BB cp /lib/modules/* /system/lib/modules/
       $BB ls -l /system/lib/modules/
   fi
-
+else
+$BB mv -f /roms/sammy41/* /
+echo 2 > /proc/sys/kernel/rom_feature_set
 fi
 
 
