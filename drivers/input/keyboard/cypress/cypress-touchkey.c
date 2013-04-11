@@ -1199,6 +1199,7 @@ else
 	if (ret == -ENODEV) {
 		printk(KERN_DEBUG"[Touchkey] error to write i2c\n");
 		touchled_cmd_reversed = 1;
+	}
 
     pr_debug("[TouchKey] %s touchkey_led_status=%d\n", __func__, data);
 	touchkey_led_status = data;
