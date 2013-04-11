@@ -24,16 +24,6 @@ $BB mount -t proc proc /proc
 $BB mount -t sysfs sysfs /sys
 $BB mount -t ext4 /dev/block/mmcblk0p13 /system
 
-$BB echo "checking version..."
-KV=`$BB uname -r`
-$BB echo "current kernel version: $KV"
-CUR=`$BB cat /proc/version`
-if $BB [ -e /system/.last_version ]; then
-SAV=`$BB cat /system/.last_version`
-else
-SAV=unknown
-fi
-
 CM101=0
 SAMMY42=0
 
@@ -44,28 +34,12 @@ if [ "$CM101" == 1 ]; then
 echo "using cm-10.1 initramfs"
 $BB mv -f /roms/cm101/* /
 echo 7 > /proc/sys/kernel/rom_feature_set
-
-  if $BB [ ! -d /system/lib/modules ]; then 
-    $BB mkdir -p /system/lib/modules
-    $BB chmod 777 /system/lib/modules
-  fi
-
-  if $BB [ "`$BB grep $KV /system/lib/modules/dhd.ko`" ] && [ "$CUR" == "$SAV" ] && [ -f /system/lib/modules/dhd.ko ]; then
-    $BB echo "kernel modules already installed, nothing to do"
-  else
-    if $BB [ "$CUR" != "$SAV" ] ; then
-      $BB echo $CUR > /system/.last_version
-    fi
-      $BB rm /system/lib/modules/*
-      $BB echo "updating modules..."
-      $BB cp /lib/modules/* /system/lib/modules/
-      $BB ls -l /system/lib/modules/
-  fi
+$BB mkdir -p /system/lib/modules
+$BB mv /lib/modules/* /system/lib/modules/
 else
 $BB mv -f /roms/sammy41/* /
 echo 2 > /proc/sys/kernel/rom_feature_set
 fi
-
 
 $BB umount /system
 exec /sbin/init.2
