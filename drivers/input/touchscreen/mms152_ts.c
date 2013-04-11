@@ -52,7 +52,9 @@
 // Touch Boost Control
 #include <linux/touch_boost_control.h>
 
+
 #include "../keyboard/cypress/cypress-touchkey.h"
+
 
 #ifdef CONFIG_INPUT_FBSUSPEND
 #ifdef CONFIG_DRM
@@ -511,6 +513,7 @@ static void set_dvfs_lock(struct mms_ts_info *info, uint32_t on)
 
 	mutex_lock(&info->dvfs_lock);
 
+
 	// Setting policy->max freq set by user as touchbooster freq
 	// only if it is less than the default touchbooster freq set by the kernel define
 	// by simone201
@@ -520,12 +523,14 @@ static void set_dvfs_lock(struct mms_ts_info *info, uint32_t on)
 	else
 		freq_lock = boost_freq;
 
+
 	// Disable touchbooster if the current frequency is higher than the touchbooster dvfs freq
 	// Helps in avoiding stuttering and lags while using heavy tasks
 	// by simone201
 	cur_freq = exynos_cpufreq_get_curfreq();
 	if(cur_freq > freq_lock)
 		goto out;
+
 
 	// We should force the research of the cpu lock level, because it might be changed - simone201
 	ret = exynos_cpufreq_get_level(freq_lock, &info->cpufreq_level);
@@ -999,9 +1004,10 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 			if (info->panel == 'M') {
 				if (info->finger_state[id] != 0) {
 					info->finger_state[id] = 0;
-					
+AOSPROM {					
 					// report state to cypress-touchkey for backlight timeout
 					touchscreen_state_report(0);
+}
 					
 #ifdef CONFIG_LCD_FREQ_SWITCH
 					dev_notice(&client->dev,
@@ -1016,10 +1022,10 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 			} else {
 				if (info->finger_state[id] != 0) {
 					info->finger_state[id] = 0;
-					
+AOSPROM {			
 					// report state to cypress-touchkey for backlight timeout
 					touchscreen_state_report(0);
-					
+}
 					dev_notice(&client->dev,
 						"R [%2d]", id);
 				}
@@ -1028,8 +1034,10 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 			if (info->panel == 'M') {
 				if (info->finger_state[id] != 0) {
 
+AOSPROM {
 					// report state to cypress-touchkey for backlight timeout
 					touchscreen_state_report(0);
+}
 
 					info->finger_state[id] = 0;
 #ifdef CONFIG_LCD_FREQ_SWITCH
@@ -1047,8 +1055,10 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 			} else {
 				if (info->finger_state[id] != 0) {
 
+AOSPROM {
 					// report state to cypress-touchkey for backlight timeout
 					touchscreen_state_report(0);
+}
 
 					info->finger_state[id] = 0;
 					dev_notice(&client->dev,
@@ -1080,9 +1090,10 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 #ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
 			if (info->finger_state[id] == 0) {
 				info->finger_state[id] = 1;
-				
+AOSPROM {			
 				// report state to cypress-touchkey for backlight timeout
 				touchscreen_state_report(1);
+}
 
 #ifdef CONFIG_LCD_FREQ_SWITCH
 				dev_notice(&client->dev,
@@ -1096,8 +1107,10 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 #else
 			if (info->finger_state[id] == 0) {
 
+AOSPROM {
 				// report state to cypress-touchkey for backlight timeout
 				touchscreen_state_report(1);
+}
 				info->finger_state[id] = 1;
 #ifdef CONFIG_LCD_FREQ_SWITCH
 				dev_notice(&client->dev,
@@ -1129,16 +1142,19 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 #ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
 			if (info->finger_state[id] == 0) {
 				info->finger_state[id] = 1;
-				
+AOSPROM {				
 				// report state to cypress-touchkey for backlight timeout
 				touchscreen_state_report(1);
+}
 				dev_notice(&client->dev,
 					"P [%2d]", id);
 			}
 #else
 			if (info->finger_state[id] == 0) {
+AOSPROM {
 				// report state to cypress-touchkey for backlight timeout
 				touchscreen_state_report(1);
+}
 				info->finger_state[id] = 1;
 				dev_notice(&client->dev,
 					"P [%2d],([%4d],[%3d]),S:%d W:%d",
