@@ -10,11 +10,7 @@ else
 	exit 1
 fi
 
-if [ "$TARGET" = "i317" ] || [ "$TARGET" = "att" ] || [ "$TARGET" = "t889" ] || [ "$TARGET" = "tmo" ]; then
-TARGET=t0lte
-fi
-
-version=Devil-$TARGET-COMBO-0.9.2_$(date +%Y%m%d)
+version=Devil-$TARGET-COMBO-0.9.84_$(date +%Y%m%d)
 
 if [ "$TARGET" = "i9300" ] ; then
 CUSTOM_PATH=i9300
@@ -48,7 +44,7 @@ fi
 TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
 MODULES_PATH="$KERNEL_PATH/ramdisks/modules"
 
-defconfig=cyanogenmod_"$TARGET"_defconfig
+defconfig=combo_"$TARGET"_defconfig
 
 export KBUILD_BUILD_VERSION="$version"
 export KERNELDIR=$KERNEL_PATH
