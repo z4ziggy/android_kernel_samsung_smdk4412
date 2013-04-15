@@ -1,0 +1,21 @@
+#!/sbin/busybox sh
+
+BB=/sbin/busybox
+
+export _PATH="$PATH"
+export PATH=/sbin
+
+cd /
+$BB rm /init
+
+if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
+  # low power mode
+  echo 0 > /proc/sys/kernel/rom_feature_set
+  $BB cp -f lpm.rc init.rc
+  $BB rm -f init.smdk4x12.rc
+fi
+
+$BB mv -f /init-orig /init
+
+export PATH="${_PATH}"
+exec /init

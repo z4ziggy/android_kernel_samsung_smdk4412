@@ -1,0 +1,45 @@
+#!/sbin/busybox sh
+
+BB=/sbin/busybox
+
+cd /
+
+$BB date >>boot.txt
+exec >>boot.txt 2>&1
+
+$BB echo "generating mount directories..."
+$BB mkdir proc
+$BB mkdir sys
+$BB mkdir system
+
+$BB mkdir /dev
+$BB mkdir /dev/block
+
+$BB echo "generating device nodes..."
+$BB mknod /dev/block/mmcblk0 b 179 0
+$BB mknod /dev/block/mmcblk0p13 b 179 13
+
+$BB echo "mounting devices..."
+$BB mount -t proc proc /proc
+$BB mount -t sysfs sysfs /sys
+$BB mount -t ext4 /dev/block/mmcblk0p13 /system
+
+CM101=0
+SAMMY42=0
+
+$BB [ -f /system/framework/framework2.jar ] || CM101=1
+$BB [ -f /system/framework/telephony-common.jar ] && SAMMY42=1
+
+if [ "$CM101" == 1 ]; then
+echo "using cm-10.1 initramfs"
+$BB mv -f /roms/cm101/* /
+echo 7 > /proc/sys/kernel/rom_feature_set
+$BB mkdir -p /system/lib/modules
+$BB mv /lib/modules/* /system/lib/modules/
+else
+$BB mv -f /roms/sammy41/* /
+echo 2 > /proc/sys/kernel/rom_feature_set
+fi
+
+$BB umount /system
+exec /sbin/init.2
