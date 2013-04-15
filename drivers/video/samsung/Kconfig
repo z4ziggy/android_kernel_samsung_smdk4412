@@ -95,7 +95,7 @@ config FB_S5P_MDNIE_CONTROL
 	bool "Samsung MDNIE Register Value Intercept Control"
 	depends on FB_S5P
 	depends on FB_S5P_MDNIE
-	default "0"
+	default y
 	---help---
 	This enables control support for Samsung MDNIE feature
 
