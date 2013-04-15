@@ -390,7 +390,7 @@ config SND_SOC_WM9090
 
 config SND_WOLFSON_SOUND_CONTROL
 	bool "Sound control based on Boeffla sound"
-	default n if SND_SOC_WM8994=y
+	default y if SND_SOC_WM8994=y
 	depends on SND_SOC_WM8994
 
 config SND_BOEFFLA
