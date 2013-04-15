@@ -24,6 +24,8 @@ $BB mount -t proc proc /proc
 $BB mount -t sysfs sysfs /sys
 $BB mount -t ext4 /dev/block/mmcblk0p13 /system
 
+echo 7 > /proc/sys/kernel/rom_feature_set
+
 $BB echo "checking version..."
 KV=`$BB uname -r`
 $BB echo "current kernel version: $KV"
