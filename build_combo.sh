@@ -10,7 +10,7 @@ else
 	exit 1
 fi
 
-version=Devil-$TARGET-COMBO-0.9.84_$(date +%Y%m%d)
+version=Devil-$TARGET-COMBO-0.9.88_$(date +%Y%m%d)
 
 if [ "$TARGET" = "i9300" ] ; then
 CUSTOM_PATH=i9300
@@ -42,7 +42,7 @@ elif [ "$(whoami)" == "rollus" ]; then
 	TOOLCHAIN_PATH="/home/rollus/android-toolchain-eabi/bin/"
 fi
 TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
-MODULES_PATH="$KERNEL_PATH/ramdisks/modules"
+ROOTFS_PATH="$KERNEL_PATH/ramdisks/$TARGET-combo"
 
 defconfig=combo_"$TARGET"_defconfig
 
@@ -50,6 +50,13 @@ export KBUILD_BUILD_VERSION="$version"
 export KERNELDIR=$KERNEL_PATH
 
 export USE_SEC_FIPS_MODE=true
+
+# Set ramdisk files permissions
+chmod 750 $ROOTFS_PATH/roms/*/init*
+chmod 644 $ROOTFS_PATH/roms/*/ueventd*
+chmod 644 $ROOTFS_PATH/roms/*/lpm.rc
+chmod 750 $ROOTFS_PATH/sbin/init*
+
 
 if [ "$2" = "clean" ]; then
 echo "Cleaning latest build"
@@ -64,9 +71,9 @@ make $defconfig
 
 make -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$TOOLCHAIN || exit -1
 # Copying and stripping kernel modules
-mkdir -p $MODULES_PATH/lib/modules
-find -name '*.ko' -exec cp -av {} $MODULES_PATH/lib/modules/ \;
-        for i in $MODULES_PATH/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
+mkdir -p $ROOTFS_PATH/lib/modules
+find -name '*.ko' -exec cp -av {} $ROOTFS_PATH/lib/modules/ \;
+        for i in $ROOTFS_PATH/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
 
 # Copy Kernel Image
 rm -f $KERNEL_PATH/releasetools/$CUSTOM_PATH/tar/$KBUILD_BUILD_VERSION.tar
@@ -75,7 +82,7 @@ cp -f $KERNEL_PATH/arch/arm/boot/zImage .
 
 
 # Create ramdisk.cpio archive
-cd $MODULES_PATH
+cd $ROOTFS_PATH
 find . | cpio -o -H newc > $KERNEL_PATH/ramdisk.cpio
 cd $KERNEL_PATH
 
