@@ -434,60 +434,59 @@ static ssize_t cpufreq_max_limit_show(struct kobject *kobj,
 }
 
 static ssize_t cpufreq_max_limit_store(struct kobject *kobj,
-					struct kobj_attribute *attr,
-					const char *buf, size_t n)
+                                        struct kobj_attribute *attr,
+                                        const char *buf, size_t n)
 {
-	int val;
-	unsigned int cpufreq_level;
-	int lock_ret;
-	ssize_t ret = -EINVAL;
-	struct cpufreq_policy *policy;
+        int val;
+        unsigned int cpufreq_level;
+        int lock_ret;
+        ssize_t ret = -EINVAL;
+        struct cpufreq_policy *policy;
 
-	mutex_lock(&cpufreq_limit_mutex);
+        mutex_lock(&cpufreq_limit_mutex);
 
-	if (sscanf(buf, "%d", &val) != 1) {
-		printk(KERN_ERR "%s: Invalid cpufreq format\n", __func__);
-		goto out;
-	}
+        if (sscanf(buf, "%d", &val) != 1) {
+                printk(KERN_ERR "%s: Invalid cpufreq format\n", __func__);
+                goto out;
+        }
 
-	if (val == -1) { /* Unlock request */
-		if (cpufreq_max_limit_val != -1) {
-			exynos_cpufreq_upper_limit_free(DVFS_LOCK_ID_USER);
+        if (val == -1) { /* Unlock request */
+                if (cpufreq_max_limit_val != -1) {
+                        exynos_cpufreq_upper_limit_free(DVFS_LOCK_ID_USER);
 
-			/* Yank555.lu - unlock now means set lock to scaling max to support powersave mode properly */			
-			/* cpufreq_max_limit_val = -1; */
-			policy = cpufreq_cpu_get(0);
-			if (get_cpufreq_level(policy->max, &cpufreq_level) == VALID_LEVEL) {
-				lock_ret = exynos_cpufreq_upper_limit(DVFS_LOCK_ID_USER, cpufreq_level);
-				cpufreq_max_limit_val = policy->max;
-				cpufreq_max_limit_coupled = SCALING_MAX_COUPLED;
-			}
-		} else /* Already unlocked */
-			printk(KERN_ERR "%s: Unlock request is ignored\n",
-				__func__);
-	} else { /* Lock request */
-		if (get_cpufreq_level((unsigned int)val, &cpufreq_level) == VALID_LEVEL) {
-			if (cpufreq_max_limit_val != -1) {
-				/* Unlock the previous lock */
-				exynos_cpufreq_upper_limit_free(DVFS_LOCK_ID_USER);
-				cpufreq_max_limit_coupled = SCALING_MAX_UNCOUPLED; /* if a limit existed, uncouple */
-			} else {
-				cpufreq_max_limit_coupled = SCALING_MAX_COUPLED; /* if no limit existed, we're booting, couple */
-			}
-			lock_ret = exynos_cpufreq_upper_limit(DVFS_LOCK_ID_USER, cpufreq_level);
-			/* ret of exynos_cpufreq_upper_limit is meaningless.
-			   0 is fail? success? */
-			cpufreq_max_limit_val = val;
-		} else /* Invalid lock request --> No action */
-			printk(KERN_ERR "%s: Lock request is invalid\n",
-				__func__);
-		}
-	}
+                        /* Yank555.lu - unlock now means set lock to scaling max to support powersave mode properly */                  
+                        /* cpufreq_max_limit_val = -1; */
+                        policy = cpufreq_cpu_get(0);
+                        if (get_cpufreq_level(policy->max, &cpufreq_level) == VALID_LEVEL) {
+                                lock_ret = exynos_cpufreq_upper_limit(DVFS_LOCK_ID_USER, cpufreq_level);
+                                cpufreq_max_limit_val = policy->max;
+                                cpufreq_max_limit_coupled = SCALING_MAX_COUPLED;
+                        }
+                } else /* Already unlocked */
+                        printk(KERN_ERR "%s: Unlock request is ignored\n",
+                                __func__);
+        } else { /* Lock request */
+                if (get_cpufreq_level((unsigned int)val, &cpufreq_level) == VALID_LEVEL) {
+                        if (cpufreq_max_limit_val != -1) {
+                                /* Unlock the previous lock */
+                                exynos_cpufreq_upper_limit_free(DVFS_LOCK_ID_USER);
+                                cpufreq_max_limit_coupled = SCALING_MAX_UNCOUPLED; /* if a limit existed, uncouple */
+                        } else {
+                                cpufreq_max_limit_coupled = SCALING_MAX_COUPLED; /* if no limit existed, we're booting, couple */
+                        }
+                        lock_ret = exynos_cpufreq_upper_limit(DVFS_LOCK_ID_USER, cpufreq_level);
+                        /* ret of exynos_cpufreq_upper_limit is meaningless.
+                           0 is fail? success? */
+                        cpufreq_max_limit_val = val;
+                } else /* Invalid lock request --> No action */
+                        printk(KERN_ERR "%s: Lock request is invalid\n",
+                                __func__);
+        }
 
-	ret = n;
+        ret = n;
 out:
-	mutex_unlock(&cpufreq_limit_mutex);
-	return ret;
+        mutex_unlock(&cpufreq_limit_mutex);
+        return ret;
 }
 
 static ssize_t cpufreq_min_limit_show(struct kobject *kobj,
