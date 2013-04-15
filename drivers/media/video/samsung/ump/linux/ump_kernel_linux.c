@@ -42,7 +42,7 @@ struct ion_client *ion_client_ump = NULL;
 #endif
 
 /* Module parameter to control log level */
-int ump_debug_level = 3;
+int ump_debug_level = 2;
 module_param(ump_debug_level, int, S_IRUSR | S_IWUSR | S_IWGRP | S_IRGRP | S_IROTH); /* rw-rw-r-- */
 MODULE_PARM_DESC(ump_debug_level, "Higher number, more dmesg output");
 
@@ -55,7 +55,9 @@ MODULE_PARM_DESC(ump_major, "Device major number");
 static char ump_dev_name[] = "ump"; /* should be const, but the functions we call requires non-cost */
 
 
+#if UMP_LICENSE_IS_GPL
 static struct dentry *ump_debugfs_dir = NULL;
+#endif
 
 /*
  * The data which we attached to each virtual memory mapping request we get.
@@ -348,6 +350,7 @@ static int ump_file_ioctl(struct inode *inode, struct file *filp, unsigned int c
 			break;
 #ifdef CONFIG_ION_EXYNOS
 		case UMP_IOC_ION_IMPORT:
+		case UMP_IOC_ION_IMPORT_OLD:
 			err = ump_ion_import_wrapper((u32 __user *)argument, session_data);
 			break;
 #endif
@@ -366,7 +369,27 @@ static int ump_file_ioctl(struct inode *inode, struct file *filp, unsigned int c
 			break;
 
 		case UMP_IOC_MSYNC:
-			err = ump_msync_wrapper((u32 __user *)argument, session_data);
+			err = ump_msync_wrapper((u32 __user *)argument, session_data, false);
+			break;
+
+		case UMP_IOC_MSYNC_OLD:
+			err = ump_msync_wrapper((u32 __user *)argument, session_data, true);
+			break;
+
+		case UMP_IOC_CACHE_OPERATIONS_CONTROL:
+			err = ump_cache_operations_control_wrapper((u32 __user *)argument, session_data);
+			break;
+
+		case UMP_IOC_SWITCH_HW_USAGE:
+			err = ump_switch_hw_usage_wrapper((u32 __user *)argument, session_data);
+			break;
+
+		case UMP_IOC_LOCK:
+			err = ump_lock_wrapper((u32 __user *)argument, session_data);
+			break;
+
+		case UMP_IOC_UNLOCK:
+			err = ump_unlock_wrapper((u32 __user *)argument, session_data);
 			break;
 
 		default:
@@ -427,6 +450,8 @@ static int ump_file_mmap(struct file * filp, struct vm_area_struct * vma)
 		vma->vm_flags = vma->vm_flags | VM_SHARED | VM_MAYSHARE  ;
 		DBG_MSG(3, ("UMP Map function: Forcing the CPU to use cache\n"));
 	}
+	/* By setting this flag, during a process fork; the child process will not have the parent UMP mappings */
+	if(!OLDMALIEXPR) vma->vm_flags |= VM_DONTCOPY;
 
 	DBG_MSG(4, ("UMP vma->flags: %x\n", vma->vm_flags ));
 

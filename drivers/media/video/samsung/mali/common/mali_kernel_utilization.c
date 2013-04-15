@@ -13,8 +13,7 @@
 #include "mali_platform.h"
 
 /* Define how often to calculate and report GPU utilization, in milliseconds */
-#define MALI_GPU_UTILIZATION_TIMEOUT 100
-int mali_gpu_utilization_timeout = MALI_GPU_UTILIZATION_TIMEOUT;
+int mali_gpu_utilization_timeout = 100;
 
 static _mali_osk_lock_t *time_data_lock;
 
