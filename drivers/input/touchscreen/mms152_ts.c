@@ -167,7 +167,7 @@ enum {
 /* Touch booster */
 #if defined(CONFIG_EXYNOS4_CPUFREQ) &&\
 	defined(CONFIG_BUSFREQ_OPP)
-#define TOUCH_BOOSTER			0
+#define TOUCH_BOOSTER			1
 #define TOUCH_BOOSTER_OFF_TIME		100
 #define TOUCH_BOOSTER_CHG_TIME		200
 #else
@@ -537,7 +537,7 @@ static void set_dvfs_lock(struct mms_ts_info *info, uint32_t on)
 	// Helps in avoiding stuttering and lags while using heavy tasks
 	// by simone201
 	cur_freq = exynos_cpufreq_get_curfreq();
-	if(cur_freq > freq_lock)
+	if(cur_freq > freq_lock && on == 1) // only goto out, if new freq lock should get applied, to avoid beeing stuck at lock freq
 		goto out;
 	
 	// We should force the research of the cpu lock level, because it might be changed - simone201
