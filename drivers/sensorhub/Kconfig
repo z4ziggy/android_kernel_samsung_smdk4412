@@ -1,0 +1,78 @@
+#
+# sensor drivers configuration
+#
+config SENSORS_SYSFS
+	tristate "Sensors sysfs"
+	help
+	  Support sysfs for sensors.
+          If you say yes here you get sysfs support for
+	  sensor factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called sensors_core.
+
+config SENSORS_SSP
+	tristate "Sensors ssp"
+	default n
+	depends on I2C
+	help
+	  ssp driver for sensor hub.
+          If you say yes here you get ssp support for
+	  sensor hub.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
+config SENSORS_SSP_ACCELEROMETER_POSITION
+	int "Accelerometer Sensor Mounting Position on Board"
+	depends on SENSORS_SSP
+	default "0"
+	help
+	  X Y Z axis position.
+	    0:  X, Y, Z
+	    1:  Y,-X, Z
+	    2: -X,-Y, Z
+	    3: -Y, X, Z
+	    4: -X, Y,-Z
+	    5:  Y, X,-Z
+	    6:  X,-Y,-Z
+	    7: -Y,-X,-Z
+
+config SENSORS_SSP_GYROSCOPE_POSITION
+	int "Gyroscope Sensor Mounting Position on Board"
+	depends on SENSORS_SSP
+	default "0"
+	help
+	  X Y Z axis position.
+	    0:  X, Y, Z
+	    1:  Y,-X, Z
+	    2: -X,-Y, Z
+	    3: -Y, X, Z
+	    4: -X, Y,-Z
+	    5:  Y, X,-Z
+	    6:  X,-Y,-Z
+	    7: -Y,-X,-Z
+
+config SENSORS_SSP_MAGNETOMETER_POSITION
+	int "Geomagnetic Sensor Mounting Position on Board"
+	depends on SENSORS_SSP
+	default "0"
+	help
+	  X Y Z axis position.
+	    0:  X, Y, Z
+	    1:  Y,-X, Z
+	    2: -X,-Y, Z
+	    3: -Y, X, Z
+	    4: -X, Y,-Z
+	    5:  Y, X,-Z
+	    6:  X,-Y,-Z
+	    7: -Y,-X,-Z
+
+config SENSORS_SSP_SENSORHUB
+	tristate "Sensors ssp sensorhub"
+	default n
+	depends on I2C
+	help
+	  ssp sensor hub driver for sensor hub.
+          If you say yes here you get ssp support for
+	  sensor hub.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.

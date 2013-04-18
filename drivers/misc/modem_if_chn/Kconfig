@@ -1,0 +1,45 @@
+menuconfig SEC_MODEM
+	bool "Samsung Mobile Modem Interface"
+	default n
+	---help---
+	  Samsung Modem Interface Driver.
+
+config CDMA_MODEM_MDM6600
+	bool "modem chip : QC MDM6600"
+	depends on SEC_MODEM
+	default n
+
+config GSM_MODEM_ESC6270
+	bool "modem chip : QC ESC6270"
+	depends on SEC_MODEM
+	default n
+
+config LINK_DEVICE_MIPI
+	bool "modem driver link device MIPI-HSI"
+	depends on SEC_MODEM
+	default n
+
+config LINK_DEVICE_DPRAM
+	bool "modem driver link device DPRAM"
+	depends on SEC_MODEM
+	default n
+
+config LINK_DEVICE_USB
+	bool "modem driver link device USB"
+	depends on SEC_MODEM
+	default n
+
+config LINK_DEVICE_HSIC
+	bool "modem driver link device HSIC"
+	depends on SEC_MODEM
+	default n
+
+config SIPC_VER_5
+	bool "IPC: Samsung IPC 5.0"
+	depends on SEC_MODEM
+	default n
+
+config SIM_DETECT
+	bool "SIM_DETECT pin"
+	depends on SEC_MODEM
+	default n
