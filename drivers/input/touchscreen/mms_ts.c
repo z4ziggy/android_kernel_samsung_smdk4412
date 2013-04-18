@@ -56,6 +56,10 @@
 
 #include "../keyboard/cypress/cypress-touchkey.h"
 
+#ifdef CONFIG_TOUCHBOOST_CONTROL
+#include <linux/touch_boost_control.h>
+#endif
+
 #ifdef CONFIG_MACH_SUPERIOR_KOR_SKT
 #define FW_465GS37
 #endif
@@ -142,7 +146,7 @@ enum {
 /* Touch booster */
 #if defined(CONFIG_EXYNOS4_CPUFREQ) &&\
 	defined(CONFIG_BUSFREQ_OPP)
-#define TOUCH_BOOSTER			0
+#define TOUCH_BOOSTER			1
 #define TOUCH_BOOSTER_OFF_TIME		100
 #define TOUCH_BOOSTER_CHG_TIME		200
 #else
@@ -156,7 +160,9 @@ extern void _lcdfreq_lock(int lock);
 struct device *sec_touchscreen;
 static struct device *bus_dev;
 
-int touch_is_pressed = 0;
+unsigned int boost_freq = 700000;
+
+int touch_is_pressed;
 
 #define ISC_DL_MODE	1
 
@@ -430,13 +436,30 @@ static void set_dvfs_off(struct work_struct *work)
 
 static void set_dvfs_lock(struct mms_ts_info *info, uint32_t on)
 {
-	int ret;
+	int ret,max_freq,cur_freq,freq_lock;
 
 	mutex_lock(&info->dvfs_lock);
-	if (info->cpufreq_level <= 0) {
-		ret = exynos_cpufreq_get_level(800000, &info->cpufreq_level);
-		if (ret < 0)
-			pr_err("[TSP] exynos_cpufreq_get_level error");
+	
+	// Setting policy->max freq set by user as touchbooster freq
+	// only if it is less than the default touchbooster freq set by the kernel define
+	// by simone201
+	max_freq = exynos_cpufreq_get_maxfreq();
+	if(max_freq < boost_freq)
+		freq_lock = max_freq;
+	else
+		freq_lock = boost_freq;
+		
+	// Disable touchbooster if the current frequency is higher than the touchbooster dvfs freq
+	// Helps in avoiding stuttering and lags while using heavy tasks
+	// by simone201
+	cur_freq = exynos_cpufreq_get_curfreq();
+	if(cur_freq > freq_lock && on == 1) // only goto out, if new freq lock should get applied, to avoid beeing stuck at lock freq
+		goto out;
+	
+	// We should force the research of the cpu lock level, because it might be changed - simone201
+	ret = exynos_cpufreq_get_level(freq_lock, &info->cpufreq_level);
+	if (ret < 0) {
+		pr_err("[TSP] exynos_cpufreq_get_level error");
 		goto out;
 	}
 	if (on == 0) {
@@ -453,7 +476,7 @@ static void set_dvfs_lock(struct mms_ts_info *info, uint32_t on)
 			if (ret < 0) {
 				pr_err("%s: dev lock failed(%d)\n",\
 							__func__, __LINE__);
-}
+			}
 
 			ret = exynos_cpufreq_lock(DVFS_LOCK_ID_TSP,
 							info->cpufreq_level);
@@ -465,7 +488,7 @@ static void set_dvfs_lock(struct mms_ts_info *info, uint32_t on)
 				msecs_to_jiffies(TOUCH_BOOSTER_CHG_TIME));
 
 			info->dvfs_lock_status = true;
-			pr_debug("[TSP] DVFS On![%d]", info->cpufreq_level);
+			pr_info("[TSP] DVFS On![%d]", info->cpufreq_level);
 		}
 	} else if (on == 2) {
 		cancel_delayed_work(&info->work_dvfs_off);
@@ -3393,6 +3416,12 @@ static struct i2c_driver mms_ts_driver = {
 		   },
 	.id_table = mms_ts_id,
 };
+
+#ifdef CONFIG_TOUCHBOOST_CONTROL
+void update_boost_freq (unsigned int input_boost_freq) {
+	boost_freq = input_boost_freq;
+}
+#endif
 
 static int __init mms_ts_init(void)
 {
