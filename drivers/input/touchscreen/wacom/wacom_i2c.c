@@ -291,15 +291,15 @@ static bool epen_check_factory_mode(void)
 		else
 			pr_err("[E-PEN] File open error(%d)\n", err);
 
-		ret = false;
+		ret = true;
 		goto out;
 	}
 
 	fsize = fp->f_path.dentry->d_inode->i_size;
 
 	if (!fsize) {
-		pr_err("[E-PEN] File size os zero\n");
-		ret = false;
+		pr_err("[E-PEN] File size is zero\n");
+		ret = true;
 		goto err_filesize;
 	}
 

@@ -348,10 +348,14 @@ static int exynos4_usb_phy1_resume(struct platform_device *pdev)
 		if (usb_phy_control.lpa_entered) {
 #if defined(CONFIG_LINK_DEVICE_HSIC) || defined(CONFIG_LINK_DEVICE_USB) \
 		|| defined(CONFIG_MDM_HSIC_PM)
-			if (!strcmp(pdev->name, "s5p-ehci"))
+			if (!strcmp(pdev->name, "s5p-ehci")) {
 				set_hsic_lpa_states(STATE_HSIC_LPA_WAKE);
-#endif
+				usb_phy_control.lpa_entered = 0;
+			}
+#else
 			usb_phy_control.lpa_entered = 0;
+#endif
+			printk(KERN_INFO "mif : %s(%d) phy on\n", __func__, usb_phy_control.lpa_entered);
 			err = 1;
 		} else {
 			err = 0;
@@ -413,10 +417,14 @@ static int exynos4_usb_phy1_resume(struct platform_device *pdev)
 		}
 #if defined(CONFIG_LINK_DEVICE_HSIC) || defined(CONFIG_LINK_DEVICE_USB) \
 		|| defined(CONFIG_MDM_HSIC_PM)
-		if (!strcmp(pdev->name, "s5p-ehci"))
+		if (!strcmp(pdev->name, "s5p-ehci")) {
 			set_hsic_lpa_states(STATE_HSIC_LPA_WAKE);
-#endif
+			usb_phy_control.lpa_entered = 0;
+		}
+#else
 		usb_phy_control.lpa_entered = 0;
+#endif
+		printk(KERN_INFO "mif : %s(%d) phy off\n", __func__, usb_phy_control.lpa_entered);
 		err = 1;
 	}
 	udelay(80);
