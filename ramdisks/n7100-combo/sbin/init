@@ -33,12 +33,26 @@ $BB [ -f /system/framework/telephony-common.jar ] && SAMMY42=1
 if [ "$CM101" == 1 ]; then
 echo "using cm-10.1 initramfs"
 $BB mv -f /roms/cm101/* /
-echo 7 > /proc/sys/kernel/rom_feature_set
-$BB mkdir -p /system/lib/modules
-$BB mv /lib/modules/* /system/lib/modules/
+   if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
+  	# low power mode
+ 	 echo 0 > /proc/sys/kernel/rom_feature_set
+ 	 $BB cp -f lpm.rc init.rc
+  	$BB rm -f init.smdk4x12.rc
+   else
+   	echo 7 > /proc/sys/kernel/rom_feature_set
+	$BB mkdir -p /system/lib/modules
+	$BB mv /lib/modules/* /system/lib/modules/
+   fi
 else
 $BB mv -f /roms/sammy41/* /
-echo 2 > /proc/sys/kernel/rom_feature_set
+   if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
+  	# low power mode
+ 	echo 0 > /proc/sys/kernel/rom_feature_set
+ 	$BB cp -f lpm.rc init.rc
+  	$BB rm -f init.smdk4x12.rc
+   else
+	echo 2 > /proc/sys/kernel/rom_feature_set
+   fi
 fi
 
 $BB umount /system
