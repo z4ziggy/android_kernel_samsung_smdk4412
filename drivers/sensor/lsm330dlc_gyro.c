@@ -42,11 +42,7 @@
 #endif
 
 /* lsm330dlc_gyro chip id */
-#if defined(CONFIG_MACH_GRANDE)
-#define DEVICE_ID	0xD5
-#else
 #define DEVICE_ID	0xD4
-#endif
 /* lsm330dlc_gyro gyroscope registers */
 #define WHO_AM_I	0x0F
 #define CTRL_REG1	0x20  /* power control reg */
@@ -165,7 +161,6 @@ struct lsm330dlc_gyro_data {
 	struct hrtimer timer;
 	atomic_t opened;
 	bool enable;
-	bool drop_next_event;
 	bool self_test;		/* is self_test or not? */
 	bool interruptible;	/* interrupt or polling? */
 	int entries;		/* number of fifo entries */
@@ -358,9 +353,11 @@ static void lsm330dlc_gyro_work_func(struct work_struct *work)
 		if (res < 0)
 			pr_err("%s, reading data fail(res = %d)\n",
 				__func__, res);
-		data->xyz_data.x -= data->cal_data.x;
-		data->xyz_data.y -= data->cal_data.y;
-		data->xyz_data.z -= data->cal_data.z;
+		if (data->dps == DPS500) {
+			data->xyz_data.x -= data->cal_data.x;
+			data->xyz_data.y -= data->cal_data.y;
+			data->xyz_data.z -= data->cal_data.z;
+		}
 	} else {
 		pr_warn("%s, use last data(%d, %d, %d), status=%d, selftest=%d\n",
 			__func__, data->xyz_data.x, data->xyz_data.y,
@@ -535,7 +532,7 @@ static ssize_t lsm330dlc_gyro_selftest_dps_store(struct device *dev,
 	mutex_unlock(&data->lock);
 
 	data->dps = new_dps;
-	pr_err("%s: %d dps stored\n", __func__, data->dps);
+	pr_info("%s: %d dps stored\n", __func__, data->dps);
 
 	return count;
 }
@@ -899,7 +896,8 @@ read_zero_rate_again:
 	/* check out watermark status */
 	status_reg = i2c_smbus_read_byte_data(data->client, FIFO_SRC_REG);
 	if (!(status_reg & 0x80)) {
-		pr_err("%s: Watermark level is not enough\n", __func__);
+		pr_err("%s: Watermark level is not enough(0x%x)\n",
+			__func__, status_reg);
 		goto exit;
 	}
 
@@ -1062,7 +1060,7 @@ static int lsm330dlc_gyro_bypass_self_test\
 	msleep(800);
 
 	/* Read 5 samples output before self-test on */
-	for (i = 0; i < 5; i++) {
+	for (i = 0; i < sample_num; i++) {
 		/* check ZYXDA ready bit */
 		for (j = 0; j < 10; j++) {
 			temp = i2c_smbus_read_byte_data(gyro_data->client,
@@ -1071,8 +1069,8 @@ static int lsm330dlc_gyro_bypass_self_test\
 				bZYXDA = temp & 0x08;
 				if (!bZYXDA) {
 					usleep_range(10000, 20000);
-					pr_err("%s: %d,%d: no_data_ready",
-							__func__, i, j);
+					pr_err("%s: %d,%d: no_data_ready, (0x%x)",
+							__func__, i, j, temp);
 					continue;
 				} else
 					break;
@@ -1142,8 +1140,8 @@ static int lsm330dlc_gyro_bypass_self_test\
 				bZYXDA = temp & 0x08;
 				if (!bZYXDA) {
 					usleep_range(10000, 20000);
-					pr_err("%s: %d,%d: no_data_ready",
-							__func__, i, j);
+					pr_err("%s: %d,%d: no_data_ready, (0x%x)",
+							__func__, i, j, temp);
 					continue;
 				} else
 					break;
@@ -1260,7 +1258,7 @@ static ssize_t lsm330dlc_gyro_self_test(struct device *dev,
 	else if (!fifo_pass)
 		printk(KERN_INFO "[gyro_self_test] fifo self-test fail\n");
 	else
-		printk(KERN_INFO "[gyro_self_test] fifo self-test restry\n");
+		printk(KERN_INFO "[gyro_self_test] fifo self-test retry\n");
 
 	/* calibration result */
 	if (cal_pass == 1)
@@ -1277,7 +1275,7 @@ static ssize_t lsm330dlc_gyro_self_test(struct device *dev,
 	else if (!bypass_pass)
 		printk(KERN_INFO "[gyro_self_test] bypass self-test fail\n\n");
 	else
-		printk(KERN_INFO "[gyro_self_test] bypass self-test restry\n\n");
+		printk(KERN_INFO "[gyro_self_test] bypass self-test retry\n\n");
 
 	/* restore backup register */
 	for (i = 0; i < 10; i++) {
@@ -1393,10 +1391,16 @@ static int lsm330dlc_gyro_probe(struct i2c_client *client,
 	}
 
 	data->client = client;
-	data->drop_next_event = 0;
-
+	data->dps = DPS500;
 	/* read chip id */
 	ret = i2c_smbus_read_byte_data(client, WHO_AM_I);
+
+#if defined(CONFIG_MACH_GRANDE) || defined(CONFIG_MACH_IRON)
+	if (system_rev == 13) {
+		if (ret == 0xD5) /*KR330D chip ID only use CHN rev.13 */
+			ret = 0xD4;
+		}
+#endif
 	if (ret != DEVICE_ID) {
 		if (ret < 0) {
 			pr_err("%s: i2c for reading chip id failed\n",

@@ -25,9 +25,9 @@ bool ums_binary;
 #if defined(CONFIG_MACH_P4NOTE)
 const unsigned int Binary_nLength = 0xBFFF;
 const unsigned char Mpu_type = 0x22;
-const unsigned int Firmware_version_of_file = 0x229;
+const unsigned int Firmware_version_of_file = 0x22F;
 unsigned char *firmware_name = "";
-const char Firmware_checksum[] = { 0x1F, 0x32, 0xD4, 0xDC, 0x98, };
+const char Firmware_checksum[] = { 0x1F, 0xF1, 0x76, 0x81, 0x71, };
 
 #include "wacom_i2c_firm_p4.h"
 #elif defined(CONFIG_MACH_Q1_BD)
@@ -42,12 +42,42 @@ const char Firmware_checksum[] = { 0x1F, 0xee, 0x06, 0x4b, 0xdd, };
 #elif defined(CONFIG_MACH_T0)
 const unsigned int Binary_nLength = 0xEFFF;
 const unsigned char Mpu_type = 0x28;
-unsigned int Firmware_version_of_file = 0x3A;
-unsigned char *firmware_name = "epen/W9001_B713.bin";
 
-char Firmware_checksum[] = { 0x1F, 0x78, 0x4D, 0x62, 0x01, };
-char B660X_checksum[] = { 0x1F, 0x83, 0x88, 0xD4, 0x67, };
+#if defined(CONFIG_TARGET_LOCALE_KOR)
+#if defined(CONFIG_MACH_T0_KOR_SKT) || defined(CONFIG_MACH_T0_KOR_KT)
+unsigned int Firmware_version_of_file = 0x310;
+unsigned char *firmware_name = "epen/W9001_B746S.bin";
+char Firmware_checksum[] = { 0x1F, 0x81, 0x72, 0xDC, 0x5E, };
+#elif defined(CONFIG_MACH_T0_KOR_LGT)
+unsigned int Firmware_version_of_file = 0x408;
+unsigned char *firmware_name = "epen/W9001_B746L.bin";
+char Firmware_checksum[] = { 0x1F, 0xB1, 0x37, 0x10, 0x81, };
+#endif
+#elif defined(CONFIG_MACH_T0_JPN_LTE_DCM)
+unsigned int Firmware_version_of_file = 0x310;
+unsigned char *firmware_name = "epen/W9001_B746JD.bin";
+char Firmware_checksum[] = { 0x1F, 0x81, 0x72, 0xDC, 0x5E, };
+#elif defined(CONFIG_MACH_T0_USA_VZW) \
+	|| defined(CONFIG_MACH_T0_USA_SPR) \
+	|| defined(CONFIG_MACH_T0_USA_USCC)
+unsigned int Firmware_version_of_file = 0x600;
+unsigned char *firmware_name = "epen/W9001_B746VZW.bin";
 
+char Firmware_checksum[] = { 0x1F, 0x29, 0x01, 0xE3, 0xE4, };
+#elif defined(CONFIG_MACH_T0_CHN_CTC)
+unsigned int Firmware_version_of_file = 0x700;
+unsigned char *firmware_name = "epen/W9001_0700.bin";
+char Firmware_checksum[] = { 0x1F, 0xD4, 0xD1, 0x5A, 0x91, };
+#else
+unsigned int Firmware_version_of_file = 0x25F;
+unsigned char *firmware_name = "epen/W9001_B746.bin";
+
+char Firmware_checksum[] = { 0x1F, 0x27, 0x85, 0x8B, 0xFB, };
+#endif
+/*checksum for 0x13D*/
+const char B713X_checksum[] = { 0x1F, 0xB5, 0x84, 0x38, 0x34, };
+/*checksum for 0x16*/
+const char B660X_checksum[] = { 0x1F, 0x83, 0x88, 0xD4, 0x67, };
 #endif
 
 void wacom_i2c_set_firm_data(unsigned char *Binary_new)
@@ -70,10 +100,12 @@ void wacom_i2c_set_firm_data(unsigned char *Binary_new)
 /*Return digitizer type according to board rev*/
 int wacom_i2c_get_digitizer_type(void)
 {
-	if (system_rev < 4)
+	if (system_rev >= WACOM_DTYPE_B746_HWID)
+		return EPEN_DTYPE_B746;
+	else if (system_rev >= WACOM_DTYPE_B713_HWID)
+		return EPEN_DTYPE_B713;
+	else
 		return EPEN_DTYPE_B660;
-
-	return EPEN_DTYPE_B713;
 }
 #endif
 
@@ -99,16 +131,23 @@ void wacom_i2c_init_firm_data(void)
 
 	type = wacom_i2c_get_digitizer_type();
 
-	if (type == EPEN_DTYPE_B660) {
-		firmware_name = "epen/W9001_B660.bin";
-		Firmware_version_of_file = 0x16;
-		for (i = 0; i < 5; ++i)
-			Firmware_checksum[i] = B660X_checksum[i];
+	if (type == EPEN_DTYPE_B746) {
 		printk(KERN_DEBUG
-			"[E-PEN] Digitizer type is B660\n");
-	} else {
+			"[E-PEN] Digitizer type is B746\n");
+	} else if (type == EPEN_DTYPE_B713) {
 		printk(KERN_DEBUG
 			"[E-PEN] Digitizer type is B713\n");
+		firmware_name = "epen/W9001_B713.bin";
+		Firmware_version_of_file = 0x13D;
+		memcpy(Firmware_checksum, B713X_checksum,
+			sizeof(Firmware_checksum));
+	} else {
+		printk(KERN_DEBUG
+			"[E-PEN] Digitizer type is B660\n");
+		firmware_name = "epen/W9001_B660.bin";
+		Firmware_version_of_file = 0x16;
+		memcpy(Firmware_checksum, B660X_checksum,
+			sizeof(Firmware_checksum));
 	}
 	Binary = NULL;
 #endif

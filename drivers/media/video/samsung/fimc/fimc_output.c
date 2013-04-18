@@ -2407,6 +2407,7 @@ static int fimc_outdev_start_operation(struct fimc_control *ctrl,
 	ret = fimc_outdev_start_camif(ctrl);
 	if (ret < 0) {
 		fimc_err("Fail: fimc_start_camif\n");
+		spin_unlock_irqrestore(&ctrl->out->slock, spin_flags);
 		return -EINVAL;
 	}
 
@@ -2441,6 +2442,7 @@ static int fimc_qbuf_output_single_buf(struct fimc_control *ctrl,
 	case V4L2_PIX_FMT_RGB32:
 	case V4L2_PIX_FMT_RGB565:
 	case V4L2_PIX_FMT_YUYV:
+	case V4L2_PIX_FMT_UYVY:
 		buf_set.base[FIMC_ADDR_Y] = (dma_addr_t)ctx->fbuf.base;
 		break;
 	case V4L2_PIX_FMT_YUV420:
@@ -2507,9 +2509,11 @@ static int fimc_qbuf_output_multi_buf(struct fimc_control *ctrl,
 	case V4L2_PIX_FMT_RGB32:
 	case V4L2_PIX_FMT_RGB565:
 	case V4L2_PIX_FMT_YUYV:
+	case V4L2_PIX_FMT_UYVY:
 		buf_set.base[FIMC_ADDR_Y] = ctx->dst[idx].base[FIMC_ADDR_Y];
 		break;
 	case V4L2_PIX_FMT_YUV420:
+	case V4L2_PIX_FMT_YVU420:       /* fall through */
 		buf_set.base[FIMC_ADDR_Y] = ctx->dst[idx].base[FIMC_ADDR_Y];
 		buf_set.base[FIMC_ADDR_CB] = ctx->dst[idx].base[FIMC_ADDR_CB];
 		buf_set.base[FIMC_ADDR_CR] = ctx->dst[idx].base[FIMC_ADDR_CR];
@@ -2829,7 +2833,8 @@ int fimc_qbuf_output(void *fh, struct v4l2_buffer *b)
 		if (ctrl->regs == NULL) {
 			fimc_err("%s:FIMC%d power is off!!! (ctx=%d)\n",
 				 __func__, ctrl->id, ctx_id);
-			return -EINVAL;
+			ret = -EINVAL;
+			goto err_routine;
 		}
 
 		ctx = &ctrl->out->ctx[ctx_num];

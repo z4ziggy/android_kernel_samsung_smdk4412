@@ -2097,6 +2097,7 @@ static int __devinit max8997_muic_probe(struct platform_device *pdev)
 				"error: %d\n", __func__, ret);
 		goto err_input;
 	}
+#if !defined(CONFIG_MACH_U1_NA_USCC)
 
 	if (info->muic_data && gpio_is_valid(info->muic_data->gpio_usb_sel)) {
 		CHECK_GPIO(info->muic_data->gpio_usb_sel, "USB_SEL");
@@ -2118,7 +2119,7 @@ static int __devinit max8997_muic_probe(struct platform_device *pdev)
 		}
 #endif /* !CONFIG_TARGET_LOCALE_NA */
 	}
-
+#endif
 	/* create sysfs group*/
 	ret = sysfs_create_group(&switch_dev->kobj, &max8997_muic_group);
 	dev_set_drvdata(switch_dev, info);

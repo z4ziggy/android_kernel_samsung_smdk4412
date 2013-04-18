@@ -54,7 +54,7 @@ struct link_pm_data {
 	int (*freq_unlock)(struct device *dev);
 
 	int autosuspend_delay_ms; /* if zero, the default value is used */
-	bool block_autosuspend;
+	bool autosuspend;
 };
 
 bool link_pm_set_active(struct usb_link_device *usb_ld);

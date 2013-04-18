@@ -510,7 +510,11 @@ static struct s3cfb_lcd s6e8aa0 = {
 static struct s3cfb_lcd s6e63m0 = {
 	.name = "s6e63m0",
 	.width = 480,
+#if 1 /* Only for S6E63M0X03 DDI */
+	.height = 802,		/* Originally 800 (due to 2 Line in LCD below issue) */
+#else
 	.height = 800,
+#endif
 	.p_width = 60,		/* 59.76 mm */
 	.p_height = 106,	 /* 106.24 mm */
 	.bpp = 24,

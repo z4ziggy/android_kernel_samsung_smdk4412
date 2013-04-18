@@ -23,7 +23,7 @@
 
 #define MAX_GRADATION		300
 #define PANEL_ID_MAX		3
-#define GAMMA_300CD_MAX	1
+#define GAMMA_300CD_MAX	9
 
 
 enum {
@@ -67,8 +67,15 @@ enum {
 
 enum {
 	G_21,
-	G_212,
+	G_213,
+	G_215,
+	G_218,
 	G_22,
+	G_221,
+	G_222,
+	G_223,
+	G_224,
+	G_225,
 	G_MAX,
 };
 
@@ -117,10 +124,10 @@ struct rgb_offset_info {
 };
 
 
-int init_table_info(struct str_smart_dim *smart);
-u8 calc_voltage_table(struct str_smart_dim *smart, const u8 *mtp);
-u32 calc_gamma_table(struct str_smart_dim *smart, u32 gv, u8 result[], u8 gamma_curve, const u8 *mtp);
-u32 calc_gamma_table_215_190(struct str_smart_dim *smart, u32 gv, u8 result[], u8 gamma_curve, const u8 *mtp);
-
+int init_table_info_ea8061(struct str_smart_dim *smart);
+u8 calc_voltage_table_ea8061(struct str_smart_dim *smart, const u8 *mtp);
+u32 calc_gamma_table_ea8061(struct str_smart_dim *smart, u32 gv, u8 result[], u8 gamma_curve, const u8 *mtp);
+u32 calc_gamma_table_190_ea8061(struct str_smart_dim *smart, u32 gv, u8 result[], u8 gamma_curve, const u8 *mtp);
+u32 calc_gamma_table_20_100_ea8061(struct str_smart_dim *smart, u32 gv, u8 result[], u8 gamma_curve, const u8 *mtp);
 
 #endif

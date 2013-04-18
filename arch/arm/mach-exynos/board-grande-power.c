@@ -292,7 +292,7 @@ static struct regulator_consumer_supply ldo3_supply[] = {};
 
 static struct regulator_consumer_supply ldo5_supply[] = {
 	REGULATOR_SUPPLY("vcc_1.8v", NULL),
-	REGULATOR_SUPPLY("touchkey", NULL),
+	REGULATOR_SUPPLY("TOUCH_PULL_UP", NULL),
 };
 
 static struct regulator_consumer_supply ldo8_supply[] = {
@@ -323,7 +323,8 @@ static struct regulator_consumer_supply ldo12_supply[] = {
 };
 
 #if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
-	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1)
+	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1) || \
+	defined(CONFIG_MACH_M0_GRANDECTC)
 static struct regulator_consumer_supply ldo13_supply[] = {
 	REGULATOR_SUPPLY("vusbhub_osc_1.8v", NULL),
 };
@@ -422,7 +423,7 @@ static struct regulator_consumer_supply max77686_enp32khz[] = {
 	};
 
 REGULATOR_INIT(ldo3, "VCC_1.8V_AP", 1800000, 1800000, 1, 0, 0);
-REGULATOR_INIT(ldo5, "VCC_1.8V_IO", 1800000, 1800000, 0,
+REGULATOR_INIT(ldo5, "TOUCH_PULL_UP", 1800000, 1800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
 REGULATOR_INIT(ldo8, "VMIPI_1.0V", 1000000, 1000000, 1,
 	       REGULATOR_CHANGE_STATUS, 0);
@@ -437,7 +438,8 @@ REGULATOR_INIT(ldo11, "VABB1_1.95V", 1950000, 1950000, 1,
 REGULATOR_INIT(ldo12, "VUOTG_3.0V", 3000000, 3000000, 1,
 	       REGULATOR_CHANGE_STATUS, 0);
 #if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
-	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1)
+	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1) || \
+	defined(CONFIG_MACH_M0_GRANDECTC)
 REGULATOR_INIT(ldo13, "VUSBHUB_OSC_1.8V", 1800000, 1800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
 #endif
@@ -601,7 +603,8 @@ static struct max77686_regulator_data max77686_regulators[] = {
 	{MAX77686_LDO11, &ldo11_init_data,},
 	{MAX77686_LDO12, &ldo12_init_data,},
 #if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
-	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1)
+	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1) || \
+	defined(CONFIG_MACH_M0_GRANDECTC)
 	{MAX77686_LDO13, &ldo13_init_data,},
 #endif
 	{MAX77686_LDO14, &ldo14_init_data,},
@@ -623,7 +626,8 @@ struct max77686_opmode_data max77686_opmode_data[MAX77686_REG_MAX] = {
 	[MAX77686_LDO11] = {MAX77686_LDO11, MAX77686_OPMODE_STANDBY},
 	[MAX77686_LDO12] = {MAX77686_LDO12, MAX77686_OPMODE_STANDBY},
 #if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
-	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1)
+	defined(CONFIG_MACH_C1_KOR_LGT) || defined(CONFIG_MACH_C1) || \
+	defined(CONFIG_MACH_M0_GRANDECTC)
 	[MAX77686_LDO13] = {MAX77686_LDO13, MAX77686_OPMODE_NORMAL},
 #endif
 	[MAX77686_LDO14] = {MAX77686_LDO14, MAX77686_OPMODE_STANDBY},
@@ -731,10 +735,10 @@ static struct regulator_consumer_supply folder_pmic_buck_supply[] = {
 };
 
 
-REGULATOR_INIT(folder_pmic_ldo1, "V_SENS_2.8V", 2800000, 2800000, 0,
+REGULATOR_INIT(folder_pmic_ldo1, "V_SENS_2.8V", 2800000, 2800000, 1,
 	       REGULATOR_CHANGE_STATUS, 1);
 
-REGULATOR_INIT(folder_pmic_ldo2, "LED_A_3.0V", 3000000, 3000000, 0,
+REGULATOR_INIT(folder_pmic_ldo2, "LED_A_3.0V", 3000000, 3000000, 1,
 	       REGULATOR_CHANGE_STATUS, 1);
 
 REGULATOR_INIT(folder_pmic_ldo3, "V_CAM_2.8V", 2800000, 2800000, 0,

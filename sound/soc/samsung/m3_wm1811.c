@@ -32,6 +32,7 @@
 #include <linux/mfd/wm8994/core.h>
 #include <linux/mfd/wm8994/registers.h>
 #include <linux/mfd/wm8994/pdata.h>
+#include <linux/mfd/wm8994/gpio.h>
 
 #if defined(CONFIG_SND_USE_MUIC_SWITCH)
 #include <linux/mfd/max77693-private.h>
@@ -238,7 +239,7 @@ static int set_ext_micbias(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
 		gpio_set_value(GPIO_MIC_BIAS_EN, 1);
-		msleep(150);
+		msleep(100);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		gpio_set_value(GPIO_MIC_BIAS_EN, 0);
@@ -259,7 +260,7 @@ static int set_ext_submicbias(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
 		gpio_set_value(GPIO_SUB_MIC_BIAS_EN, 1);
-		msleep(150);
+		msleep(100);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		gpio_set_value(GPIO_SUB_MIC_BIAS_EN, 0);
@@ -1074,6 +1075,12 @@ static int m3_card_suspend_post(struct snd_soc_card *card)
 		if (ret < 0)
 			dev_err(codec->dev, "Unable to stop FLL1\n");
 
+		ret = snd_soc_dai_set_fmt(aif1_dai, SND_SOC_DAIFMT_I2S
+						| SND_SOC_DAIFMT_NB_NF
+						| SND_SOC_DAIFMT_CBS_CFS);
+		if (ret < 0)
+			dev_err(codec->dev, "Unable to set I2S SLAVE MODE\n");
+
 		midas_snd_set_mclk(false, true);
 	}
 
@@ -1112,6 +1119,12 @@ static int m3_card_resume_pre(struct snd_soc_card *card)
 	if (ret < 0)
 		dev_err(aif1_dai->dev, "Unable to switch to FLL1: %d\n", ret);
 
+	ret = snd_soc_dai_set_fmt(aif1_dai, SND_SOC_DAIFMT_I2S
+						| SND_SOC_DAIFMT_NB_NF
+						| SND_SOC_DAIFMT_CBM_CFM);
+	if (ret < 0)
+		dev_err(codec->dev, "Unable to set I2S MASTER MODE\n");
+
 	return 0;
 }
 
@@ -1119,6 +1132,7 @@ static int m3_card_resume_post(struct snd_soc_card *card)
 {
 	struct snd_soc_codec *codec = card->rtd->codec;
 	struct wm8994_priv *wm8994 = snd_soc_codec_get_drvdata(codec);
+	int reg = 0;
 
 #ifdef CONFIG_SND_USE_LINEOUT_SWITCH
 	if (lineout_mode == 1 &&
@@ -1129,6 +1143,11 @@ static int m3_card_resume_post(struct snd_soc_card *card)
 		gpio_set_value(GPIO_VPS_SOUND_EN, 1);
 	}
 #endif
+	reg = snd_soc_read(codec, WM8994_GPIO_1);
+	if ((reg & WM8994_GPN_FN_MASK) != WM8994_GP_FN_IRQ) {
+		dev_err(codec->dev, "%s: GPIO1 type 0x%x\n", __func__, reg);
+		snd_soc_write(codec, WM8994_GPIO_1, WM8994_GP_FN_IRQ);
+	}
 #ifdef CONFIG_SEC_DEV_JACK
 	snd_soc_dapm_force_enable_pin(&codec->dapm, "AIF1CLK");
 #endif

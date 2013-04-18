@@ -46,6 +46,10 @@ struct rmnet_ctrl_dev {
 	wait_queue_head_t	open_wait_queue;
 
 	unsigned		is_opened;
+	atomic_t		open_cnt;
+
+	bool			is_connected;
+	bool			rx_stop_by_close;
 
 	/*input control lines (DSR, CTS, CD, RI)*/
 	unsigned int		cbits_tolocal;
@@ -68,8 +72,13 @@ struct rmnet_ctrl_dev {
 	unsigned int		set_ctrl_line_state_cnt;
 	unsigned int		tx_ctrl_err_cnt;
 	unsigned int		zlp_cnt;
+	unsigned int		tx_ctrl_in_req_cnt;
 
 	struct wake_lock	ctrl_wake;
+
+	/* reset handler */
+	struct notifier_block	reset_notifier_block;
+	bool			tx_block;
 };
 
 extern struct rmnet_ctrl_dev *ctrl_dev[];

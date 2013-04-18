@@ -127,6 +127,8 @@ struct diag_context {
 	unsigned long dpkts_tolaptop;
 	unsigned long dpkts_tomodem;
 	unsigned dpkts_tolaptop_pending;
+	// zero_pky.patch by jagadish
+	bool qxdm_ops;
 };
 
 static inline struct diag_context *func_to_diag(struct usb_function *f)
@@ -143,7 +145,11 @@ static void usb_config_work_func(struct work_struct *work)
 	struct usb_string *s;
 
 	if (ctxt->ch.notify)
+	{
 		ctxt->ch.notify(ctxt->ch.priv, USB_DIAG_CONNECT, NULL);
+		// zero_pky.patch by jagadish
+		ctxt->qxdm_ops = 0;
+	}
 }
 
 static void diag_write_complete(struct usb_ep *ep,
@@ -176,8 +182,12 @@ static void diag_write_complete(struct usb_ep *ep,
 	}
 	spin_unlock_irqrestore(&ctxt->lock, flags);
 
-	if (ctxt->ch.notify)
+	if (ctxt->ch.notify) {
+		// zero_pky.patch by jagadish
+		ctxt->qxdm_ops = 1;
 		ctxt->ch.notify(ctxt->ch.priv, USB_DIAG_WRITE_DONE, d_req);
+	}
+
 }
 
 static void diag_read_complete(struct usb_ep *ep,
@@ -196,8 +206,12 @@ static void diag_read_complete(struct usb_ep *ep,
 
 	ctxt->dpkts_tomodem++;
 
-	if (ctxt->ch.notify)
+	if (ctxt->ch.notify) {
+		// zero_pky.patch by jagadish
+		ctxt->qxdm_ops = 1;
 		ctxt->ch.notify(ctxt->ch.priv, USB_DIAG_READ_DONE, d_req);
+	}
+
 }
 
 /**
@@ -476,8 +490,15 @@ static void diag_function_disable(struct usb_function *f)
 	dev->configured = 0;
 	spin_unlock_irqrestore(&dev->lock, flags);
 
-	if (dev->ch.notify)
-		dev->ch.notify(dev->ch.priv, USB_DIAG_DISCONNECT, NULL);
+	// zero_pky.patch by jagadish
+	if (dev->ch.notify) {
+		if (dev->qxdm_ops)
+			dev->ch.notify(dev->ch.priv, USB_DIAG_QXDM_DISCONNECT, NULL);
+		else
+			dev->ch.notify(dev->ch.priv, USB_DIAG_DISCONNECT, NULL);
+		dev->qxdm_ops = 0;
+	}
+
 
 	usb_ep_disable(dev->in);
 	dev->in->driver_data = NULL;

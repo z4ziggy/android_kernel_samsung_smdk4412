@@ -38,6 +38,10 @@
 #define GSC_MAX_SRC		8
 #define GSC_MAX_DST		32
 #define GSC_RESET_TIMEOUT	50
+#ifdef CONFIG_SLP_DISP_DEBUG
+#define GSC_MAX_REG		128
+#define GSC_BASE_REG(id)	(0x13E00000 + (0x10000 * id))
+#endif
 #define GSC_CLK_RATE	166750000
 #define GSC_BUF_STOP	1
 #define GSC_BUF_START	2
@@ -1128,6 +1132,45 @@ static void gsc_ippdrv_stop(struct device *dev, enum drm_exynos_ipp_cmd cmd)
 	gsc_write(cfg, GSC_ENABLE);
 }
 
+#ifdef CONFIG_SLP_DISP_DEBUG
+static int gsc_read_reg(struct gsc_context *ctx, char *buf)
+{
+	u32 cfg;
+	int i;
+	int pos = 0;
+
+	pos += sprintf(buf+pos, "0x%.8x | ", GSC_BASE_REG(ctx->id));
+	for (i = 1; i < GSC_MAX_REG + 1; i++) {
+		cfg = gsc_read((i-1) * sizeof(u32));
+		pos += sprintf(buf+pos, "0x%.8x ", cfg);
+		if (i % 4 == 0)
+			pos += sprintf(buf+pos, "\n0x%.8x | ",
+				GSC_BASE_REG(ctx->id) + (i * sizeof(u32)));
+	}
+
+	pos += sprintf(buf+pos, "\n");
+
+	return pos;
+}
+
+static ssize_t show_read_reg(struct device *dev, struct device_attribute *attr,
+			char *buf)
+{
+	struct gsc_context *ctx = get_gsc_context(dev);
+
+	if (!ctx->regs) {
+		dev_err(dev, "failed to get current register.\n");
+		return -EINVAL;
+	}
+
+	return gsc_read_reg(ctx, buf);
+}
+
+static struct device_attribute device_attrs[] = {
+	__ATTR(read_reg, S_IRUGO, show_read_reg, NULL),
+};
+#endif
+
 static int __devinit gsc_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -1136,6 +1179,9 @@ static int __devinit gsc_probe(struct platform_device *pdev)
 	struct exynos_drm_ippdrv *ippdrv;
 	struct exynos_drm_gsc_pdata *pdata;
 	int ret = -EINVAL;
+#ifdef CONFIG_SLP_DISP_DEBUG
+	int i;
+#endif
 
 	pdata = pdev->dev.platform_data;
 	if (!pdata) {
@@ -1200,6 +1246,18 @@ static int __devinit gsc_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to get capability.\n");
 		goto err_get_irq;
 	}
+
+#ifdef CONFIG_SLP_DISP_DEBUG
+	for (i = 0; i < ARRAY_SIZE(device_attrs); i++) {
+		ret = device_create_file(&(pdev->dev),
+					&device_attrs[i]);
+		if (ret)
+			break;
+	}
+
+	if (ret < 0)
+		dev_err(&pdev->dev, "failed to add sysfs entries\n");
+#endif
 
 	DRM_DEBUG_KMS("%s:id[%d]\n", __func__, ctx->id);
 

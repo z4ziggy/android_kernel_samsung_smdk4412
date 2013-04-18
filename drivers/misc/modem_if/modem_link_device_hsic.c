@@ -632,7 +632,7 @@ static void link_pm_runtime_start(struct work_struct *work)
 	struct link_pm_data *pm_data =
 		container_of(work, struct link_pm_data, link_pm_start.work);
 	struct usb_device *usbdev = pm_data->usb_ld->usbdev;
-	struct device *dev, *ppdev;
+	struct device *dev, *hdev;
 	struct link_device *ld = &pm_data->usb_ld->ld;
 
 	if (!pm_data->usb_ld->if_usb_connected
@@ -655,9 +655,11 @@ static void link_pm_runtime_start(struct work_struct *work)
 		mif_info("rpm_status: %d\n",
 			dev->power.runtime_status);
 		pm_runtime_set_autosuspend_delay(dev, 200);
-		ppdev = dev->parent->parent;
+		hdev = usbdev->bus->root_hub->dev.parent;
+		mif_info("EHCI runtime %s, %s\n", dev_driver_string(hdev),
+			dev_name(hdev));
 		pm_runtime_allow(dev);
-		pm_runtime_allow(ppdev);/*ehci*/
+		pm_runtime_allow(hdev);/*ehci*/
 		pm_data->link_pm_active = true;
 		pm_data->resume_requested = false;
 		pm_data->link_reconnect_cnt = 5;
@@ -901,6 +903,7 @@ static long link_pm_ioctl(struct file *file, unsigned int cmd,
 {
 	int value;
 	struct link_pm_data *pm_data = file->private_data;
+	struct modem_ctl *mc = if_usb_get_modemctl(pm_data);
 
 	mif_info("%x\n", cmd);
 
@@ -937,6 +940,8 @@ static long link_pm_ioctl(struct file *file, unsigned int cmd,
 			irq_set_irq_type(pm_data->irq_link_hostwake,
 				IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING);
 		}
+	case IOCTL_LINK_GET_PHONEACTIVE:
+		return gpio_get_value(mc->gpio_phone_active);
 	default:
 		break;
 	}
@@ -1115,7 +1120,7 @@ static void if_usb_disconnect(struct usb_interface *intf)
 {
 	struct if_usb_devdata *devdata = usb_get_intfdata(intf);
 	struct link_pm_data *pm_data = devdata->usb_ld->link_pm_data;
-	struct device *dev, *ppdev;
+	struct device *dev, *hdev;
 	struct link_device *ld = &devdata->usb_ld->ld;
 
 	mif_info("\n");
@@ -1129,10 +1134,8 @@ static void if_usb_disconnect(struct usb_interface *intf)
 
 	usb_kill_urb(devdata->urb);
 
-	dev = &devdata->usb_ld->usbdev->dev;
-	ppdev = dev->parent->parent;
-	pm_runtime_forbid(ppdev); /*ehci*/
-
+	hdev = devdata->usbdev->bus->root_hub->dev.parent;
+	pm_runtime_forbid(hdev); /*ehci*/
 
 	mif_info("put dev 0x%p\n", devdata->usbdev);
 	usb_put_dev(devdata->usbdev);
@@ -1164,9 +1167,12 @@ static void if_usb_disconnect(struct usb_interface *intf)
 	if (devdata->usb_ld->ld.com_state != COM_ONLINE) {
 		cancel_delayed_work(&pm_data->link_reconnect_work);
 		return;
-	} else
+	} else {
+		if (pm_data->ehci_reg_dump)
+			pm_data->ehci_reg_dump(hdev);
 		schedule_delayed_work(&pm_data->link_reconnect_work,
 							msecs_to_jiffies(500));
+	}
 	return;
 }
 
@@ -1474,6 +1480,7 @@ static int usb_link_pm_init(struct usb_link_device *usb_ld, void *data)
 	pm_data->irq_link_hostwake = gpio_to_irq(pm_data->gpio_link_hostwake);
 	pm_data->link_ldo_enable = pm_pdata->link_ldo_enable;
 	pm_data->link_reconnect = pm_pdata->link_reconnect;
+	pm_data->ehci_reg_dump = pm_pdata->ehci_reg_dump;
 
 	pm_data->usb_ld = usb_ld;
 	pm_data->link_pm_active = false;

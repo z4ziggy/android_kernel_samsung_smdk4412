@@ -139,9 +139,10 @@ static int max77693_i2c_probe(struct i2c_client *i2c,
 		max77693->irq_base = pdata->irq_base;
 		max77693->irq_gpio = pdata->irq_gpio;
 		max77693->wakeup = pdata->wakeup;
-	} else
+	} else {
+		ret = -EIO;
 		goto err;
-
+	}
 	mutex_init(&max77693->iolock);
 
 	if (max77693_read_reg(i2c, MAX77693_PMIC_REG_PMIC_ID2, &reg_data) < 0) {

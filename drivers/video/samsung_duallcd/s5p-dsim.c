@@ -369,10 +369,12 @@ int s5p_dsim_rd_data(void *ptr, u8 addr, u16 count, u8 *buf)
 
 	temp = readl(reg_base + S5P_DSIM_RXFIFO);
 
+#if !defined(CONFIG_FB_S5P_S6E63M0)
 	if (temp != DSIM_RX_FIFO_READ_DONE) {
 		dev_warn(dsim->dev, "[DSIM:WARN]:%s Can't found RX FIFO READ DONE FLAG : %x\n", __func__, temp);
 		goto clear_rx_fifo;
 	}
+#endif
 
 	mutex_unlock(&dsim_rd_wr_mutex);
 	return rxsize;
@@ -865,7 +867,13 @@ static unsigned char s5p_dsim_set_hs_enable(struct dsim_global *dsim)
 	if (dsim->state == DSIM_STATE_STOP) {
 		if (dsim->e_clk_src != DSIM_EXT_CLK_BYPASS) {
 			dsim->state = DSIM_STATE_HSCLKEN;
-			s5p_dsim_set_data_mode(dsim_base, DSIM_TRANSFER_BOTH, DSIM_STATE_HSCLKEN);
+#if defined(CONFIG_FB_S5P_S6E63M0)
+			s5p_dsim_set_data_mode(dsim_base,
+				DSIM_TRANSFER_BYLCDC, DSIM_STATE_HSCLKEN);
+#else
+			s5p_dsim_set_data_mode(dsim_base,
+				DSIM_TRANSFER_BOTH, DSIM_STATE_HSCLKEN);
+#endif
 			s5p_dsim_enable_hs_clock(dsim_base, 1);
 
 			ret = DSIM_TRUE;
@@ -1024,17 +1032,38 @@ int s5p_dsim_fifo_clear(void)
 }
 
 #if defined(CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD)
-int s5p_dsim_get_lcd_sel_value(void)
+int s5p_dsim_get_panel_sel_value(void)
 {
+	/*Temporary provided*/
 	struct dsim_global *dsim = g_dsim;
 	unsigned int lcd_sel_pin = dsim->mipi_ddi_pd->lcd_sel_pin;
+	int sel;
 
 	if (!lcd_sel_pin) {
 		printk(KERN_ERR "lcd_sel_pin is NULL\n");
 		return -EINVAL;
 	}
+	sel = gpio_get_value(lcd_sel_pin);
+	dsim->panel_select = sel;
 
-	return gpio_get_value(lcd_sel_pin);
+	return sel;
+	/*Temporary provided*/
+}
+
+int s5p_dsim_get_lcd_sel_value(void)
+{
+	struct dsim_global *dsim = g_dsim;
+	unsigned int lcd_sel_pin = dsim->mipi_ddi_pd->lcd_sel_pin;
+	int sel;
+
+	if (!lcd_sel_pin) {
+		printk(KERN_ERR "lcd_sel_pin is NULL\n");
+		return -EINVAL;
+	}
+	sel = gpio_get_value(lcd_sel_pin);
+	dsim->panel_select = sel;
+
+	return sel;
 }
 
 int s5p_dsim_set_lcd_sel_value(unsigned int lcd_sel)
@@ -1181,7 +1210,11 @@ void s5p_dsim_late_resume(void)
 	s5p_dsim_init_link(dsim);
 	usleep_range(10000, 10000);
 	s5p_dsim_set_hs_enable(dsim);
+#if defined(CONFIG_FB_S5P_S6E63M0)
+	s5p_dsim_set_data_transfer_mode(dsim, DSIM_TRANSFER_BYCPU, 0);
+#else
 	s5p_dsim_set_data_transfer_mode(dsim, DSIM_TRANSFER_BYCPU, 1);
+#endif
 	s5p_dsim_set_display_mode(dsim, dsim->dsim_lcd_info, NULL);
 	s5p_dsim_set_data_transfer_mode(dsim, DSIM_TRANSFER_BYLCDC, 1);
 	/* s5p_dsim_set_interrupt_mask(dsim->reg_base, AllDsimIntr, 0); */

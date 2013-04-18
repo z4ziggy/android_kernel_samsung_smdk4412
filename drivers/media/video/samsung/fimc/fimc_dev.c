@@ -32,9 +32,12 @@
 #include <linux/videodev2_exynos_camera.h>
 #include <linux/delay.h>
 #include <linux/cma.h>
+#include <linux/dma-mapping.h>
 #include <plat/fimc.h>
 #include <plat/clock.h>
 #include <mach/regs-pmu.h>
+#include <linux/cpufreq.h>
+#include <mach/cpufreq.h>
 
 #include "fimc.h"
 
@@ -522,7 +525,6 @@ static inline void fimc_irq_cap(struct fimc_control *ctrl)
 	int buf_index;
 	int framecnt_seq;
 	int available_bufnum;
-	static int is_frame_end_irq;
 	struct v4l2_control is_ctrl;
 	u32 is_fn;
 
@@ -545,9 +547,10 @@ static inline void fimc_irq_cap(struct fimc_control *ctrl)
 	}
 
 	if (pdata->hw_ver >= 0x51) {
-		if (is_frame_end_irq || ctrl->status == FIMC_BUFFER_STOP) {
+		if (ctrl->is_frame_end_irq ||
+			ctrl->status == FIMC_BUFFER_STOP) {
 			pp = fimc_hwget_present_frame_count(ctrl);
-			is_frame_end_irq = 0;
+			ctrl->is_frame_end_irq = 0;
 		} else {
 			pp = fimc_hwget_before_frame_count(ctrl);
 		}
@@ -563,7 +566,7 @@ static inline void fimc_irq_cap(struct fimc_control *ctrl)
 			printk(KERN_INFO "%s[%d] SKIPPED\n", __func__, pp);
 			if (ctrl->cap->nr_bufs == 1) {
 				fimc_stop_capture(ctrl);
-				is_frame_end_irq = 1;
+				ctrl->is_frame_end_irq = 1;
 				ctrl->status = FIMC_BUFFER_STOP;
 			}
 			ctrl->restart = false;
@@ -623,18 +626,23 @@ static inline void fimc_irq_cap(struct fimc_control *ctrl)
 		}
 
 		fimc_add_outgoing_queue(ctrl, buf_index);
+		spin_lock(&ctrl->inq_lock);
+
 		fimc_hwset_output_buf_sequence(ctrl, buf_index,
 				FIMC_FRAMECNT_SEQ_DISABLE);
 
 		framecnt_seq = fimc_hwget_output_buf_sequence(ctrl);
 		available_bufnum = fimc_hwget_number_of_bits(framecnt_seq);
+
+		spin_unlock(&ctrl->inq_lock);
+
 		fimc_info2("%s[%d] : framecnt_seq: %d, available_bufnum: %d\n",
 			__func__, ctrl->id, framecnt_seq, available_bufnum);
 		if (ctrl->status != FIMC_BUFFER_STOP) {
 			if (available_bufnum == 1) {
 				ctrl->cap->lastirq = 0;
 				fimc_stop_capture(ctrl);
-				is_frame_end_irq = 1;
+				ctrl->is_frame_end_irq = 1;
 
 				printk(KERN_INFO "fimc_irq_cap available_bufnum = %d\n", available_bufnum);
 				ctrl->status = FIMC_BUFFER_STOP;
@@ -711,20 +719,32 @@ static struct fimc_control *fimc_register_controller(struct platform_device *pde
 	/* In Midas project, FIMC2 reserve memory is used by ION driver. */
 	if (id != 2) {
 #endif
-		sprintf(ctrl->cma_name, "%s%d", FIMC_CMA_NAME, ctrl->id);
-		err = cma_info(&mem_info, ctrl->dev, 0);
-		fimc_info1("%s : [cma_info] start_addr : 0x%x, end_addr : 0x%x, "
-				"total_size : 0x%x, free_size : 0x%x\n",
-				__func__, mem_info.lower_bound, mem_info.upper_bound,
-				mem_info.total_size, mem_info.free_size);
-		if (err) {
-			fimc_err("%s: get cma info failed\n", __func__);
-			ctrl->mem.size = 0;
+#ifdef CONFIG_USE_FIMC_CMA
+		if (id == 1) {
+			ctrl->mem.size =
+				CONFIG_VIDEO_SAMSUNG_MEMSIZE_FIMC1 * SZ_1K;
 			ctrl->mem.base = 0;
-		} else {
-			ctrl->mem.size = mem_info.total_size;
-			ctrl->mem.base = (dma_addr_t)cma_alloc
-				(ctrl->dev, ctrl->cma_name, (size_t)ctrl->mem.size, 0);
+		} else
+#endif
+		{
+			sprintf(ctrl->cma_name, "%s%d",
+					FIMC_CMA_NAME, ctrl->id);
+			err = cma_info(&mem_info, ctrl->dev, 0);
+			fimc_info1("%s : [cma_info] start_addr : 0x%x, "
+				" end_addr : 0x%x, total_size : 0x%x, "
+				"free_size : 0x%x\n", __func__,
+				mem_info.lower_bound, mem_info.upper_bound,
+				mem_info.total_size, mem_info.free_size);
+			if (err) {
+				fimc_err("%s: get cma info failed\n", __func__);
+				ctrl->mem.size = 0;
+				ctrl->mem.base = 0;
+			} else {
+				ctrl->mem.size = mem_info.total_size;
+				ctrl->mem.base = (dma_addr_t)cma_alloc
+					(ctrl->dev, ctrl->cma_name,
+					(size_t)ctrl->mem.size, 0);
+			}
 		}
 #ifdef CONFIG_ION_EXYNOS
 	}
@@ -762,6 +782,8 @@ static struct fimc_control *fimc_register_controller(struct platform_device *pde
 	mutex_init(&ctrl->lock);
 	mutex_init(&ctrl->v4l2_lock);
 	spin_lock_init(&ctrl->outq_lock);
+	spin_lock_init(&ctrl->inq_lock);
+
 	init_waitqueue_head(&ctrl->wq);
 
 	/* get resource for io memory */
@@ -813,7 +835,7 @@ static struct fimc_control *fimc_register_controller(struct platform_device *pde
 		clk_put(fimc_src_clk);
 		return NULL;
 	}
-	clk_set_rate(sclk_fimc_lclk, FIMC_CLK_RATE);
+	clk_set_rate(sclk_fimc_lclk, fimc_clk_rate());
 	clk_put(sclk_fimc_lclk);
 	clk_put(fimc_src_clk);
 
@@ -1144,7 +1166,7 @@ static int _fill_v4l2_buffer(struct vb2_buffer *vb, struct v4l2_buffer *b,
 		b->m.fd = vb->v4l2_planes[0].m.fd;
 	}
 
-	return ret;
+	return 0;
 }
 
 static int _fill_vb2_buffer(struct vb2_buffer *vb, struct v4l2_buffer *b,
@@ -1475,6 +1497,19 @@ static int fimc_open(struct file *filp)
 		goto kzalloc_err;
 	}
 
+#ifdef CONFIG_USE_FIMC_CMA
+	if (ctrl->id == 1) {
+		ctrl->mem.cpu_addr = dma_alloc_coherent(ctrl->dev,
+					ctrl->mem.size, &(ctrl->mem.base), 0);
+		if (!ctrl->mem.cpu_addr) {
+			printk(KERN_INFO "FIMC%d: dma_alloc_coherent failed\n",
+								ctrl->id);
+			ret = -ENOMEM;
+			goto dma_alloc_err;
+		}
+	}
+#endif
+
 	if (in_use == 1) {
 #if (!defined(CONFIG_EXYNOS_DEV_PD) || !defined(CONFIG_PM_RUNTIME))
 		if (pdata->clk_on)
@@ -1524,6 +1559,11 @@ static int fimc_open(struct file *filp)
 	mutex_unlock(&ctrl->lock);
 
 	return 0;
+
+#ifdef CONFIG_USE_FIMC_CMA
+dma_alloc_err:
+	kfree(prv_data);
+#endif
 
 kzalloc_err:
 	atomic_dec(&ctrl->in_use);
@@ -1717,6 +1757,14 @@ static int fimc_release(struct file *filp)
 		ctrl->fb.is_enable = 0;
 	}
 
+#ifdef CONFIG_USE_FIMC_CMA
+	if (ctrl->id == 1) {
+		dma_free_coherent(ctrl->dev, ctrl->mem.size, ctrl->mem.cpu_addr,
+					ctrl->mem.base);
+		ctrl->mem.base = 0;
+		ctrl->mem.cpu_addr = NULL;
+	}
+#endif
 	fimc_warn("FIMC%d %d released.\n",
 			ctrl->id, atomic_read(&ctrl->in_use));
 

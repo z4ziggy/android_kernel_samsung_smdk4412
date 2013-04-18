@@ -80,6 +80,8 @@ struct dsim_global {
 	struct delayed_work	check_hs_toggle_work;
 	unsigned int		dsim_toggle_per_frame_count;
 
+	spinlock_t slock;
+
 	struct dsim_ops		*ops;
 };
 

@@ -9,7 +9,7 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- * Change Date: 2012.06.21
+ * Change Date: 2012.06.28
  */
 
 #ifndef __ISX012_REGS_H__ 
@@ -2849,6 +2849,11 @@ static const isx012_regset_t ISX012_Preview_SizeSetting[] =
 
 static const isx012_regset_t ISX012_Preview_Mode[] =
 {
+{0x5000,0x00,0x01}, /* CPUEXT, added by SAMSUNG TN */
+{0x5E32,0x0F,0x01}, /* for Fast-AE reset */
+{0x5E3D,0x0A,0x01}, /* for Fast-AE reset */
+{0x0181,0x00,0x01},    // CAP_HALF_AE_CTRL
+
 {0x0089,0x00,0x01},    //OUTFMT_MONI
 {0x0083,0x01,0x01},    //SENSMODE_MONI
 {0x0086,0x02,0x01},    //FPSTYPE_MONI
@@ -4755,7 +4760,6 @@ static const isx012_regset_t isx012_720_Preview[] =
 {
 {0x0090,0x02D0,0x02},	 //HSIZE_MONI : 720
 {0x0096,0x01E0,0x02},	 //VSIZE_MONI : 480
-
 };
 
 static const isx012_regset_t isx012_640_Preview[] =
@@ -4763,6 +4767,15 @@ static const isx012_regset_t isx012_640_Preview[] =
 {0x0090,0x0280,0x02},	 //HSIZE_MONI : 640
 {0x0096,0x01E0,0x02},	 //VSIZE_MONI : 480
 };
+
+#if defined(CONFIG_MACH_P4NOTELTE_KOR_SKT) \
+	|| defined(CONFIG_MACH_P4NOTELTE_KOR_KT) \
+	|| defined(CONFIG_MACH_P4NOTELTE_KOR_LGT) /*For 4G VT call in Domestic*/
+static const isx012_regset_t isx012_480_Preview[] = {
+{0x0090, 0x01E0, 0x02},		/* HSIZE_MONI : 480 */
+{0x0096, 0x0280, 0x02},		/* VSIZE_MONI : 640 */
+};
+#endif
 
 static const isx012_regset_t isx012_320_Preview[] =
 {
@@ -11204,6 +11217,26 @@ static const isx012_regset_t ISX012_Flash_AELINE[] =
 {0x031B,0x23,0x01},    // AELINE_CAP_SN3_4 :
 {0x031D,0x52,0x01},    // AELINE_CAP_SN7_8 :
 {0x031F,0x02,0x01},    // AELINE_CAP_SN11_12 :
+};
+
+static const isx012_regset_t ISX012_ae_manual_mode[] =
+{
+{0x0294,0x02,0x01}, /* AE_SN1 */
+{0x0297,0x02,0x01}, /* AE_SN4 */
+{0x029A,0x02,0x01}, /* AE_SN7 */
+{0x029E,0x02,0x01}, /* AE_SN11 */
+{0xFFFF,0x42,0x01}, /* $wait, 66 */
+};
+
+static const isx012_regset_t ISX012_flash_fast_ae_awb[] =
+{
+{0x5E32,0x0A,0x01},
+{0x5E3D,0x05,0x01}, /* Don't fix me. 0x05 */
+
+{0x0181,0x01,0x01},    // CAP_HALF_AE_CTRL
+{0x00B2,0x03,0x01},    //AFMODE_MONI : AF OFF
+{0x00B3,0x03,0x01},    //AFMODE_HREL : AF OFF
+{0x0081,0x01,0x01},    //MODESEL
 };
 
 static const isx012_regset_t ISX012_Lowlux_Night_Reset[] =

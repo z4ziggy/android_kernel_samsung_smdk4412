@@ -775,17 +775,22 @@ static int ea8061_probe(struct mipi_dsim_lcd_device *dsim_dev)
 	}
 
 	ea8061_regulator_ctl(lcd, true);
+
+	if (lcd->ddi_pd)
+		lcd->property = lcd->ddi_pd->pdata;
+
 #ifdef CONFIG_ARM_EXYNOS4_DISPLAY_DEVFREQ
-	lcd->nb_disp.notifier_call = ea8061_notifier_callback;
-	ret = exynos4_display_register_client(&lcd->nb_disp);
-	if (ret < 0)
-		dev_warn(&lcd->ld->dev, "failed to register exynos-display notifier\n");
+	if (lcd->property && lcd->property->dynamic_refresh) {
+		lcd->nb_disp.notifier_call = ea8061_notifier_callback;
+		ret = exynos4_display_register_client(&lcd->nb_disp);
+		if (ret < 0)
+			dev_warn(&lcd->ld->dev, "failed to register exynos-display notifier\n");
+	}
 #endif
+
 	lcd->bd->props.max_brightness = MAX_BRIGHTNESS;
 	lcd->bd->props.brightness = MAX_BRIGHTNESS;
 	lcd->power = FB_BLANK_UNBLANK;
-	if (lcd->ddi_pd)
-		lcd->property = lcd->ddi_pd->pdata;
 	lcd->model = ea8061_model;
 	lcd->model_count = ARRAY_SIZE(ea8061_model);
 	for (i = 0; i < ARRAY_SIZE(device_attrs); i++) {
@@ -826,7 +831,8 @@ static void ea8061_remove(struct mipi_dsim_lcd_device *dsim_dev)
 	regulator_put(lcd->reg_vdd3);
 
 #ifdef CONFIG_ARM_EXYNOS4_DISPLAY_DEVFREQ
-	exynos4_display_unregister_client(&lcd->nb_disp);
+	if (lcd->property && lcd->property->dynamic_refresh)
+		exynos4_display_unregister_client(&lcd->nb_disp);
 #endif
 	kfree(lcd);
 }

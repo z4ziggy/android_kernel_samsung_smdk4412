@@ -329,6 +329,7 @@ static long Si4709_ioctl(struct file *filp, unsigned int ioctl_cmd,
 			debug("Si4709_IOC_VOLUME_GET called\n");
 
 			ret = (long)Si4709_dev_volume_get(&volume);
+
 			if (ret < 0)
 				debug("Si4709_IOC_VOLUME_GET failed\n");
 			else if (copy_to_user

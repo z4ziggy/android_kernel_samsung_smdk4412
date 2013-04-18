@@ -153,6 +153,10 @@ static int lsm330dlc_accel_read_raw_xyz(struct lsm330dlc_accel_data *data,
 	acc->y = acc->y >> 4;
 	acc->z = acc->z >> 4;
 
+#if defined(CONFIG_MACH_M3_JPN_DCM)
+	acc->y = -acc->y;
+#endif
+
 	return 0;
 }
 
@@ -561,15 +565,9 @@ static ssize_t lsm330dlc_accel_fs_read(struct device *dev,
 				accel_adjusted[i]
 				+= position_map[data->position][i][j] * raw[j];
 		}
-#ifdef CONFIG_SLP
-		return sprintf(buf, "raw:%d,%d,%d adjust:%d,%d,%d\n",
-			raw[0], raw[1], raw[2], accel_adjusted[0],
-			accel_adjusted[1], accel_adjusted[2]);
-#else
 		return sprintf(buf, "%d,%d,%d\n",
 			accel_adjusted[0], accel_adjusted[1],
 			accel_adjusted[2]);
-#endif
 	} else
 		return sprintf(buf, "%d,%d,%d\n",
 			data->acc_xyz.x, data->acc_xyz.y, data->acc_xyz.z);

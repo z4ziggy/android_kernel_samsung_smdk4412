@@ -11,6 +11,14 @@
 #define RAM_DUMP_DONE		_IOW(CHARM_CODE, 6, int)
 #define WAIT_FOR_RESTART	_IOR(CHARM_CODE, 7, int)
 #define SILENT_RESET_CONTROL	_IOR(CHARM_CODE, 8, int)
+#define AUTOPM_LOCK		_IOW(CHARM_CODE, 9, int)
+#define GET_BOOT_PROTOCOL	_IOW(CHARM_CODE, 10, int)
+#define GET_FORCE_RAMDUMP	_IOW(CHARM_CODE, 11, int)
+#define WAIT_FOR_ERROR		_IOW(CHARM_CODE, 12, int)
+
+#ifdef CONFIG_SIM_DETECT
+#define GET_SIM_DETECT		_IOW(CHARM_CODE, 13, int)
+#endif
 
 enum charm_boot_type {
 	CHARM_NORMAL_BOOT = 0,

@@ -88,9 +88,19 @@ static struct regulator_consumer_supply ldo14_supply[] = {
 	REGULATOR_SUPPLY("vabb2_1.95v", NULL),
 };
 
+#if defined(CONFIG_MACH_T0_CHN_CTC)
 static struct regulator_consumer_supply ldo17_supply[] = {
-	REGULATOR_SUPPLY("cam_sensor_core_1.2v", NULL),
+	REGULATOR_SUPPLY("vcc_1.8v_usb", NULL),
 };
+#else
+static struct regulator_consumer_supply ldo17_supply[] = {
+#if defined(CONFIG_TARGET_LOCALE_USA)
+	REGULATOR_SUPPLY("vcc_adc_1.8v", NULL),
+#else
+	REGULATOR_SUPPLY("cam_sensor_core_1.2v", NULL),
+#endif
+};
+#endif
 
 static struct regulator_consumer_supply ldo18_supply[] = {
 	REGULATOR_SUPPLY("cam_isp_sensor_1.8v", NULL),
@@ -184,8 +194,18 @@ REGULATOR_INIT(ldo13, "VCC_1.8V_LCD", 1800000, 1800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
 REGULATOR_INIT(ldo14, "VABB2_1.95V", 1950000, 1950000, 1,
 	       REGULATOR_CHANGE_STATUS, 1);
+#if defined(CONFIG_MACH_T0_CHN_CTC)
+REGULATOR_INIT(ldo17, "VCC_1.8V_USB", 1800000, 1800000, 0,
+	       REGULATOR_CHANGE_STATUS, 1);
+#else
+#if defined(CONFIG_TARGET_LOCALE_USA)
+REGULATOR_INIT(ldo17, "VCC_ADC_1.8V", 1800000, 1800000, 0,
+	       REGULATOR_CHANGE_STATUS, 1);
+#else
 REGULATOR_INIT(ldo17, "CAM_SENSOR_CORE_1.2V", 1200000, 1200000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
+#endif
+#endif
 REGULATOR_INIT(ldo18, "CAM_ISP_SENSOR_1.8V", 1800000, 1800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
 REGULATOR_INIT(ldo19, "VT_CAM_1.8V", 1800000, 1800000, 0,
@@ -196,7 +216,7 @@ REGULATOR_INIT(ldo23, "TSP_AVDD_3.3V", 3300000, 3300000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
 REGULATOR_INIT(ldo24, "VDD_1.8V_TSP", 1800000, 1800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
-REGULATOR_INIT(ldo25, "VCC_3.3V_LCD", 3300000, 3300000, 0,
+REGULATOR_INIT(ldo25, "VCC_3.0V_LCD", 3000000, 3000000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
 REGULATOR_INIT(ldo26, "VCC_MOTOR_3.0V", 3000000, 3000000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
@@ -205,7 +225,7 @@ static struct regulator_init_data max77686_buck1_data = {
 	.constraints = {
 		.name = "vdd_mif range",
 		.min_uV = 850000,
-		.max_uV = 1050000,
+		.max_uV = 1200000,
 		.always_on = 1,
 		.boot_on = 1,
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
@@ -231,8 +251,8 @@ static struct regulator_init_data max77686_buck2_data = {
 static struct regulator_init_data max77686_buck3_data = {
 	.constraints = {
 		.name = "vdd_int range",
-		.min_uV = 850000,
-		.max_uV = 1100000,
+		.min_uV = 825000,
+		.max_uV = 1300000,
 		.always_on = 1,
 		.boot_on = 1,
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
@@ -245,7 +265,7 @@ static struct regulator_init_data max77686_buck4_data = {
 	.constraints = {
 		.name = "vdd_g3d range",
 		.min_uV = 850000,
-		.max_uV = 1075000,
+		.max_uV = 1200000,
 		.boot_on = 1,
 		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
 		REGULATOR_CHANGE_STATUS,
@@ -317,6 +337,9 @@ struct max77686_opmode_data max77686_opmode_data[MAX77686_REG_MAX] = {
 	[MAX77686_LDO12] = {MAX77686_LDO12, MAX77686_OPMODE_STANDBY},
 	[MAX77686_LDO13] = {MAX77686_LDO13, MAX77686_OPMODE_NORMAL},
 	[MAX77686_LDO14] = {MAX77686_LDO14, MAX77686_OPMODE_STANDBY},
+#if defined(CONFIG_MACH_T0_CHN_CTC)
+	[MAX77686_LDO17] = {MAX77686_LDO17, MAX77686_OPMODE_NORMAL},
+#endif
 	[MAX77686_BUCK1] = {MAX77686_BUCK1, MAX77686_OPMODE_STANDBY},
 	[MAX77686_BUCK2] = {MAX77686_BUCK2, MAX77686_OPMODE_STANDBY},
 	[MAX77686_BUCK3] = {MAX77686_BUCK3, MAX77686_OPMODE_STANDBY},
@@ -595,7 +618,7 @@ REGULATOR_INIT(ldo14, "VABB2_1.95V", 1950000, 1950000, 1,
 	       REGULATOR_CHANGE_STATUS, 1);
 REGULATOR_INIT(ldo19, "VDD_1.8V_TSP", 1800000, 1800000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
-REGULATOR_INIT(ldo20, "VCC_3.3V_LCD", 3300000, 3300000, 0,
+REGULATOR_INIT(ldo20, "VCC_3.0V_LCD", 3000000, 3000000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);
 REGULATOR_INIT(ldo21, "VCC_MOTOR_3.0V", 3000000, 3000000, 0,
 	       REGULATOR_CHANGE_STATUS, 1);

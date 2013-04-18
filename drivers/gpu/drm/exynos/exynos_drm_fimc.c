@@ -37,6 +37,10 @@
 #define FIMC_MAX_DEVS	4
 #define FIMC_MAX_SRC	2
 #define FIMC_MAX_DST	32
+#ifdef CONFIG_SLP_DISP_DEBUG
+#define FIMC_MAX_REG	128
+#define FIMC_BASE_REG(id)	(0x11800000 + (0x10000 * id))
+#endif
 #define FIMC_CLK_RATE	166750000
 #define FIMC_BUF_STOP	1
 #define FIMC_BUF_START	2
@@ -1602,6 +1606,45 @@ static struct fimc_capability *fimc_get_capability(
 	return capa;
 }
 
+#ifdef CONFIG_SLP_DISP_DEBUG
+static int fimc_read_reg(struct fimc_context *ctx, char *buf)
+{
+	u32 cfg;
+	int i;
+	int pos = 0;
+
+	pos += sprintf(buf+pos, "0x%.8x | ", FIMC_BASE_REG(ctx->id));
+	for (i = 1; i < FIMC_MAX_REG + 1; i++) {
+		cfg = fimc_read((i-1) * sizeof(u32));
+		pos += sprintf(buf+pos, "0x%.8x ", cfg);
+		if (i % 4 == 0)
+			pos += sprintf(buf+pos, "\n0x%.8x | ",
+				FIMC_BASE_REG(ctx->id) + (i * sizeof(u32)));
+	}
+
+	pos += sprintf(buf+pos, "\n");
+
+	return pos;
+}
+
+static ssize_t show_read_reg(struct device *dev, struct device_attribute *attr,
+			char *buf)
+{
+	struct fimc_context *ctx = get_fimc_context(dev);
+
+	if (!ctx->regs) {
+		dev_err(dev, "failed to get current register.\n");
+		return -EINVAL;
+	}
+
+	return fimc_read_reg(ctx, buf);
+}
+
+static struct device_attribute device_attrs[] = {
+	__ATTR(read_reg, S_IRUGO, show_read_reg, NULL),
+};
+#endif
+
 static int __devinit fimc_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -1611,6 +1654,9 @@ static int __devinit fimc_probe(struct platform_device *pdev)
 	struct exynos_drm_ippdrv *ippdrv;
 	struct exynos_drm_fimc_pdata *pdata;
 	int ret = -EINVAL;
+#ifdef CONFIG_SLP_DISP_DEBUG
+	int i;
+#endif
 
 	pdata = pdev->dev.platform_data;
 	if (!pdata) {
@@ -1734,6 +1780,18 @@ static int __devinit fimc_probe(struct platform_device *pdev)
 		goto err_get_irq;
 	}
 	ctx->pol = pdata->pol;
+
+#ifdef CONFIG_SLP_DISP_DEBUG
+	for (i = 0; i < ARRAY_SIZE(device_attrs); i++) {
+		ret = device_create_file(&(pdev->dev),
+					&device_attrs[i]);
+		if (ret)
+			break;
+	}
+
+	if (ret < 0)
+		dev_err(&pdev->dev, "failed to add sysfs entries\n");
+#endif
 
 	DRM_DEBUG_KMS("%s:id[%d]\n", __func__, ctx->id);
 

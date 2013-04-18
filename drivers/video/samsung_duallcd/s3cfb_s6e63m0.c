@@ -1,6 +1,6 @@
 /* linux/drivers/video/samsung/s3cfb_s6e63m0.c
  *
- * MIPI-DSI based AMS529HA01 AMOLED lcd panel driver.
+ * MIPI-DSI based AMS367GEXX AMOLED lcd panel driver.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -99,10 +99,13 @@ struct lcd_info {
 
 	unsigned char			id[LDI_ID_LEN];
 
-	unsigned int			panel_select;
-
 	unsigned char			**gamma_table[NR_S6E63M0_PANEL];
 	unsigned char			**elvss_table[NR_S6E63M0_PANEL];
+
+#if defined(CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD)
+	unsigned int			detected[NR_S6E63M0_PANEL];
+	unsigned int			panel_select;
+#endif	/* CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD */
 
 #ifdef SMART_DIMMING
 	unsigned int			support_elvss;
@@ -122,6 +125,15 @@ static const unsigned int candela_table[GAMMA_MAX] = {
 	230, 240, 250, MAX_GAMMA
 };
 
+/* Added for DUAL LCD work*/
+static int s6e63m0_read_mtp(struct lcd_info *lcd);
+#ifdef SMART_DIMMING_DEBUG_LCD
+static int print_mtp_value(struct lcd_info *lcd);
+#endif
+static int s6e63m0_read_id(struct lcd_info *lcd, u8 *buf);
+static int s6e63m0_dual_panel_detect(struct lcd_info *lcd);
+/* Added for DUAL LCD work*/
+
 #if defined(GPIO_OLED_DET)
 struct delayed_work hs_clk_re_try;
 unsigned int count_dsim;
@@ -132,8 +144,7 @@ static void hs_clk_re_try_work(struct work_struct *work)
 
 	read_oled_det = gpio_get_value(GPIO_OLED_DET);
 	printk(KERN_INFO "%s, %d, %d\n", __func__,
-				 count_dsim, read_oled_det);
-
+			count_dsim, read_oled_det);
 	if (read_oled_det == 1) {
 		if (count_dsim < 10) {
 			schedule_delayed_work(&hs_clk_re_try, HZ/8);
@@ -147,7 +158,7 @@ static void hs_clk_re_try_work(struct work_struct *work)
 
 static irqreturn_t oled_det_int(int irq, void *dev_id)
 {
-	printk(KERN_INFO "[DSIM] %s\n", __func__);
+	pr_info("[DSIM] %s\n", __func__);
 	schedule_delayed_work(&hs_clk_re_try, HZ/16);
 	count_dsim = 0;
 	return IRQ_HANDLED;
@@ -201,12 +212,12 @@ read_retry:
 	ret = _s6e63m0_read(lcd, addr, count, buf);
 	if (!ret) {
 		if (retry_cnt) {
-			printk(KERN_WARNING "[WARN:LCD] %s : retry cnt : %d\n",
+			pr_info("[WARN:LCD] %s : retry cnt : %d\n",
 						__func__, retry_cnt);
 			retry_cnt--;
 			goto read_retry;
 		} else
-			printk(KERN_ERR "[ERROR:LCD] %s : 0x%02x read failed\n",
+			pr_info("[ERROR:LCD] %s : 0x%02x read failed\n",
 						__func__, addr);
 	}
 	return ret;
@@ -239,7 +250,7 @@ static int get_backlight_level_from_brightness(int brightness)
 
 static int s6e63m0_gamma_ctl(struct lcd_info *lcd)
 {
-#ifdef SMART_DIMMING_DEBUG
+#ifdef SMART_DIMMING_DEBUG_LCD
 	int j;
 #endif
 	s6e63m0_write(lcd, lcd->gamma_table[lcd->panel_select][lcd->bl],
@@ -247,10 +258,11 @@ static int s6e63m0_gamma_ctl(struct lcd_info *lcd)
 
 	s6e63m0_write(lcd, SEQ_GAMMA_UPDATE,
 				ARRAY_SIZE(SEQ_GAMMA_UPDATE));
-#ifdef SMART_DIMMING_DEBUG
-	printk("panel_select = %d bl = %d\n", lcd->panel_select, lcd->bl);
+#ifdef SMART_DIMMING_DEBUG_LCD
+	pr_info("panel_select = %d bl = %d\n", lcd->panel_select, lcd->bl);
 	for (j = 0; j < GAMMA_PARAM_SIZE; j++)
-		printk("0x%02x, ", lcd->gamma_table[lcd->panel_select][lcd->bl][j]);
+		pr_info("0x%02x, ",
+			lcd->gamma_table[lcd->panel_select][lcd->bl][j]);
 #endif
 	return 0;
 }
@@ -360,38 +372,30 @@ static u8 get_elvss_value(struct lcd_info *lcd, u8 elvss_level)
 	return data;
 }
 
-static int init_elvss_table(struct lcd_info *lcd)
+static int alloc_elvss_table(struct lcd_info *lcd)
 {
-	int i, j, ret = 0;
-	lcd->elvss_table[lcd->panel_select] = kzalloc(ELVSS_STATUS_MAX * sizeof(u8 *), GFP_KERNEL);
+	int i, k, ret = 0;
+	for (k = 0; k < NR_S6E63M0_PANEL; k++) {
+		lcd->elvss_table[k]
+			= kzalloc(ELVSS_STATUS_MAX * sizeof(u8 *), GFP_KERNEL);
 
-	if (IS_ERR_OR_NULL(lcd->elvss_table[lcd->panel_select])) {
-		pr_err("failed to allocate elvss table\n");
-		ret = -ENOMEM;
-		goto err_alloc_elvss_table;
-	}
-
-	for (i = 0; i < ELVSS_STATUS_MAX; i++) {
-		lcd->elvss_table[lcd->panel_select][i] = kzalloc(ELVSS_PARAM_SIZE * sizeof(u8),
-					GFP_KERNEL);
-		if (IS_ERR_OR_NULL(lcd->elvss_table[lcd->panel_select][i])) {
-			pr_err("failed to allocate elvss\n");
+		if (IS_ERR_OR_NULL(lcd->elvss_table[k])) {
+			pr_err("failed to allocate elvss table\n");
 			ret = -ENOMEM;
-			goto err_alloc_elvss;
+			goto err_alloc_elvss_table;
 		}
-		lcd->elvss_table[lcd->panel_select][i][0] = 0xB2;
-		for (j = 1; j < ELVSS_PARAM_SIZE; j++)
-			lcd->elvss_table[lcd->panel_select][i][j] = get_elvss_value(lcd, i);
-	}
 
-#ifdef SMART_DIMMING_DEBUG
-	printk("jbass.choi : ELVSS_TABLE [%2d]\n", lcd->panel_select);
-	for (i = 0; i < ELVSS_STATUS_MAX; i++) {
-		for (j = 0; j < ELVSS_PARAM_SIZE; j++)
-			printk("0x%02x, ", lcd->elvss_table[lcd->panel_select][i][j]);
-	printk("\n");
+		for (i = 0; i < ELVSS_STATUS_MAX; i++) {
+			lcd->elvss_table[k][i]
+				= kzalloc(ELVSS_PARAM_SIZE * sizeof(u8),
+					GFP_KERNEL);
+			if (IS_ERR_OR_NULL(lcd->elvss_table[k][i])) {
+				pr_err("failed to allocate elvss\n");
+				ret = -ENOMEM;
+				goto err_alloc_elvss;
+			}
+		}
 	}
-#endif
 	return 0;
 
 err_alloc_elvss:
@@ -404,44 +408,50 @@ err_alloc_elvss_table:
 	return ret;
 }
 
-static int init_gamma_table(struct lcd_info *lcd)
+static int init_elvss_table(struct lcd_info *lcd)
 {
-	int i, j, ret = 0;
-	char gen_gamma[GAMMA_PARAM_SIZE] = {0,};
-
-	lcd->gamma_table[lcd->panel_select] = kzalloc(GAMMA_MAX * sizeof(u8 *),
-			GFP_KERNEL);
-	if (IS_ERR_OR_NULL(lcd->gamma_table[lcd->panel_select])) {
-		pr_err("failed to allocate gamma table\n");
-		ret = -ENOMEM;
-		goto err_alloc_gamma_table;
+	int i, j;
+	for (i = 0; i < ELVSS_STATUS_MAX; i++) {
+		lcd->elvss_table[lcd->panel_select][i][0] = 0xB2;
+		for (j = 1; j < ELVSS_PARAM_SIZE; j++)
+			lcd->elvss_table[lcd->panel_select][i][j]
+				= get_elvss_value(lcd, i);
 	}
-
-	for (i = 0; i < GAMMA_MAX; i++) {
-		lcd->gamma_table[lcd->panel_select][i] = kzalloc(GAMMA_PARAM_SIZE * sizeof(u8),
-					GFP_KERNEL);
-		if (IS_ERR_OR_NULL(lcd->gamma_table[lcd->panel_select][i])) {
-			pr_err("failed to allocate gamma\n");
-			ret = -ENOMEM;
-			goto err_alloc_gamma;
-		}
-		lcd->gamma_table[lcd->panel_select][i][0] = 0xFA;
-		lcd->gamma_table[lcd->panel_select][i][1] = 0x02;
-
-		lcd->smart.brightness_level = candela_table[i];
-		generate_gamma(&(lcd->smart), gen_gamma, GAMMA_PARAM_SIZE);
-		for (j = 2; j < GAMMA_PARAM_SIZE; j++)
-			lcd->gamma_table[lcd->panel_select][i][j] = gen_gamma[j - 2];
-	}
-#ifdef SMART_DIMMING_DEBUG
-	pr_info("jbass.choi : GAMMA_TABLE[%2d] \n", lcd->panel_select);
-	for (i = 0; i < GAMMA_MAX; i++) {
-		printk("%3d : ", i);
-		for (j = 0; j < GAMMA_PARAM_SIZE; j++)
-			printk("0x%02x, ", lcd->gamma_table[lcd->panel_select][i][j]);
-	printk("\n");
+#ifdef SMART_DIMMING_DEBUG_LCD
+	pr_info("ELVSS_TABLE [%2d]\n", lcd->panel_select);
+	for (i = 0; i < ELVSS_STATUS_MAX; i++) {
+		for (j = 0; j < ELVSS_PARAM_SIZE; j++)
+			pr_info("0x%02x, ",
+				lcd->elvss_table[lcd->panel_select][i][j]);
+	pr_info("\n");
 	}
 #endif
+	return 0;
+}
+
+static int alloc_gamma_table(struct lcd_info *lcd)
+{
+	int i, k, ret = 0;
+	for (k = 0; k < NR_S6E63M0_PANEL; k++) {
+		lcd->gamma_table[k] = kzalloc(GAMMA_MAX * sizeof(u8 *),
+				GFP_KERNEL);
+		if (IS_ERR_OR_NULL(lcd->gamma_table[k])) {
+			pr_err("failed to allocate gamma table\n");
+			ret = -ENOMEM;
+			goto err_alloc_gamma_table;
+		}
+
+		for (i = 0; i < GAMMA_MAX; i++) {
+			lcd->gamma_table[k][i]
+				= kzalloc(GAMMA_PARAM_SIZE * sizeof(u8),
+						GFP_KERNEL);
+			if (IS_ERR_OR_NULL(lcd->gamma_table[k][i])) {
+				pr_err("failed to allocate gamma\n");
+				ret = -ENOMEM;
+				goto err_alloc_gamma;
+			}
+		}
+	}
 	return 0;
 
 err_alloc_gamma:
@@ -452,6 +462,33 @@ err_alloc_gamma:
 	kfree(lcd->gamma_table);
 err_alloc_gamma_table:
 	return ret;
+}
+
+static int init_gamma_table(struct lcd_info *lcd)
+{
+	int i, j;
+	char gen_gamma[GAMMA_PARAM_SIZE] = {0,};
+
+	for (i = 0; i < GAMMA_MAX; i++) {
+		lcd->gamma_table[lcd->panel_select][i][0] = 0xFA;
+		lcd->gamma_table[lcd->panel_select][i][1] = 0x02;
+
+		lcd->smart.brightness_level = candela_table[i];
+		generate_gamma(&(lcd->smart), gen_gamma, GAMMA_PARAM_SIZE);
+		for (j = 2; j < GAMMA_PARAM_SIZE; j++)
+			lcd->gamma_table[lcd->panel_select][i][j] = gen_gamma[j - 2];
+	}
+#ifdef SMART_DIMMING_DEBUG_LCD
+	pr_info("GAMMA_TABLE[%2d]\n", lcd->panel_select);
+	for (i = 0; i < GAMMA_MAX; i++) {
+		pr_info("%3d : ", i);
+		for (j = 0; j < GAMMA_PARAM_SIZE; j++)
+			pr_info("0x%02x, ",
+				lcd->gamma_table[lcd->panel_select][i][j]);
+	pr_info("\n");
+	}
+#endif
+	return 0;
 }
 
 static int update_brightness(struct lcd_info *lcd, u8 force)
@@ -467,7 +504,7 @@ static int update_brightness(struct lcd_info *lcd, u8 force)
 	brightness = lcd->bd->props.brightness;
 
 #if defined(CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD)
-	sel = s5p_dsim_get_lcd_sel_value();
+	sel = s5p_dsim_get_panel_sel_value();
 	lcd->panel_select = sel;
 #endif	/* CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD */
 
@@ -484,9 +521,10 @@ static int update_brightness(struct lcd_info *lcd, u8 force)
 		ret = s6e63m0_gamma_ctl(lcd);
 
 		lcd->current_bl = lcd->bl;
-		/*dev_info(&lcd->ld->dev,
-			"panel_select = %d brightness=%d, bl=%d, candela=%d\n",
-			lcd->panel_select, brightness, lcd->bl, candela_table[lcd->bl]);*/
+		dev_info(&lcd->ld->dev,
+			"panel = %d brightness=%d, bl=%d, candela=%d\n",
+			lcd->panel_select, brightness,
+			lcd->bl, candela_table[lcd->bl]);
 	}
 
 	mutex_unlock(&lcd->bl_lock);
@@ -529,7 +567,7 @@ static int s6e63m0_ldi_init(struct lcd_info *lcd)
 		ARRAY_SIZE(SEQ_DISPLAY_CONDITION_SET1));
 	s6e63m0_write(lcd, SEQ_DISPLAY_CONDITION_SET2,
 		ARRAY_SIZE(SEQ_DISPLAY_CONDITION_SET2));
-	s6e63m0_write(lcd, lcd->gamma_table[lcd->panel_select][lcd->bl] ,
+	s6e63m0_write(lcd, lcd->gamma_table[lcd->panel_select][lcd->bl],
 		GAMMA_PARAM_SIZE);
 	s6e63m0_write(lcd, SEQ_GAMMA_UPDATE,
 		ARRAY_SIZE(SEQ_GAMMA_UPDATE));
@@ -582,7 +620,9 @@ static int s6e63m0_power_on(struct lcd_info *lcd)
 	}
 	lcd->ldi_enable = 1;
 
-	/*update_brightness(lcd, 1);*/
+#if !defined(CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD)
+	update_brightness(lcd, 1);
+#endif
 err:
 	return ret;
 }
@@ -825,6 +865,53 @@ void s6e63m0_early_suspend(void)
 	return ;
 }
 
+#if defined(CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD)
+static int s6e63m0_dual_panel_detect(struct lcd_info *lcd)
+{
+	int ret = 0;
+
+	/* Calculating Gamma table of outer LCD */
+	lcd->panel_select = s5p_dsim_get_panel_sel_value();
+	msleep(25);
+	if (lcd->gamma_table[lcd->panel_select][0][0] == 0x00) {
+		pr_info("GAMMA TABLE not found !! in panel %d\n",
+				lcd->panel_select);
+		ret = s6e63m0_read_id(lcd, lcd->id);
+		if (lcd->id[0] != 0xFE) {
+			lcd->detected[lcd->panel_select] = 0;
+			goto dual_det_err;
+		} else
+			lcd->detected[lcd->panel_select] = 1;
+		dev_info(&lcd->ld->dev, "ID: %x, %x, %x\n", lcd->id[0],
+				lcd->id[1], lcd->id[2]);
+		dev_info(&lcd->ld->dev, "s6e63m0 driver has been detected.\n");
+		ret = s6e63m0_read_mtp(lcd);
+		if (!ret) {
+			pr_info("[LCD:ERROR] : %s read mtp failed\n",
+					__func__);
+		}
+#ifdef SMART_DIMMING_DEBUG_LCD
+		ret += print_mtp_value(lcd);
+#endif
+		ret += Smart_dimming_init(&(lcd->smart));
+		if (lcd->support_elvss)
+			ret = init_elvss_table(lcd);
+		ret += init_gamma_table(lcd);
+		if (ret) {
+			lcd->gamma_table[lcd->panel_select]
+				= (unsigned char **)s6e63m0_gamma22_table;
+			lcd->elvss_table[lcd->panel_select]
+				= (unsigned char **)ELVSS_TABLE;
+		}
+	}
+	return 0;
+dual_det_err:
+	pr_info("Outer LCD detectoin failed\n");
+	ret = s5p_dsim_toggle_lcd();
+	return 0;
+}
+#endif	/* CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD */
+
 void s6e63m0_late_resume(void)
 {
 	struct lcd_info *lcd = g_lcd;
@@ -839,16 +926,27 @@ void s6e63m0_late_resume(void)
 	dev_info(&lcd->ld->dev, "-%s\n", __func__);
 
 	set_dsim_lcd_enabled(1);
-
+#if defined(CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD)
+	if (lcd->detected[lcd->panel_select] == 0)
+		s6e63m0_dual_panel_detect(lcd);
+	update_brightness(lcd, 1);
+#endif
 	return ;
 }
 #endif
 
-static void s6e63m0_read_id(struct lcd_info *lcd, u8 *buf)
+static int s6e63m0_id_read_cmds(struct lcd_info *lcd)
+{
+	s6e63m0_write(lcd, SEQ_PREPARE_ID_READ,
+		ARRAY_SIZE(SEQ_PREPARE_ID_READ));
+	return 0;
+}
+
+static int s6e63m0_read_id(struct lcd_info *lcd, u8 *buf)
 {
 	int ret = 0;
 
-	s6e63m0_mtp_read_cmds(lcd);
+	s6e63m0_id_read_cmds(lcd);
 	/* ID1: Default value of panel */
 	ret += s6e63m0_read(lcd, 0xDA, 1, buf, 3);
 	/* ID2: Way to Cell working */
@@ -862,14 +960,16 @@ static void s6e63m0_read_id(struct lcd_info *lcd, u8 *buf)
 		lcd->connected = 0;
 		dev_info(&lcd->ld->dev, "panel is not connected well\n");
 	}
+	return ret;
 }
 
 #ifdef SMART_DIMMING
-static int s6e63m0_read_mtp(struct lcd_info *lcd, u8 *mtp_data)
+static int s6e63m0_read_mtp(struct lcd_info *lcd)
 {
 	int ret;
 	s6e63m0_mtp_read_cmds(lcd);
-	ret = s6e63m0_read(lcd, LDI_MTP_ADDR, LDI_MTP_LENGTH, (u8 *)(&(lcd->smart.MTP)) , 3);
+	ret = s6e63m0_read(lcd, LDI_MTP_ADDR,
+		LDI_MTP_LENGTH, (u8 *)(&(lcd->smart.MTP)), 0);
 	return ret;
 }
 
@@ -881,20 +981,45 @@ static void s6e63m0_check_id(struct lcd_info *lcd, u8 *idbuf)
 		lcd->support_elvss = 1;
 		lcd->elvss.reference = idbuf[2] & (BIT(0) | BIT(1) |
 					BIT(2) | BIT(3) | BIT(4));
-		printk(KERN_DEBUG "Dynamic ELVSS Information, 0x%x\n",
+		pr_info("Dynamic ELVSS Information, 0x%x\n",
 					lcd->elvss.reference);
 	}
 }
+
+#ifdef SMART_DIMMING_DEBUG_LCD
+static int print_mtp_value(struct lcd_info *lcd)
+{
+	pr_info("0x%02x, ", lcd->smart.MTP.R_OFFSET.OFFSET_1);
+	pr_info("0x%02x, ", lcd->smart.MTP.R_OFFSET.OFFSET_19);
+	pr_info("0x%02x, ", lcd->smart.MTP.R_OFFSET.OFFSET_43);
+	pr_info("0x%02x, ", lcd->smart.MTP.R_OFFSET.OFFSET_87);
+	pr_info("0x%02x, ", lcd->smart.MTP.R_OFFSET.OFFSET_171);
+	pr_info("0x%02x, ", lcd->smart.MTP.R_OFFSET.OFFSET_255_MSB);
+	pr_info("0x%02x, ", lcd->smart.MTP.R_OFFSET.OFFSET_255_LSB);
+	pr_info("0x%02x, ", lcd->smart.MTP.G_OFFSET.OFFSET_1);
+	pr_info("0x%02x, ", lcd->smart.MTP.G_OFFSET.OFFSET_19);
+	pr_info("0x%02x, ", lcd->smart.MTP.G_OFFSET.OFFSET_43);
+	pr_info("0x%02x, ", lcd->smart.MTP.G_OFFSET.OFFSET_87);
+	pr_info("0x%02x, ", lcd->smart.MTP.G_OFFSET.OFFSET_171);
+	pr_info("0x%02x, ", lcd->smart.MTP.G_OFFSET.OFFSET_255_MSB);
+	pr_info("0x%02x, ", lcd->smart.MTP.G_OFFSET.OFFSET_255_LSB);
+	pr_info("0x%02x, ", lcd->smart.MTP.B_OFFSET.OFFSET_1);
+	pr_info("0x%02x, ", lcd->smart.MTP.B_OFFSET.OFFSET_19);
+	pr_info("0x%02x, ", lcd->smart.MTP.B_OFFSET.OFFSET_43);
+	pr_info("0x%02x, ", lcd->smart.MTP.B_OFFSET.OFFSET_87);
+	pr_info("0x%02x, ", lcd->smart.MTP.B_OFFSET.OFFSET_171);
+	pr_info("0x%02x, ", lcd->smart.MTP.B_OFFSET.OFFSET_255_MSB);
+	pr_info("0x%02x, ", lcd->smart.MTP.B_OFFSET.OFFSET_255_LSB);
+	return 0;
+}
+#endif
+
 #endif
 
 static int s6e63m0_probe(struct device *dev)
 {
 	int ret = 0;
 	struct lcd_info *lcd;
-	int i = 0;
-#ifdef SMART_DIMMING
-	u8 mtp_data[2][LDI_MTP_LENGTH] = { {0,}, {0,} };
-#endif
 
 	lcd = kzalloc(sizeof(struct lcd_info), GFP_KERNEL);
 	if (!lcd) {
@@ -959,43 +1084,52 @@ static int s6e63m0_probe(struct device *dev)
 
 	mutex_init(&lcd->lock);
 	mutex_init(&lcd->bl_lock);
-	for (i = 0; i < NR_S6E63M0_PANEL; i++) {
-		lcd->panel_select = i;
+	/* Start to reading DDI for Smart dimming */
+	lcd->panel_select = s5p_dsim_get_panel_sel_value();
+	lcd->detected[0] = 0;
 #if defined(CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD)
-		s6e63m0_power_off(lcd);
-		s5p_dsim_toggle_lcd();
-		s5p_dsim_fifo_clear();
+	lcd->detected[1] = 0;
 #endif	/* CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD */
-		s6e63m0_read_id(lcd, lcd->id);
+	ret += s6e63m0_read_id(lcd, lcd->id);
+	if (lcd->id[0] != 0xFE) {
+		lcd->detected[lcd->panel_select] = 0;
+		goto err_alloc;
 
-		dev_info(&lcd->ld->dev, "ID: %x, %x, %x\n", lcd->id[0],
-				lcd->id[1], lcd->id[2]);
-		dev_info(&lcd->ld->dev, "s6e63m0 driver has been probed.\n");
+	} else
+		lcd->detected[lcd->panel_select] = 1;
+
+	dev_info(&lcd->ld->dev, "ID: %x, %x, %x\n", lcd->id[0],
+			lcd->id[1], lcd->id[2]);
+	dev_info(&lcd->ld->dev, "s6e63m0 driver has been probed.\n");
 
 #ifdef SMART_DIMMING
-		s6e63m0_check_id(lcd, lcd->id);
-
-		ret = s6e63m0_read_mtp(lcd, mtp_data[i]);
-		if (!ret) {
-			printk(KERN_ERR "[LCD:ERROR] : %s read mtp failed\n",
-					__func__);
-		}
-		ret = Smart_dimming_init(&(lcd->smart));
-		if (lcd->support_elvss)
-			ret = init_elvss_table(lcd);
-		ret = init_gamma_table(lcd);
+	s6e63m0_check_id(lcd, lcd->id);
+	ret = s6e63m0_read_mtp(lcd);
+	if (!ret) {
+		pr_info("[LCD:ERROR] : %s read mtp failed\n",
+				__func__);
+	}
+#ifdef SMART_DIMMING_DEBUG_LCD
+	ret += print_mtp_value(lcd);
+#endif
+	ret += Smart_dimming_init(&(lcd->smart));
+	if (lcd->support_elvss) {
+		ret = alloc_elvss_table(lcd);
+		ret = init_elvss_table(lcd);
 	}
 
 	if (ret) {
-		lcd->gamma_table[lcd->panel_select] = (unsigned char **)s6e63m0_gamma22_table;
-		lcd->elvss_table[lcd->panel_select] = (unsigned char **)ELVSS_TABLE;
+		lcd->elvss_table[lcd->panel_select]
+			= (unsigned char **)ELVSS_TABLE;
 	}
-
-#if defined(CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD)
-	s6e63m0_power_on(lcd);
-#else /* CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD */
+	ret += alloc_gamma_table(lcd);
+	ret += init_gamma_table(lcd);
+	if (ret) {
+		lcd->gamma_table[lcd->panel_select]
+			= (unsigned char **)s6e63m0_gamma22_table;
+	}
+	/* End reading DDI for Smart dimming */
 	update_brightness(lcd, 1);
-#endif	/* CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD */
 #endif
 
 #if defined(GPIO_OLED_DET)
@@ -1043,9 +1177,7 @@ static int __devexit s6e63m0_remove(struct device *dev)
 static void s6e63m0_shutdown(struct device *dev)
 {
 	struct lcd_info *lcd = dev_get_drvdata(dev);
-
 	dev_info(&lcd->ld->dev, "%s\n", __func__);
-
 	s6e63m0_power(lcd, FB_BLANK_POWERDOWN);
 }
 
@@ -1069,5 +1201,5 @@ static void s6e63m0_exit(void)
 module_init(s6e63m0_init);
 module_exit(s6e63m0_exit);
 
-MODULE_DESCRIPTION("MIPI-DSI S6E63M0:AMS397GEXX (480X800) Panel Driver");
+MODULE_DESCRIPTION("MIPI-DSI S6E63M0:AMS367GEXX (480X800) Panel Driver");
 MODULE_LICENSE("GPL");

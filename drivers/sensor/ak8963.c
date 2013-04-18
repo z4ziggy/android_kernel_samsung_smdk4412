@@ -27,28 +27,17 @@
 #include "ak8963-reg.h"
 #include <linux/sensor/sensors_core.h>
 
+#if defined(CONFIG_SLP) || defined(CONFIG_MACH_GC1)\
+	|| defined(CONFIG_MACH_M3_USA_TMO)
+#define FACTORY_TEST
+#else
 #undef FACTORY_TEST
+#endif
 #undef MAGNETIC_LOGGING
 
 #define VENDOR		"AKM"
 #define CHIP_ID		"AK8963C"
 
-#define AK8963_REG_CNTL			0x0A
-#define REG_CNTL_MODE_SHIFT             0
-#define REG_CNTL_MODE_MASK              (0xF << REG_CNTL_MODE_SHIFT)
-#define REG_CNTL_MODE_POWER_DOWN        0
-#define REG_CNTL_MODE_ONCE		0x01
-#define REG_CNTL_MODE_SELF_TEST         0x08
-#define REG_CNTL_MODE_FUSE_ROM          0x0F
-
-#define AK8963_REG_RSVC			0x0B
-#define AK8963_REG_ASTC			0x0C
-#define AK8963_REG_TS1			0x0D
-#define AK8963_REG_TS2			0x0E
-#define AK8963_REG_I2CDIS		0x0F
-#define AK8963_REG_ASAX			0x10
-#define AK8963_REG_ASAY			0x11
-#define AK8963_REG_ASAZ			0x12
 
 struct akm8963_data {
 	struct i2c_client *this_client;
@@ -62,16 +51,12 @@ struct akm8963_data {
 	int irq;
 };
 
-#ifdef FACTORY_TEST
-static bool ak8963_selftest_passed;
-static s16 sf_x, sf_y, sf_z;
-#endif
 
 static s32 akm8963_ecs_set_mode_power_down(struct akm8963_data *akm)
 {
 	s32 ret;
 	ret = i2c_smbus_write_byte_data(akm->this_client,
-			AK8963_REG_CNTL, AK8963_CNTL1_POWER_DOWN);
+			AK8963_REG_CNTL1, AK8963_CNTL1_POWER_DOWN);
 	return ret;
 }
 
@@ -82,18 +67,18 @@ static int akm8963_ecs_set_mode(struct akm8963_data *akm, char mode)
 	switch (mode) {
 	case AK8963_CNTL1_SNG_MEASURE:
 		ret = i2c_smbus_write_byte_data(akm->this_client,
-				AK8963_REG_CNTL, AK8963_CNTL1_SNG_MEASURE);
+				AK8963_REG_CNTL1, AK8963_CNTL1_SNG_MEASURE);
 		break;
 	case AK8963_CNTL1_FUSE_ACCESS:
 		ret = i2c_smbus_write_byte_data(akm->this_client,
-				AK8963_REG_CNTL, AK8963_CNTL1_FUSE_ACCESS);
+				AK8963_REG_CNTL1, AK8963_CNTL1_FUSE_ACCESS);
 		break;
 	case AK8963_CNTL1_POWER_DOWN:
 		ret = akm8963_ecs_set_mode_power_down(akm);
 		break;
 	case AK8963_CNTL1_SELF_TEST:
 		ret = i2c_smbus_write_byte_data(akm->this_client,
-				AK8963_REG_CNTL, AK8963_CNTL1_SELF_TEST);
+				AK8963_REG_CNTL1, AK8963_CNTL1_SELF_TEST);
 		break;
 	default:
 		return -EINVAL;
@@ -106,6 +91,19 @@ static int akm8963_ecs_set_mode(struct akm8963_data *akm, char mode)
 	udelay(300);
 
 	return 0;
+}
+
+static int akm8963_Reset(struct akm8963_data *akm)
+{
+	int err = 0;
+
+	gpio_set_value(GPIO_MSENSE_RST_N, 0);
+	udelay(5);
+	gpio_set_value(GPIO_MSENSE_RST_N, 1);
+	/* Device will be accessible 100 us after */
+	udelay(100);
+
+	return err;
 }
 
 static int akmd_copy_in(unsigned int cmd, void __user *argp,
@@ -270,6 +268,9 @@ static long akmd_ioctl(struct file *file, unsigned int cmd,
 		ret = akm8963_ecs_set_mode(akm, rwbuf.mode);
 		mutex_unlock(&akm->lock);
 		break;
+	case ECS_IOCTL_RESET:
+		akm8963_Reset(akm);
+		break;
 	case ECS_IOCTL_GETDATA:
 		mutex_lock(&akm->lock);
 		ret = akm8963_wait_for_data_ready(akm);
@@ -287,7 +288,7 @@ static long akmd_ioctl(struct file *file, unsigned int cmd,
 		y = (rwbuf.data[4] << 8) + rwbuf.data[3];
 		z = (rwbuf.data[6] << 8) + rwbuf.data[5];
 
-		printk(KERN_INFO "%s:ST1=%d, x=%d, y=%d, z=%d, ST2=%d\n",
+		pr_info("%s:ST1=%d, x=%d, y=%d, z=%d, ST2=%d\n",
 			__func__, rwbuf.data[0], x, y, z, rwbuf.data[7]);
 		#endif
 
@@ -365,11 +366,13 @@ done:
 }
 
 #ifdef FACTORY_TEST
-static void ak8963c_selftest(struct akm8963_data *ak_data)
+static int ak8963c_selftest(struct akm8963_data *ak_data, int *sf)
 {
 	u8 buf[6];
 	s16 x, y, z;
+	int retry_count = 0;
 
+retry:
 	/* read device info */
 	i2c_smbus_read_i2c_block_data(ak_data->this_client,
 					AK8963_REG_WIA, 2, buf);
@@ -382,8 +385,8 @@ static void ak8963c_selftest(struct akm8963_data *ak_data)
 
 	/* start self test */
 	i2c_smbus_write_byte_data(ak_data->this_client,
-					AK8963_REG_CNTL,
-					REG_CNTL_MODE_SELF_TEST);
+					AK8963_REG_CNTL1,
+					AK8963_CNTL1_SELF_TEST);
 
 	/* wait for data ready */
 	while (1) {
@@ -412,32 +415,46 @@ static void ak8963c_selftest(struct akm8963_data *ak_data)
 
 	pr_info("%s: self test x = %d, y = %d, z = %d\n",
 		__func__, x, y, z);
-	if ((x >= -100) && (x <= 100))
-		pr_info("%s: x passed self test, expect -100<=x<=100\n",
+	if ((x >= -200) && (x <= 200))
+		pr_info("%s: x passed self test, expect -200<=x<=200\n",
 			__func__);
 	else
-		pr_info("%s: x failed self test, expect -100<=x<=100\n",
+		pr_info("%s: x failed self test, expect -200<=x<=200\n",
 			__func__);
-	if ((y >= -100) && (y <= 100))
-		pr_info("%s: y passed self test, expect -100<=y<=100\n",
-			__func__);
-	else
-		pr_info("%s: y failed self test, expect -100<=y<=100\n",
-			__func__);
-	if ((z >= -1000) && (z <= -300))
-		pr_info("%s: z passed self test, expect -1000<=z<=-300\n",
+	if ((y >= -200) && (y <= 200))
+		pr_info("%s: y passed self test, expect -200<=y<=200\n",
 			__func__);
 	else
-		pr_info("%s: z failed self test, expect -1000<=z<=-300\n",
+		pr_info("%s: y failed self test, expect -200<=y<=200\n",
+			__func__);
+	if ((z >= -3200) && (z <= -800))
+		pr_info("%s: z passed self test, expect -3200<=z<=-800\n",
+			__func__);
+	else
+		pr_info("%s: z failed self test, expect -3200<=z<=-800\n",
 			__func__);
 
-	if (((x >= -100) && (x <= 100)) && ((y >= -100) && (y <= 100)) &&
-	    ((z >= -1000) && (z <= -300)))
-		ak8963_selftest_passed = 1;
+	sf[0] = x;
+	sf[1] = y;
+	sf[2] = z;
 
-	sf_x = x;
-	sf_y = y;
-	sf_z = z;
+	if (((x >= -200) && (x <= 200)) &&
+		((y >= -200) && (y <= 200)) &&
+		((z >= -3200) && (z <= -800))) {
+		pr_info("%s, Selftest is successful.\n", __func__);
+		return 1;
+	} else {
+		if (retry_count < 5) {
+			retry_count++;
+			pr_warn("############################################");
+			pr_warn("%s, retry_count=%d\n", __func__, retry_count);
+			pr_warn("############################################");
+			goto retry;
+		} else {
+			pr_err("%s, Selftest is failed.\n", __func__);
+			return 0;
+		}
+	}
 }
 
 static ssize_t ak8963c_get_asa(struct device *dev,
@@ -445,16 +462,18 @@ static ssize_t ak8963c_get_asa(struct device *dev,
 {
 	struct akm8963_data *ak_data  = dev_get_drvdata(dev);
 
-	return sprintf(buf, "%d, %d, %d\n", ak_data->asa[0],\
+	return sprintf(buf, "%d, %d, %d\n", ak_data->asa[0],
 		ak_data->asa[1], ak_data->asa[2]);
 }
 
 static ssize_t ak8963c_get_selftest(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	ak8963c_selftest(dev_get_drvdata(dev));
-	return sprintf(buf, "%d, %d, %d, %d\n",\
-		ak8963_selftest_passed, sf_x, sf_y, sf_z);
+	int ret = 0;
+	int sf[3] = {0,};
+
+	ret = ak8963c_selftest(dev_get_drvdata(dev), sf);
+	return sprintf(buf, "%d, %d, %d, %d\n", ret, sf[0], sf[1], sf[2]);
 }
 
 static ssize_t ak8963c_check_registers(struct device *dev,
@@ -464,8 +483,8 @@ static ssize_t ak8963c_check_registers(struct device *dev,
 	u8 buf[13];
 
 	/* power down */
-	i2c_smbus_write_byte_data(ak_data->this_client,\
-	AK8963_REG_CNTL, REG_CNTL_MODE_POWER_DOWN);
+	i2c_smbus_write_byte_data(ak_data->this_client,
+		AK8963_REG_CNTL1, AK8963_CNTL1_POWER_DOWN);
 
 	/* get the value */
 	i2c_smbus_read_i2c_block_data(ak_data->this_client,
@@ -491,14 +510,14 @@ static ssize_t ak8963c_check_cntl(struct device *dev,
 	int err;
 
 	/* power down */
-	err = i2c_smbus_write_byte_data(ak_data->this_client,\
-	AK8963_REG_CNTL, REG_CNTL_MODE_POWER_DOWN);
+	err = i2c_smbus_write_byte_data(ak_data->this_client,
+		AK8963_REG_CNTL1, AK8963_CNTL1_POWER_DOWN);
 
 	buf = i2c_smbus_read_byte_data(ak_data->this_client,
-					AK8963_REG_CNTL);
+					AK8963_REG_CNTL1);
 
-
-	return sprintf(strbuf, "%s\n", (!buf ? "OK" : "NG"));
+	return sprintf(strbuf, "%s\n",
+		((buf == AK8963_CNTL1_POWER_DOWN) ? "OK" : "NG"));
 }
 
 static ssize_t ak8963c_get_status(struct device *dev,
@@ -507,8 +526,8 @@ static ssize_t ak8963c_get_status(struct device *dev,
 	struct akm8963_data *ak_data  = dev_get_drvdata(dev);
 	int success;
 
-	if ((ak_data->asa[0] == 0) | (ak_data->asa[0] == 0xff)\
-		| (ak_data->asa[1] == 0) | (ak_data->asa[1] == 0xff)\
+	if ((ak_data->asa[0] == 0) | (ak_data->asa[0] == 0xff)
+		| (ak_data->asa[1] == 0) | (ak_data->asa[1] == 0xff)
 		| (ak_data->asa[2] == 0) | (ak_data->asa[2] == 0xff))
 		success = 0;
 	else
@@ -527,7 +546,7 @@ static ssize_t ak8963_adc(struct device *dev,
 
 	/* start ADC conversion */
 	err = i2c_smbus_write_byte_data(ak_data->this_client,
-					AK8963_REG_CNTL, REG_CNTL_MODE_ONCE);
+			AK8963_REG_CNTL1, AK8963_CNTL1_SNG_MEASURE);
 
 	/* wait for ADC conversion to complete */
 	err = akm8963_wait_for_data_ready(ak_data);
@@ -554,9 +573,9 @@ static ssize_t ak8963_adc(struct device *dev,
 	y = buf[3] | (buf[4] << 8);
 	z = buf[5] | (buf[6] << 8);
 
-	printk(KERN_INFO "raw x = %d, y = %d, z = %d\n", x, y, z);
-	return sprintf(strbuf, "%s, %d, %d, %d\n", (success ? "OK" : "NG"),\
-		x, y, z);
+	pr_info("raw x = %d, y = %d, z = %d\n", x, y, z);
+	return sprintf(strbuf,
+		"%s, %d, %d, %d\n", (success ? "OK" : "NG"), x, y, z);
 }
 #endif
 
@@ -621,13 +640,13 @@ static DEVICE_ATTR(name, 0664,
 		ak8963_show_name, NULL);
 
 #ifdef FACTORY_TEST
-static DEVICE_ATTR(ak8963_asa, 0664,
+static DEVICE_ATTR(asa, 0664,
 		ak8963c_get_asa, NULL);
-static DEVICE_ATTR(ak8963_selftest, 0664,
+static DEVICE_ATTR(selftest, 0664,
 		ak8963c_get_selftest, NULL);
-static DEVICE_ATTR(ak8963_chk_registers, 0664,
+static DEVICE_ATTR(chk_registers, 0664,
 		ak8963c_check_registers, NULL);
-static DEVICE_ATTR(ak8963_chk_cntl, 0664,
+static DEVICE_ATTR(dac, 0664,
 		ak8963c_check_cntl, NULL);
 static DEVICE_ATTR(status, 0664,
 		ak8963c_get_status, NULL);
@@ -641,7 +660,7 @@ int akm8963_probe(struct i2c_client *client,
 	struct akm8963_data *akm;
 	int err;
 
-	printk(KERN_INFO "%s is called.\n", __func__);
+	pr_info("%s is called.\n", __func__);
 	if (client->dev.platform_data == NULL && client->irq == 0) {
 		dev_err(&client->dev, "platform data & irq are NULL.\n");
 		err = -ENODEV;
@@ -695,14 +714,14 @@ int akm8963_probe(struct i2c_client *client,
 	init_waitqueue_head(&akm->state_wq);
 
 	/* put into fuse access mode to read asa data */
-	err = i2c_smbus_write_byte_data(client, AK8963_REG_CNTL,
-					REG_CNTL_MODE_FUSE_ROM);
+	err = i2c_smbus_write_byte_data(client, AK8963_REG_CNTL1,
+					AK8963_CNTL1_FUSE_ACCESS);
 	if (err) {
 		pr_err("%s: unable to enter fuse rom mode\n", __func__);
 		goto exit_i2c_failed;
 	}
 
-	err = i2c_smbus_read_i2c_block_data(client, AK8963_REG_ASAX,
+	err = i2c_smbus_read_i2c_block_data(client, AK8963_FUSE_ASAX,
 					sizeof(akm->asa), akm->asa);
 	if (err != sizeof(akm->asa)) {
 		pr_err("%s: unable to load factory sensitivity adjust values\n",
@@ -712,8 +731,8 @@ int akm8963_probe(struct i2c_client *client,
 		pr_info("%s: asa_x = %d, asa_y = %d, asa_z = %d\n", __func__,
 			akm->asa[0], akm->asa[1], akm->asa[2]);
 
-	err = i2c_smbus_write_byte_data(client, AK8963_REG_CNTL,
-					REG_CNTL_MODE_POWER_DOWN);
+	err = i2c_smbus_write_byte_data(client, AK8963_REG_CNTL1,
+					AK8963_CNTL1_POWER_DOWN);
 	if (err) {
 		dev_err(&client->dev, "Error in setting power down mode\n");
 		goto exit_i2c_failed;
@@ -721,77 +740,75 @@ int akm8963_probe(struct i2c_client *client,
 
 	akm->dev = sensors_classdev_register("magnetic_sensor");
 	if (IS_ERR(akm->dev)) {
-		printk(KERN_ERR "Failed to create device!");
+		pr_err("Failed to create device!");
 		goto exit_class_create_failed;
 	}
 
 	if (device_create_file(akm->dev, &dev_attr_raw_data) < 0) {
-		printk(KERN_ERR "Failed to create device file(%s)!\n",
+		pr_err("Failed to create device file(%s)!\n",
 			dev_attr_raw_data.attr.name);
 		goto exit_device_create_raw_data;
 	}
 
 	if (device_create_file(akm->dev, &dev_attr_vendor) < 0) {
-		printk(KERN_ERR "Failed to create device file(%s)!\n",
+		pr_err("Failed to create device file(%s)!\n",
 			dev_attr_name.attr.name);
 		goto exit_device_create_vendor;
 	}
 
 	if (device_create_file(akm->dev, &dev_attr_name) < 0) {
-		printk(KERN_ERR "Failed to create device file(%s)!\n",
+		pr_err("Failed to create device file(%s)!\n",
 			dev_attr_raw_data.attr.name);
 		goto exit_device_create_name;
 	}
 
 #ifdef FACTORY_TEST
-	ak8963c_selftest(akm);
-
 	if (device_create_file(akm->dev, &dev_attr_adc) < 0) {
-		printk(KERN_ERR "Failed to create device file(%s)!\n",
+		pr_err("Failed to create device file(%s)!\n",
 			dev_attr_adc.attr.name);
 		goto exit_device_create_file1;
 	}
 
 	if (device_create_file(akm->dev, &dev_attr_status) < 0) {
-		printk(KERN_ERR "Failed to create device file(%s)!\n",
+		pr_err("Failed to create device file(%s)!\n",
 			dev_attr_status.attr.name);
 		goto exit_device_create_file2;
 	}
 
-	if (device_create_file(akm->dev, &dev_attr_ak8963_asa) < 0) {
-		printk(KERN_ERR "Failed to create device file(%s)!\n",
-			dev_attr_ak8963_asa.attr.name);
+	if (device_create_file(akm->dev, &dev_attr_asa) < 0) {
+		pr_err("Failed to create device file(%s)!\n",
+			dev_attr_asa.attr.name);
 		goto exit_device_create_file3;
 	}
-	if (device_create_file(akm->dev, &dev_attr_ak8963_selftest) < 0) {
-		printk(KERN_ERR "Failed to create device file(%s)!\n",
-			dev_attr_ak8963_selftest.attr.name);
+	if (device_create_file(akm->dev, &dev_attr_selftest) < 0) {
+		pr_err("Failed to create device file(%s)!\n",
+			dev_attr_selftest.attr.name);
 		goto exit_device_create_file4;
 	}
-	if (device_create_file(akm->dev,\
-		&dev_attr_ak8963_chk_registers) < 0) {
-		printk(KERN_ERR "Failed to create device file(%s)!\n",
-			dev_attr_ak8963_chk_registers.attr.name);
+	if (device_create_file(akm->dev,
+		&dev_attr_chk_registers) < 0) {
+		pr_err("Failed to create device file(%s)!\n",
+			dev_attr_chk_registers.attr.name);
 		goto exit_device_create_file5;
 	}
-	if (device_create_file(akm->dev, &dev_attr_ak8963_chk_cntl) < 0) {
-		printk(KERN_ERR "Failed to create device file(%s)!\n",
-			dev_attr_ak8963_chk_cntl.attr.name);
+	if (device_create_file(akm->dev, &dev_attr_dac) < 0) {
+		pr_err("Failed to create device file(%s)!\n",
+			dev_attr_dac.attr.name);
 		goto exit_device_create_file6;
 	}
 #endif
 	dev_set_drvdata(akm->dev, akm);
 
-printk(KERN_INFO "%s is successful.\n", __func__);
+pr_info("%s is successful.\n", __func__);
 return 0;
 
 #ifdef FACTORY_TEST
 exit_device_create_file6:
-	device_remove_file(akm->dev, &dev_attr_ak8963_chk_registers);
+	device_remove_file(akm->dev, &dev_attr_chk_registers);
 exit_device_create_file5:
-	device_remove_file(akm->dev, &dev_attr_ak8963_selftest);
+	device_remove_file(akm->dev, &dev_attr_selftest);
 exit_device_create_file4:
-	device_remove_file(akm->dev, &dev_attr_ak8963_asa);
+	device_remove_file(akm->dev, &dev_attr_asa);
 exit_device_create_file3:
 	device_remove_file(akm->dev, &dev_attr_status);
 exit_device_create_file2:
@@ -828,9 +845,10 @@ static int __devexit akm8963_remove(struct i2c_client *client)
 	#ifdef FACTORY_TEST
 	device_remove_file(akm->dev, &dev_attr_adc);
 	device_remove_file(akm->dev, &dev_attr_status);
-	device_remove_file(akm->dev, &dev_attr_ak8963_asa);
-	device_remove_file(akm->dev, &dev_attr_ak8963_selftest);
-	device_remove_file(akm->dev, &dev_attr_ak8963_chk_registers);
+	device_remove_file(akm->dev, &dev_attr_asa);
+	device_remove_file(akm->dev, &dev_attr_selftest);
+	device_remove_file(akm->dev, &dev_attr_chk_registers);
+	device_remove_file(akm->dev, &dev_attr_dac);
 	#endif
 	device_remove_file(akm->dev, &dev_attr_name);
 	device_remove_file(akm->dev, &dev_attr_vendor);

@@ -24,8 +24,7 @@
 #define __LINUX_MFD_MAX8997_H
 
 #include <linux/regulator/machine.h>
-
-#if defined(CONFIG_MACH_Q1_BD)
+#if defined(CONFIG_MACH_Q1_BD)  || defined(CONFIG_MACH_U1_NA_USCC)
 #define MAX8997_SUPPORT_TORCH
 #endif /* CONFIG_MACH_Q1_BD */
 

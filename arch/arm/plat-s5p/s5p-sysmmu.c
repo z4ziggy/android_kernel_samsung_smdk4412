@@ -321,6 +321,8 @@ void s5p_sysmmu_set_tablebase_pgd(struct device *owner, unsigned long pgd)
 {
 	struct sysmmu_drvdata *mmudata = NULL;
 
+	s5p_sysmmu_tlb_invalidate(owner);
+
 	while ((mmudata = get_sysmmu_data(owner, mmudata))) {
 		unsigned long flags;
 

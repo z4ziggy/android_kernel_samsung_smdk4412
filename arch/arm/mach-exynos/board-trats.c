@@ -33,6 +33,9 @@
 #include <linux/pn544.h>
 #include <linux/sensor/gp2a.h>
 #include <linux/printk.h>
+#ifdef CONFIG_UART_SELECT
+#include <linux/uart_select.h>
+#endif
 #if defined(CONFIG_SND_SOC_SLP_TRATS_MC1N2)
 #include <linux/mfd/mc1n2_pdata.h>
 #endif
@@ -1737,7 +1740,7 @@ static struct exynos_drm_fimd_pdata drm_fimd_pdata = {
 	.vidcon1		= VIDCON1_INV_VCLK,
 	.default_win		= 3,
 	.bpp			= 32,
-	.dynamic_refresh	= 1,
+	.dynamic_refresh	= 0,
 	.high_freq		= 1,
 };
 
@@ -1860,6 +1863,7 @@ static int reset_lcd(struct lcd_device *ld)
 static struct lcd_property s6e8aa0_property = {
 	.flip = LCD_PROPERTY_FLIP_VERTICAL |
 		LCD_PROPERTY_FLIP_HORIZONTAL,
+	.dynamic_refresh = false,
 };
 
 static struct lcd_platform_data s6e8aa0_pdata = {
@@ -2952,6 +2956,54 @@ static struct max8997_muic_data max8997_muic = {
 	.gpio_usb_sel = GPIO_USB_SEL,
 };
 
+#ifdef CONFIG_UART_SELECT
+/* Uart Select */
+static void trats_set_uart_switch(int path)
+{
+	gpio_request(GPIO_UART_SEL, "UART_SEL");
+
+	/* trats target is gpio_high == AP */
+	if (path == UART_SW_PATH_AP)
+		gpio_set_value(GPIO_UART_SEL, GPIO_LEVEL_HIGH);
+	else if (path == UART_SW_PATH_CP)
+		gpio_set_value(GPIO_UART_SEL, GPIO_LEVEL_LOW);
+
+	gpio_free(GPIO_UART_SEL);
+	return;
+}
+
+static int trats_get_uart_switch(void)
+{
+	int val;
+
+	gpio_request(GPIO_UART_SEL, "UART_SEL");
+	val = gpio_get_value(GPIO_UART_SEL);
+	gpio_free(GPIO_UART_SEL);
+
+	/* trats target is gpio_high == AP */
+	if (val == GPIO_LEVEL_HIGH)
+		return UART_SW_PATH_AP;
+	else if (val == GPIO_LEVEL_LOW)
+		return UART_SW_PATH_CP;
+	else
+		return UART_SW_PATH_NA;
+}
+
+static struct uart_select_platform_data trats_uart_select_data = {
+	.set_uart_switch	= trats_set_uart_switch,
+	.get_uart_switch	= trats_get_uart_switch,
+};
+
+static struct platform_device trats_uart_select = {
+	.name			= "uart-select",
+	.id			= -1,
+	.dev			= {
+		.platform_data	= &trats_uart_select_data,
+	},
+};
+#endif
+
+
 static struct max8997_buck1_dvs_funcs *buck1_dvs_funcs;
 
 void max8997_set_arm_voltage_table(int *voltage_table, int arr_size)
@@ -3028,53 +3080,17 @@ static struct platform_device u1_gsd4t = {
 #endif
 
 #if defined(CONFIG_SND_SOC_SLP_TRATS_MC1N2)
-static DEFINE_SPINLOCK(mic_bias_lock);
-static bool mc1n2_mainmic_bias;
-static bool mc1n2_submic_bias;
-
-static void set_shared_mic_bias(void)
-{
-	if (system_rev >= 0x03)
-		gpio_set_value(GPIO_MIC_BIAS_EN, mc1n2_mainmic_bias
-			       || mc1n2_submic_bias);
-	else
-		gpio_set_value(GPIO_EAR_MIC_BIAS_EN, mc1n2_mainmic_bias
-			       || mc1n2_submic_bias);
-}
-
 void sec_set_sub_mic_bias(bool on)
 {
 #ifdef CONFIG_SND_SOC_USE_EXTERNAL_MIC_BIAS
-#if defined(CONFIG_MACH_Q1_BD)
 	gpio_set_value(GPIO_SUB_MIC_BIAS_EN, on);
-#else
-	if (system_rev < SYSTEM_REV_SND) {
-		unsigned long flags;
-		spin_lock_irqsave(&mic_bias_lock, flags);
-		mc1n2_submic_bias = on;
-		set_shared_mic_bias();
-		spin_unlock_irqrestore(&mic_bias_lock, flags);
-	} else
-		gpio_set_value(GPIO_SUB_MIC_BIAS_EN, on);
-#endif /* #if defined(CONFIG_MACH_Q1_BD) */
 #endif
 }
 
 void sec_set_main_mic_bias(bool on)
 {
 #ifdef CONFIG_SND_SOC_USE_EXTERNAL_MIC_BIAS
-#if defined(CONFIG_MACH_Q1_BD)
 	gpio_set_value(GPIO_MIC_BIAS_EN, on);
-#else
-	if (system_rev < SYSTEM_REV_SND) {
-		unsigned long flags;
-		spin_lock_irqsave(&mic_bias_lock, flags);
-		mc1n2_mainmic_bias = on;
-		set_shared_mic_bias();
-		spin_unlock_irqrestore(&mic_bias_lock, flags);
-	} else
-		gpio_set_value(GPIO_MIC_BIAS_EN, on);
-#endif /* #if defined(CONFIG_MACH_Q1_BD) */
 #endif
 }
 
@@ -5109,6 +5125,9 @@ static struct platform_device *smdkc210_devices[] __initdata = {
 #ifdef CONFIG_S3C_ADC
 	&s3c_device_adc,
 #endif
+#ifdef CONFIG_UART_SELECT
+	&trats_uart_select,
+#endif
 	&u1_keypad,
 	&s3c_device_rtc,
 	&s3c_device_wdt,
@@ -5137,6 +5156,9 @@ static struct platform_device *smdkc210_devices[] __initdata = {
 	&max8922_device_charger,
 #endif
 #ifdef CONFIG_S5P_SYSTEM_MMU
+#ifdef CONFIG_DRM_EXYNOS_FIMD
+	&SYSMMU_PLATDEV(fimd0),
+#endif
 #ifdef CONFIG_DRM_EXYNOS_G2D
 	&SYSMMU_PLATDEV(g2d_acp),
 #endif
@@ -5480,6 +5502,12 @@ static void __init exynos_sysmmu_init(void)
 #endif
 #ifdef CONFIG_VIDEO_JPEG
 	sysmmu_set_owner(&SYSMMU_PLATDEV(jpeg).dev, &s5p_device_jpeg.dev);
+#endif
+#ifdef CONFIG_DRM_EXYNOS_FIMD
+	sysmmu_set_owner(&SYSMMU_PLATDEV(fimd0).dev, &s5p_device_fimd0.dev);
+#endif
+#ifdef CONFIG_DRM_EXYNOS_HDMI
+	sysmmu_set_owner(&SYSMMU_PLATDEV(tv).dev, &s5p_device_hdmi.dev);
 #endif
 #ifdef CONFIG_DRM_EXYNOS_G2D
 	sysmmu_set_owner(&SYSMMU_PLATDEV(g2d_acp).dev, &s5p_device_fimg2d.dev);

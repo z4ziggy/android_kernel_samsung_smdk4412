@@ -20,6 +20,10 @@
 #include <linux/uaccess.h>
 #include <linux/ratelimit.h>
 #include <mach/usb_bridge.h>
+#ifdef CONFIG_MDM_HSIC_PM
+#include <linux/mdm_hsic_pm.h>
+static const char rmnet_pm_dev[] = "mdm_hsic_pm0";
+#endif
 
 #define MAX_RX_URBS			50
 #define RMNET_RX_BUFSIZE		2048
@@ -166,6 +170,7 @@ static void data_bridge_process_rx(struct work_struct *work)
 	if (!brdg || !brdg->ops.send_pkt || rx_halted(dev))
 		return;
 #endif
+
 	while (!rx_throttled(brdg) && (skb = skb_dequeue(&dev->rx_done))) {
 #ifdef CONFIG_MDM_HSIC_PM
 		/* if the bridge is open or not, resume to consume mdm request
@@ -228,6 +233,11 @@ static void data_bridge_read_cb(struct urb *urb)
 		spin_lock(&dev->rx_done.lock);
 		__skb_queue_tail(&dev->rx_done, skb);
 		spin_unlock(&dev->rx_done.lock);
+#ifdef CONFIG_MDM_HSIC_PM
+		/* wakelock for fast dormancy */
+		if (urb->actual_length)
+			fast_dormancy_wakelock(rmnet_pm_dev);
+#endif
 		break;
 
 	/*do not resubmit*/
@@ -253,6 +263,7 @@ static void data_bridge_read_cb(struct urb *urb)
 	}
 
 	spin_lock(&dev->rx_done.lock);
+	urb->context = NULL;
 	list_add_tail(&urb->urb_list, &dev->rx_idle);
 	spin_unlock(&dev->rx_done.lock);
 
@@ -1017,6 +1028,7 @@ static void bridge_disconnect(struct usb_interface *intf)
 	struct data_bridge	*dev = usb_get_intfdata(intf);
 	struct list_head	*head;
 	struct urb		*rx_urb;
+	struct sk_buff		*skb;
 	unsigned long		flags;
 
 	if (!dev) {
@@ -1033,12 +1045,20 @@ static void bridge_disconnect(struct usb_interface *intf)
 	cancel_work_sync(&dev->process_rx_w);
 	cancel_work_sync(&dev->kevent);
 
+	spin_lock_irqsave(&dev->rx_done.lock, flags);
+	while ((skb = __skb_dequeue(&dev->rx_done)))
+		dev_kfree_skb_any(skb);
+	spin_unlock_irqrestore(&dev->rx_done.lock, flags);
+
 	/*free rx urbs*/
 	head = &dev->rx_idle;
 	spin_lock_irqsave(&dev->rx_done.lock, flags);
 	while (!list_empty(head)) {
 		rx_urb = list_entry(head->next, struct urb, urb_list);
 		list_del(&rx_urb->urb_list);
+		skb = (struct sk_buff *)rx_urb->context;
+		if (skb)
+			dev_kfree_skb_any(skb);
 		usb_free_urb(rx_urb);
 	}
 	spin_unlock_irqrestore(&dev->rx_done.lock, flags);

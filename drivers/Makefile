@@ -131,7 +131,7 @@ obj-$(CONFIG_VIBETONZ)		+= motor/
 
 obj-$(CONFIG_SENSORS_CORE)	+= sensor/
 obj-$(CONFIG_SENSORS_SSP)	+= sensorhub/
-obj-$(CONFIG_SAMSUNG_MODULES)   += samsung/
+obj-$(CONFIG_FM_RADIO)   += samsung/
 obj-$(CONFIG_PM_DEVFREQ)	+= devfreq/
 obj-$(CONFIG_SAMSUNG_PHONE_SVNET) += svnet/
 obj-$(CONFIG_PHONE_IPC_SPI) += phone_svn/
@@ -144,6 +144,11 @@ obj-$(CONFIG_MOBICORE_SUPPORT)	+= gud/
 
 obj-$(CONFIG_IOMMU_SUPPORT)	+= iommu/
 
+obj-$(CONFIG_FELICA) += felica/
+
+obj-$(CONFIG_AUTHENTEC_VPNCLIENT_INTERCEPTOR) += interceptor/
+
 ifeq (1, $(shell if [ -d ./drivers/exfat ]; then echo 1; fi))
 obj-y	+= exfat/
 endif
+

@@ -66,6 +66,7 @@
 extern struct class *sec_class;
 
 static int key_suspend;
+static int key_led_prev;
 
 enum samsung_keypad_type {
 	KEYPAD_TYPE_SAMSUNG,
@@ -144,17 +145,15 @@ static bool samsung_keypad_report(struct samsung_keypad *keypad,
 				continue;
 
 			pressed = row_state[col] & (1 << row);
-
+			pressed = pressed ? 1 : 0;
 			dev_dbg(&keypad->input_dev->dev,
 				"key %s, row: %d, col: %d\n",
 				pressed ? "pressed" : "released", row, col);
 
 			val = MATRIX_SCAN_CODE(row, col, keypad->row_shift);
 
-			input_event(input_dev, EV_MSC, MSC_SCAN, val);
-			input_report_key(input_dev,
-					keypad->keycodes[val], pressed);
-		printk(KERN_INFO "keycodes[val]:%d, val :%d\n", keypad->keycodes[val], val);
+			input_event(input_dev, EV_KEY, keypad->keycodes[val], pressed);
+			printk(KERN_INFO "[KEY]:%d, :%d, %d\n", keypad->keycodes[val], val, pressed);
 		}
 		input_sync(keypad->input_dev);
 	}
@@ -197,6 +196,9 @@ static irqreturn_t samsung_keypad_xeint_irq(int irq, void *dev_id)
 
 	printk(KERN_INFO "[KEY]samsung_keypad_xeint_irq()\n");
 
+	input_event(input_dev, EV_KEY, KEY_POWER, 1);
+	input_event(input_dev, EV_KEY, KEY_POWER, 0);
+	input_sync(input_dev);
 
 	s3c_gpio_cfgpin(GPIO_KBR_0, S3C_GPIO_SFN(3));
 	s3c_gpio_setpull(GPIO_KBR_0, S3C_GPIO_PULL_UP);
@@ -206,15 +208,6 @@ static irqreturn_t samsung_keypad_xeint_irq(int irq, void *dev_id)
 	s3c_gpio_setpull(GPIO_KBR_2, S3C_GPIO_PULL_UP);
 	s3c_gpio_cfgall_range(GPIO_KBR_3, 2, S3C_GPIO_SFN(3), S3C_GPIO_PULL_UP);
 	s3c_gpio_cfgall_range(GPIO_KBC_0, 5, S3C_GPIO_SFN(3), S3C_GPIO_PULL_NONE);
-
-	input_event(input_dev, EV_MSC, MSC_SCAN, 2);
-	input_report_key(input_dev, 2, 1);
-	input_sync(input_dev);
-
-	input_event(input_dev, EV_MSC, MSC_SCAN, 2);
-	input_report_key(input_dev, 2, 0);
-	input_sync(input_dev);
-
 
 	return IRQ_HANDLED;
 }
@@ -316,9 +309,10 @@ static ssize_t key_led_onoff(struct device *dev,
 	regulator = regulator_get(NULL, "VREG_KEY");
 	if (IS_ERR(regulator))
 		return 0;
-
 	sscanf(buf, "%d\n", &data);
 
+	if (key_led_prev == data || key_suspend == 1)
+		return 0;
 	if (data) {
 		regulator_enable(regulator);
 		printk(KERN_INFO "[KEY] key_led_on\n");
@@ -327,6 +321,7 @@ static ssize_t key_led_onoff(struct device *dev,
 		regulator_disable(regulator);
 		printk(KERN_INFO "[KEY] key_led_off\n");
 		}
+	key_led_prev = data;
 	regulator_put(regulator);
 	mdelay(70);
 	return 0;
@@ -421,7 +416,7 @@ static int __devinit samsung_keypad_probe(struct platform_device *pdev)
 	init_waitqueue_head(&keypad->wait);
 
 	input_dev->name = pdev->name;
-	#if defined(CONFIG_MACH_GRANDE)
+	#if defined(CONFIG_MACH_GRANDE) || defined(CONFIG_MACH_IRON)
 	input_dev->phys = "grande_3x4_keypad/input0";
 	#else
 	input_dev->phys = "samsung-keypad/input0";
@@ -441,7 +436,9 @@ static int __devinit samsung_keypad_probe(struct platform_device *pdev)
 	if (!pdata->no_autorepeat)
 		set_bit(EV_REP, input_dev->evbit);
 
-	input_set_capability(input_dev, EV_MSC, MSC_SCAN);
+
+	/* when sleep => wakeup, we want to report key-value as KEY_POWER */
+	input_set_capability(input_dev, EV_KEY, KEY_POWER);
 
 	input_dev->keycode = keypad->keycodes;
 	input_dev->keycodesize = sizeof(keypad->keycodes[0]);
@@ -636,7 +633,7 @@ static const struct dev_pm_ops samsung_keypad_pm_ops = {
 
 static struct platform_device_id samsung_keypad_driver_ids[] = {
 	{
-		#if defined(CONFIG_MACH_GRANDE)
+		#if defined(CONFIG_MACH_GRANDE) || defined(CONFIG_MACH_IRON)
 		.name	= "grande_3x4_keypad",
 		#else
 		.name		= "samsung-keypad",
@@ -654,7 +651,7 @@ static struct platform_driver samsung_keypad_driver = {
 	.probe		= samsung_keypad_probe,
 	.remove		= __devexit_p(samsung_keypad_remove),
 	.driver		= {
-#if defined(CONFIG_MACH_GRANDE)
+#if defined(CONFIG_MACH_GRANDE) || defined(CONFIG_MACH_IRON)
 		.name	= "grande_3x4_keypad",
 #else
 		.name	= "samsung-keypad",

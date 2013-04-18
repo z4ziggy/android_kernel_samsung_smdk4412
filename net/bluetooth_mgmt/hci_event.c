@@ -1111,8 +1111,13 @@ static inline void hci_cs_inquiry(struct hci_dev *hdev, __u8 status)
 		hci_req_complete(hdev, HCI_OP_INQUIRY, status);
 		hci_conn_check_pending(hdev);
 		hci_dev_lock(hdev);
-		if (test_bit(HCI_MGMT, &hdev->dev_flags))
+		if (test_bit(HCI_MGMT, &hdev->dev_flags)) {
+			/* [GGSM/sc47.yun] P120828-6815. Discovery fail issue */
+			BT_ERR("Discovery can't be done with other commands");
+			hci_discovery_set_state(hdev, DISCOVERY_STOPPING);
+
 			mgmt_start_discovery_failed(hdev, status);
+		}
 		hci_dev_unlock(hdev);
 		return;
 	}

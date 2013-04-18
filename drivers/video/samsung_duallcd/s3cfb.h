@@ -366,6 +366,7 @@ extern void s6e8ax0_early_suspend(void);
 extern void s6e8ax0_late_resume(void);
 #endif
 #if defined(CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD)
+extern int s5p_dsim_get_panel_sel_value(void);
 extern int s5p_dsim_get_lcd_sel_value(void);
 extern int s5p_dsim_toggle_lcd(void);
 extern int s5p_dsim_select_lcd(unsigned int lcd_sel);

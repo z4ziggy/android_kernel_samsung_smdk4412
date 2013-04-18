@@ -1926,8 +1926,12 @@ int mfc_init_decoding(struct mfc_inst_ctx *ctx, union mfc_args *args)
 				dmc_max_threshold =
 					EXYNOS4212_DMC_MAX_THRESHOLD + 5;
 			} else if (soc_is_exynos4412()) {
-				dmc_max_threshold =
-					EXYNOS4412_DMC_MAX_THRESHOLD + 5;
+				if (samsung_rev() >= EXYNOS4412_REV_2_0)
+					dmc_max_threshold =
+						PRIME_DMC_MAX_THRESHOLD + 5;
+				else
+					dmc_max_threshold =
+						EXYNOS4412_DMC_MAX_THRESHOLD + 5;
 			} else {
 				pr_err("Unsupported model.\n");
 				return -EINVAL;
@@ -2093,6 +2097,25 @@ int mfc_change_resolution(struct mfc_inst_ctx *ctx, struct mfc_dec_exe_arg *exe_
 	}
 
 	ret = mfc_cmd_init_buffers(ctx);
+
+#ifdef CONFIG_SLP
+	if (ctx->codecid == H264_DEC) {
+		exe_arg->out_crop_right_offset =
+			(read_shm(ctx, CROP_INFO1) >> 16) & 0xFFFF;
+		exe_arg->out_crop_left_offset =
+			read_shm(ctx, CROP_INFO1) & 0xFFFF;
+		exe_arg->out_crop_bottom_offset =
+			(read_shm(ctx, CROP_INFO2) >> 16) & 0xFFFF;
+		exe_arg->out_crop_top_offset =
+			read_shm(ctx, CROP_INFO2)  & 0xFFFF;
+
+		mfc_dbg("mfc_change_resolution: crop info t: %d, r: %d, b: %d, l: %d\n",
+			exe_arg->out_crop_top_offset,
+			exe_arg->out_crop_right_offset,
+			exe_arg->out_crop_bottom_offset,
+			exe_arg->out_crop_left_offset);
+	}
+#endif
 	if (ret < 0)
 		return ret;
 
@@ -2381,6 +2404,7 @@ int mfc_exec_decoding(struct mfc_inst_ctx *ctx, union mfc_args *args)
 		mfc_check_resolution_change(ctx, exe_arg);
 		if (ctx->resolution_status == RES_SET_CHANGE) {
 			ret = mfc_decoding_frame(ctx, exe_arg, &consumed);
+#ifndef CONFIG_SLP
 		} else if ((ctx->resolution_status == RES_WAIT_FRAME_DONE) &&
 			(exe_arg->out_display_status == DISP_S_FINISH)) {
 			exe_arg->out_display_status = DISP_S_RES_CHANGE;
@@ -2388,6 +2412,20 @@ int mfc_exec_decoding(struct mfc_inst_ctx *ctx, union mfc_args *args)
 			if (ret != MFC_OK)
 				return ret;
 			ctx->resolution_status = RES_NO_CHANGE;
+#else
+		} else if (ctx->resolution_status == RES_WAIT_FRAME_DONE) {
+			if (exe_arg->out_display_status == DISP_S_FINISH) {
+				exe_arg->out_display_status =
+							DISP_S_RES_CHANGE_DONE;
+
+				ret = mfc_change_resolution(ctx, exe_arg);
+				if (ret != MFC_OK)
+					return ret;
+				ctx->resolution_status = RES_NO_CHANGE;
+			} else
+				exe_arg->out_display_status =
+							DISP_S_RES_CHANGING;
+#endif
 		}
 
 		if ((dec_ctx->ispackedpb) &&

@@ -27,6 +27,12 @@ struct exynos_sound_platform_data {
 	void (*set_ext_main_mic) (int on);
 	void (*set_ext_sub_mic) (int on);
 	int (*get_ground_det_value) (void);
+	int (*get_ground_det_irq_num) (void);
+#if defined(CONFIG_SND_DUOS_MODEM_SWITCH)
+	void (*set_modem_switch) (int on);
+#endif
+	int dcs_offset_l;
+	int dcs_offset_r;
 };
 
 #ifdef CONFIG_EXYNOS_SOUND_PLATFORM_DATA

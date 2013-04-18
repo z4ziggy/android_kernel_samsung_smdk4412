@@ -241,7 +241,7 @@ static void s5p_mixer_ctrl_clock(bool on)
 
 		clk_enable(s5p_mixer_ctrl_private.clk[ACLK].ptr);
 
-		// Restore mixer_base address
+		/* Restore mixer_base address */
 		s5p_mixer_init(s5p_mixer_ctrl_private.reg_mem.base);
 	} else {
 		clk_disable(s5p_mixer_ctrl_private.clk[ACLK].ptr);
@@ -252,7 +252,7 @@ static void s5p_mixer_ctrl_clock(bool on)
 
 		clk_disable(s5p_mixer_ctrl_private.clk[MUX].ptr);
 
-		// Set mixer_base address to NULL
+		/* Set mixer_base address to NULL */
 		s5p_mixer_init(NULL);
 	}
 }
@@ -278,12 +278,16 @@ void s5p_mixer_ctrl_init_grp_layer(enum s5p_mixer_layer layer)
 			s5p_mixer_set_priority(layer,
 				s5p_mixer_ctrl_private.layer[layer].priority);
 			s5p_mixer_set_pre_mul_mode(layer,
-				s5p_mixer_ctrl_private.layer[layer].pre_mul_mode);
+				s5p_mixer_ctrl_private.layer[layer].
+				pre_mul_mode);
 			s5p_mixer_set_chroma_key(layer,
-				s5p_mixer_ctrl_private.layer[layer].chroma_enable,
-				s5p_mixer_ctrl_private.layer[layer].chroma_key);
+				s5p_mixer_ctrl_private.layer[layer].
+				chroma_enable,
+				s5p_mixer_ctrl_private.layer[layer].
+				chroma_key);
 			s5p_mixer_set_layer_blend(layer,
-				s5p_mixer_ctrl_private.layer[layer].layer_blend);
+				s5p_mixer_ctrl_private.layer[layer].
+				layer_blend);
 			s5p_mixer_set_alpha(layer,
 				s5p_mixer_ctrl_private.layer[layer].alpha);
 			s5p_mixer_set_grp_layer_dst_pos(layer,
@@ -299,7 +303,8 @@ void s5p_mixer_ctrl_init_grp_layer(enum s5p_mixer_layer layer)
 	}
 }
 
-int s5p_mixer_ctrl_set_pixel_format(enum s5p_mixer_layer layer, u32 bpp, u32 trans_len)
+int s5p_mixer_ctrl_set_pixel_format(
+	enum s5p_mixer_layer layer, u32 bpp, u32 trans_len)
 {
 	enum s5p_mixer_color_fmt format;
 
@@ -559,7 +564,8 @@ int s5p_mixer_ctrl_set_src_win_pos(enum s5p_mixer_layer layer,
 #endif
 	{
 		if (s5p_mixer_ctrl_private.running)
-			s5p_mixer_set_grp_layer_src_pos(layer, src_x, src_y, w, w, h);
+			s5p_mixer_set_grp_layer_src_pos(
+				layer, src_x, src_y, w, w, h);
 	}
 
 	return 0;
@@ -796,7 +802,8 @@ int s5p_mixer_ctrl_mux_clk(struct clk *ptr)
 {
 	if (clk_set_parent(s5p_mixer_ctrl_private.clk[MUX].ptr, ptr)) {
 		tvout_err("unable to set parent %s of clock %s.\n",
-				ptr->name, s5p_mixer_ctrl_private.clk[MUX].ptr->name);
+				ptr->name,
+				s5p_mixer_ctrl_private.clk[MUX].ptr->name);
 		return -1;
 	}
 
@@ -828,6 +835,12 @@ bool s5p_mixer_ctrl_get_vsync_interrupt()
 	return s5p_mixer_ctrl_private.vsync_interrupt_enable;
 }
 
+void s5p_mixer_ctrl_disable_vsync_interrupt()
+{
+	if (s5p_mixer_ctrl_private.running)
+		s5p_mixer_set_vsync_interrupt(false);
+}
+
 void s5p_mixer_ctrl_clear_pend_all(void)
 {
 	if (s5p_mixer_ctrl_private.running)
@@ -848,11 +861,12 @@ void s5p_mixer_ctrl_stop(void)
 		{
 			s5p_mixer_set_vsync_interrupt(false);
 
-			for (i = 0; i < S5PTV_VP_BUFF_CNT -1; i++)
+			for (i = 0; i < S5PTV_VP_BUFF_CNT-1; i++)
 				s5ptv_vp_buff.copy_buff_idxs[i] = i;
 
 			s5ptv_vp_buff.curr_copy_idx = 0;
-			s5ptv_vp_buff.vp_access_buff_idx = S5PTV_VP_BUFF_CNT - 1;
+			s5ptv_vp_buff.vp_access_buff_idx =
+				S5PTV_VP_BUFF_CNT - 1;
 
 			s5p_mixer_stop();
 			s5p_mixer_ctrl_clock(0);
@@ -1006,10 +1020,24 @@ int s5p_mixer_ctrl_start(
 	s5p_mixer_init_csc_coef_default(csc_for_coeff);
 	s5p_mixer_init_display_mode(disp, out, csc);
 
+#ifndef	__CONFIG_HDMI_SUPPORT_FULL_RANGE__
 	if (!s5p_tvif_get_q_range() || out == TVOUT_HDMI_RGB)
 		mixer_video_limiter = true;
 	else
 		mixer_video_limiter = false;
+#else
+	/* full range */
+	if ((out == TVOUT_HDMI_RGB && disp == TVOUT_480P_60_4_3) ||
+		(out != TVOUT_HDMI_RGB && s5p_tvif_get_q_range())) {
+		mixer_video_limiter = false;
+		for (i = MIXER_BG_COLOR_0; i <= MIXER_BG_COLOR_2; i++)
+			s5p_mixer_ctrl_private.bg_color[i].color_y = 0;
+	} else { /* limited range */
+		mixer_video_limiter = true;
+		for (i = MIXER_BG_COLOR_0; i <= MIXER_BG_COLOR_2; i++)
+			s5p_mixer_ctrl_private.bg_color[i].color_y = 16;
+	}
+#endif
 
 	s5p_mixer_set_video_limiter(s5p_mixer_ctrl_private.v_layer.y_min,
 			s5p_mixer_ctrl_private.v_layer.y_max,

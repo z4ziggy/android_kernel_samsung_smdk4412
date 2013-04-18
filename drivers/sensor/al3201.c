@@ -241,19 +241,17 @@ static int al3201_get_adc_value(struct i2c_client *client)
 
 static void al3201_work_func_light(struct work_struct *work)
 {
-	u32 result = 0;
+	int result = 0;
 
 	struct al3201_data *data =
 	    container_of(work, struct al3201_data, work_light);
 
 	result = al3201_get_adc_value(data->client);
 
-	if (result == 0)
-		result = -1;
 #ifdef LSC_DBG
 	pr_info("%s, value = %d\n", __func__, result);
 #endif
-	input_report_rel(data->input, REL_MISC, result);
+	input_report_rel(data->input, REL_MISC, result+1);
 	input_sync(data->input);
 
 }

@@ -865,9 +865,13 @@ static int unuse_pte(struct vm_area_struct *vma, pmd_t *pmd,
 		ret = 0;
 		goto out;
 	}
-
+#ifdef CONFIG_LOWMEM_CHECK
+	dec_mm_counter(vma->vm_mm, MM_SWAPENTS, page);
+	inc_mm_counter(vma->vm_mm, MM_ANONPAGES, page);
+#else
 	dec_mm_counter(vma->vm_mm, MM_SWAPENTS);
 	inc_mm_counter(vma->vm_mm, MM_ANONPAGES);
+#endif
 	get_page(page);
 	set_pte_at(vma->vm_mm, addr, pte,
 		   pte_mkold(mk_pte(page, vma->vm_page_prot)));
@@ -932,9 +936,7 @@ static inline int unuse_pmd_range(struct vm_area_struct *vma, pud_t *pud,
 	pmd = pmd_offset(pud, addr);
 	do {
 		next = pmd_addr_end(addr, end);
-		if (unlikely(pmd_trans_huge(*pmd)))
-			continue;
-		if (pmd_none_or_clear_bad(pmd))
+		if (pmd_none_or_trans_huge_or_clear_bad(pmd))
 			continue;
 		ret = unuse_pte_range(vma, pmd, addr, next, entry, page);
 		if (ret)

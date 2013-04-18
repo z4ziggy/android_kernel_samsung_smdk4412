@@ -799,7 +799,7 @@ static int cm36651_setup_reg(struct cm36651_data *cm36651)
 
 	/* turn off */
 	cm36651_i2c_write_byte(cm36651,   CM36651_ALS, CS_CONF1, 0x01);
-	cm36651_i2c_write_byte(cm36651,   CM36651_ALS, PS_CONF1, 0x01);
+	cm36651_i2c_write_byte(cm36651,   CM36651_PS, PS_CONF1, 0x01);
 
 	pr_info("%s is success.", __func__);
 	return err;

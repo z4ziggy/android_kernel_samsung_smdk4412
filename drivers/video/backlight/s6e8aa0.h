@@ -17,12 +17,7 @@
 #ifndef _S6E8AA0_H
 #define _S6E8AA0_H
 
-extern void s6e8aa0_init(void);
-extern void s6e8aa0_set_link(void *pd, unsigned int dsim_base,
-	unsigned char (*cmd_write) (unsigned int dsim_base, unsigned int data0,
-	    unsigned int data1, unsigned int data2),
-	unsigned char (*cmd_read) (unsigned int dsim_base, unsigned int data0,
-	    unsigned int data1, unsigned int data2));
+/* ToDo */
 
 #endif
 

@@ -39,6 +39,7 @@ enum {
 	MAX77693_MUIC_DOCK_DETACHED = 0,
 	MAX77693_MUIC_DOCK_DESKDOCK,
 	MAX77693_MUIC_DOCK_CARDOCK,
+	MAX77693_MUIC_DOCK_AUDIODOCK = 7,
 	MAX77693_MUIC_DOCK_SMARTDOCK = 8
 };
 
@@ -70,6 +71,7 @@ struct max77693_charger_platform_data {
 #ifdef CONFIG_VIBETONZ
 #define MAX8997_MOTOR_REG_CONFIG2	0x2
 #define MOTOR_LRA			(1<<7)
+#define MOTOR_ERM			(0<<7)
 #define MOTOR_EN			(1<<6)
 #define EXT_PWM				(0<<5)
 #define DIVIDER_128			(1<<1)
@@ -145,7 +147,7 @@ struct max77693_muic_data {
 };
 
 #if defined(CONFIG_MACH_M0_CTC)
-int max7693_muic_cp_usb_state(void);
+extern int max7693_muic_cp_usb_state(void);
 #endif
 
 #endif				/* __LINUX_MFD_MAX77693_H */

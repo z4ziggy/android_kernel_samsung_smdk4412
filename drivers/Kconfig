@@ -157,4 +157,10 @@ source "drivers/gud/Kconfig"
 
 source "drivers/iommu/Kconfig"
 
+# FELICA
+source "drivers/felica/Kconfig"
+
+# Authentec
+source "drivers/interceptor/Kconfig"
+
 endmenu

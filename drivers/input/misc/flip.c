@@ -153,14 +153,14 @@ static void sec_flip_work_func(struct work_struct *work)
 	set_flip_status(flip);
 	printk("%s: %s, before:%d \n", __func__, (flip_status) ? "OPEN 1" : "CLOSE 0", flip_status_before);
 
+	sec_report_flip_key(flip);
+
 	if (flip_status != flip_status_before) {
 #ifdef CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD
 		s3cfb_switch_dual_lcd(!flip_status);
 #endif
 		samsung_switching_tsp(flip_status);
 		samsung_switching_tkey(flip_status);
-
-		sec_report_flip_key(flip);
 	}
 }
 

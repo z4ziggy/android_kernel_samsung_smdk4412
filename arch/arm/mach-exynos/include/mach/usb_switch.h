@@ -20,6 +20,7 @@ extern int usb_switch_lock(void);
 extern int usb_switch_trylock(void);
 extern void usb_switch_unlock(void);
 
+extern enum usb_path_t usb_switch_get_path(void);
 extern void usb_switch_set_path(enum usb_path_t path);
 extern void usb_switch_clr_path(enum usb_path_t path);
 

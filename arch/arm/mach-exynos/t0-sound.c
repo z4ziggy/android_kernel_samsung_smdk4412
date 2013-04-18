@@ -25,6 +25,8 @@
 #include <linux/platform_device.h>
 #include <linux/delay.h>
 #include <linux/i2c-gpio.h>
+#include <linux/irq.h>
+#include <linux/interrupt.h>
 #include <mach/irqs.h>
 #include <mach/pmu.h>
 #include <plat/iic.h>
@@ -37,9 +39,21 @@
 #include <linux/mfd/wm8994/gpio.h>
 #endif
 
+#if defined(CONFIG_FM_SI4705)
+#include <linux/i2c/si47xx_common.h>
+#endif
+
 #include <linux/exynos_audio.h>
 
 static bool midas_snd_mclk_enabled;
+
+#if defined(CONFIG_FM_SI4705)
+struct si47xx_info {
+	int gpio_int;
+	int gpio_rst;
+} si47xx_data;
+
+#endif
 
 #define I2C_NUM_CODEC	4
 #define SET_PLATDATA_CODEC(i2c_pd)	s3c_i2c4_set_platdata(i2c_pd)
@@ -188,7 +202,7 @@ static struct wm8994_pdata wm1811_pdata = {
 	.jd_ext_cap = 1,
 
 	/* Regulated mode at highest output voltage */
-	.micbias = {0x2f, 0x27},
+	.micbias = {0x2f, 0x2b},
 
 	.micd_lvl_sel = 0xFF,
 
@@ -210,6 +224,53 @@ static struct i2c_board_info i2c_wm1811[] __initdata = {
 
 #endif
 
+#if defined(CONFIG_FM_SI4705)
+static void fmradio_power(int on)
+{
+	if (on) {
+		gpio_request(GPIO_FM_INT, "FMRAIDO INT");
+		gpio_direction_output(GPIO_FM_INT, 1);
+		gpio_set_value(si47xx_data.gpio_rst, GPIO_LEVEL_LOW);
+		gpio_set_value(GPIO_FM_INT, GPIO_LEVEL_LOW);
+		usleep_range(5, 10);
+		gpio_set_value(si47xx_data.gpio_rst, GPIO_LEVEL_HIGH);
+		usleep_range(10, 15);
+		gpio_set_value(GPIO_FM_INT, GPIO_LEVEL_HIGH);
+
+		s3c_gpio_cfgpin(GPIO_FM_INT, S3C_GPIO_SFN(0xF));
+		gpio_free(GPIO_FM_INT);
+	} else {
+		gpio_set_value(si47xx_data.gpio_rst, GPIO_LEVEL_LOW);
+	}
+}
+
+static struct si47xx_platform_data si47xx_pdata = {
+	.rx_vol = {0x0, 0x13, 0x16, 0x19, 0x1C, 0x1F, 0x22, 0x25,
+		0x28, 0x2B, 0x2E, 0x31, 0x34, 0x37, 0x3A, 0x3D},
+	.power = fmradio_power,
+
+};
+
+static struct i2c_gpio_platform_data gpio_i2c_data19 = {
+	.sda_pin = GPIO_FM_SDA,
+	.scl_pin = GPIO_FM_SCL,
+};
+
+struct platform_device s3c_device_i2c19 = {
+	.name = "i2c-gpio",
+	.id = 19,
+	.dev.platform_data = &gpio_i2c_data19,
+};
+
+static struct i2c_board_info i2c_devs19_emul[] __initdata = {
+	{
+		I2C_BOARD_INFO("Si47xx", (0x22 >> 1)),
+		.platform_data = &si47xx_pdata,
+		.irq = IRQ_EINT(11),
+	},
+};
+#endif
+
 static void t0_gpio_init(void)
 {
 	int err;
@@ -222,8 +283,7 @@ static void t0_gpio_init(void)
 		pr_err(KERN_ERR "MIC_BIAS_EN GPIO set error!\n");
 		return;
 	}
-	gpio_direction_output(GPIO_MIC_BIAS_EN, 1);
-	gpio_set_value(GPIO_MIC_BIAS_EN, 0);
+	gpio_direction_output(GPIO_MIC_BIAS_EN, 0);
 	gpio_free(GPIO_MIC_BIAS_EN);
 #endif
 
@@ -234,8 +294,7 @@ static void t0_gpio_init(void)
 		pr_err(KERN_ERR "SUB_MIC_BIAS_EN GPIO set error!\n");
 		return;
 	}
-	gpio_direction_output(GPIO_SUB_MIC_BIAS_EN, 1);
-	gpio_set_value(GPIO_SUB_MIC_BIAS_EN, 0);
+	gpio_direction_output(GPIO_SUB_MIC_BIAS_EN, 0);
 	gpio_free(GPIO_SUB_MIC_BIAS_EN);
 #endif
 
@@ -246,10 +305,21 @@ static void t0_gpio_init(void)
 		return;
 	}
 	gpio_direction_output(GPIO_VPS_SOUND_EN, 0);
-	gpio_set_value(GPIO_VPS_SOUND_EN, 0);
 	gpio_free(GPIO_VPS_SOUND_EN);
 #endif
 
+#if defined(CONFIG_SND_DUOS_MODEM_SWITCH)
+	/* Modem selection for DUOS model */
+	err = gpio_request(GPIO_AUDIO_PCM_SEL, "PCM_SEL");
+	if (err) {
+		pr_err(KERN_ERR "PCM switch GPIO set error!\n");
+		return;
+	}
+	gpio_direction_output(GPIO_AUDIO_PCM_SEL, 0);
+	gpio_free(GPIO_AUDIO_PCM_SEL);
+#endif
+
+#ifdef CONFIG_JACK_GROUND_DET
 	if (system_rev >= 3)
 		gpio = GPIO_G_DET_N_REV03;
 	else
@@ -260,8 +330,12 @@ static void t0_gpio_init(void)
 		pr_err(KERN_ERR "G_DET_N GPIO set error!\n");
 		return;
 	}
-	gpio_direction_input(gpio);
-	gpio_free(gpio);
+	s3c_gpio_setpull(gpio, S3C_GPIO_PULL_NONE);
+	s5p_register_gpio_interrupt(gpio);
+	irq_set_irq_type(gpio_to_irq(gpio), IRQF_TRIGGER_FALLING |
+			IRQF_TRIGGER_RISING | IRQF_ONESHOT);
+	s3c_gpio_cfgpin(gpio, S3C_GPIO_SFN(0xf));
+#endif
 
 #ifdef CONFIG_JACK_FET
 	if (system_rev >= 4) {
@@ -275,16 +349,23 @@ static void t0_gpio_init(void)
 	}
 
 #endif
+
+#ifdef CONFIG_FM_SI4705
+	if (system_rev >= 3)
+		si47xx_data.gpio_rst = GPIO_FM_RST_REV03;
+
+	if (gpio_is_valid(si47xx_data.gpio_rst)) {
+		if (gpio_request(si47xx_data.gpio_rst, "FM_RST"))
+			debug(KERN_ERR "Failed to request "
+			"FM_RST!\n\n");
+		gpio_direction_output(si47xx_data.gpio_rst, GPIO_LEVEL_LOW);
+	}
+#endif
 }
 
 static void t0_set_lineout_switch(int on)
 {
 #ifdef CONFIG_SND_USE_LINEOUT_SWITCH
-#ifndef CONFIG_MACH_T0_USA_SPR
-	if (system_rev < 3)
-		return;
-#endif
-
 	gpio_set_value(GPIO_VPS_SOUND_EN, on);
 	pr_info("%s: lineout switch on = %d\n", __func__, on);
 #endif
@@ -295,6 +376,7 @@ static void t0_set_ext_main_mic(int on)
 #ifdef CONFIG_SND_SOC_USE_EXTERNAL_MIC_BIAS
 	/* Main Microphone BIAS */
 	gpio_set_value(GPIO_MIC_BIAS_EN, on);
+
 	pr_info("%s: main_mic bias on = %d\n", __func__, on);
 #endif
 }
@@ -304,10 +386,12 @@ static void t0_set_ext_sub_mic(int on)
 #ifdef CONFIG_SND_USE_SUB_MIC
 	/* Sub Microphone BIAS */
 	gpio_set_value(GPIO_SUB_MIC_BIAS_EN, on);
+
 	pr_info("%s: sub_mic bias on = %d\n", __func__, on);
 #endif
 }
 
+#ifdef CONFIG_JACK_GROUND_DET
 static int t0_get_ground_det_value(void)
 {
 	unsigned int g_det_gpio;
@@ -319,18 +403,76 @@ static int t0_get_ground_det_value(void)
 	return gpio_get_value(g_det_gpio);
 }
 
+static int t0_get_ground_det_irq_num(void)
+{
+	unsigned int g_det_gpio;
+
+	if (system_rev >= 3)
+		g_det_gpio = GPIO_G_DET_N_REV03;
+	else
+		g_det_gpio = GPIO_G_DET_N;
+	return gpio_to_irq(g_det_gpio);
+}
+#endif
+
+#if defined(CONFIG_SND_DUOS_MODEM_SWITCH)
+static void t0_set_modem_switch(int on)
+{
+	/* Modem selection for DUOS model */
+	gpio_set_value(GPIO_AUDIO_PCM_SEL, on);
+	pr_info("%s: t0_set_modem_switch = %d\n", __func__, on);
+}
+#endif
+
 struct exynos_sound_platform_data t0_sound_pdata __initdata = {
 	.set_lineout_switch	= t0_set_lineout_switch,
 	.set_ext_main_mic	= t0_set_ext_main_mic,
 	.set_ext_sub_mic	= t0_set_ext_sub_mic,
+#ifdef CONFIG_JACK_GROUND_DET
 	.get_ground_det_value	= t0_get_ground_det_value,
+	.get_ground_det_irq_num = t0_get_ground_det_irq_num,
+#endif
+#if defined(CONFIG_SND_DUOS_MODEM_SWITCH)
+	.set_modem_switch = t0_set_modem_switch,
+#endif
+	.dcs_offset_l = -9,
+	.dcs_offset_r = -7,
+};
+
+static struct platform_device *t0_sound_devices[] __initdata = {
+#if defined(CONFIG_FM_SI4705)
+	&s3c_device_i2c19,
+#endif
 };
 
 void __init midas_sound_init(void)
 {
 	pr_info("Sound: start %s\n", __func__);
 
+#if defined(CONFIG_MACH_T0_EUR_LTE)
+	t0_sound_pdata.dcs_offset_l = -11;
+	t0_sound_pdata.dcs_offset_r = -8;
+#elif defined(CONFIG_MACH_T0_USA_VZW)
+	t0_sound_pdata.dcs_offset_l = -12;
+	t0_sound_pdata.dcs_offset_r = -9;
+#elif defined(CONFIG_MACH_T0_USA_ATT)
+	t0_sound_pdata.dcs_offset_l = -13;
+	t0_sound_pdata.dcs_offset_r = -9;
+#elif defined(CONFIG_MACH_T0_USA_TMO)
+	t0_sound_pdata.dcs_offset_l = -11;
+	t0_sound_pdata.dcs_offset_r = -9;
+#elif defined(CONFIG_MACH_T0_USA_SPR)
+	t0_sound_pdata.dcs_offset_l = -12;
+	t0_sound_pdata.dcs_offset_r = -9;
+#elif defined(CONFIG_MACH_T0_USA_USCC)
+	t0_sound_pdata.dcs_offset_l = -11;
+	t0_sound_pdata.dcs_offset_r = -8;
+#endif
+
 	t0_gpio_init();
+
+	platform_add_devices(t0_sound_devices,
+		ARRAY_SIZE(t0_sound_devices));
 
 	pr_info("%s: set sound platform data for T0 device\n", __func__);
 	if (exynos_sound_set_platform_data(&t0_sound_pdata))
@@ -339,5 +481,10 @@ void __init midas_sound_init(void)
 	SET_PLATDATA_CODEC(NULL);
 	i2c_register_board_info(I2C_NUM_CODEC, i2c_wm1811,
 					ARRAY_SIZE(i2c_wm1811));
+
+#if defined(CONFIG_FM_SI4705)
+	i2c_register_board_info(19, i2c_devs19_emul,
+				ARRAY_SIZE(i2c_devs19_emul));
+#endif
 
 }

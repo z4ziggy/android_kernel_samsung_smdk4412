@@ -25,6 +25,12 @@
 #include <linux/termios.h>
 #include <asm/unaligned.h>
 #include <mach/usb_bridge.h>
+#include <linux/mdm_hsic_pm.h>
+
+#ifdef CONFIG_MDM_HSIC_PM
+#include <linux/mdm_hsic_pm.h>
+static const char rmnet_pm_dev[] = "mdm_hsic_pm0";
+#endif
 
 static const char const *ctrl_bridge_names[] = {
 	"dun_ctrl_hsic0",
@@ -164,13 +170,11 @@ static void resp_avail_cb(struct urb *urb)
 
 	if (urb->status != -ENOENT && resubmit_urb) {
 		/*re- submit int urb to check response available*/
-		usb_anchor_urb(dev->inturb, &dev->tx_submitted);
 		status = usb_submit_urb(dev->inturb, GFP_ATOMIC);
 		if (status) {
 			dev_err(&udev->dev,
 				"%s: Error re-submitting Int URB %d\n",
 				__func__, status);
-			usb_unanchor_urb(dev->inturb);
 		}
 		pr_info("[CHKRA:%d]>\n", iface_num);
 	}
@@ -186,6 +190,11 @@ static void notification_available_cb(struct urb *urb)
 	unsigned int			ctrl_bits;
 	unsigned char			*data;
 	unsigned int		iface_num;
+
+	/* if this intf is already disconnected, this urb free-ed before
+	 * calling from qh_completions. just return and do nothing */
+	if (!dev->intf)
+		return;
 
 	udev = interface_to_usbdev(dev->intf);
 	iface_num = dev->intf->cur_altsetting->desc.bInterfaceNumber;
@@ -224,13 +233,11 @@ static void notification_available_cb(struct urb *urb)
 					DEFAULT_READ_URB_LENGTH,
 					resp_avail_cb, dev);
 
-		usb_anchor_urb(dev->readurb, &dev->tx_submitted);
 		status = usb_submit_urb(dev->readurb, GFP_ATOMIC);
 		if (status) {
 			dev_err(&udev->dev,
 				"%s: Error submitting Read URB %d\n",
 				__func__, status);
-			usb_unanchor_urb(dev->readurb);
 			goto resubmit_int_urb;
 		} else
 			pr_info("[NRA:%d]>\n", iface_num);
@@ -246,6 +253,10 @@ static void notification_available_cb(struct urb *urb)
 		dev->cbits_tohost = ctrl_bits;
 		if (brdg && brdg->ops.send_cbits)
 			brdg->ops.send_cbits(brdg->ctx, ctrl_bits);
+#ifdef CONFIG_MDM_HSIC_PM
+		pr_info("%s: set lpa handling to false\n", __func__);
+		lpa_handling = false;
+#endif
 		break;
 	default:
 		dev_err(&udev->dev, "%s: unknown notification %d received:"
@@ -255,12 +266,10 @@ static void notification_available_cb(struct urb *urb)
 	}
 
 resubmit_int_urb:
-	usb_anchor_urb(urb, &dev->tx_submitted);
 	status = usb_submit_urb(urb, GFP_ATOMIC);
 	if (status) {
 		dev_err(&udev->dev, "%s: Error re-submitting Int URB %d\n",
 		__func__, status);
-		usb_unanchor_urb(urb);
 	} else
 		pr_info("[CHKRA:%d]>\n", iface_num);
 }
@@ -279,20 +288,34 @@ int ctrl_bridge_start_read(struct ctrl_bridge *dev)
 		return -ENODEV;
 	}
 
-	if (!dev->inturb->anchor) {
-		usb_anchor_urb(dev->inturb, &dev->tx_submitted);
-		retval = usb_submit_urb(dev->inturb, GFP_KERNEL);
-		if (retval < 0) {
-			dev_err(&dev->udev->dev,
-				"%s error submitting int urb %d\n",
-				__func__, retval);
-			usb_unanchor_urb(dev->inturb);
-		}
+	retval = usb_submit_urb(dev->inturb, GFP_KERNEL);
+	if (retval < 0) {
+		dev_err(&dev->udev->dev,
+			"%s error submitting int urb %d\n",
+			__func__, retval);
+
+	} else
 		pr_info("[CHKRA:%d]>\n", iface_num);
-	}
 
 	return retval;
 }
+
+void ctrl_bridge_stop_read(struct ctrl_bridge *dev)
+{
+	usb_kill_urb(dev->readurb);
+	usb_kill_urb(dev->inturb);
+}
+
+void ctrl_bridge_stop_all(void)
+{
+	int id;
+
+	for (id = 0; id < MAX_BRIDGE_DEVICES; id++) {
+		if (__dev[id])
+			ctrl_bridge_stop_read(__dev[id]);
+	}
+}
+EXPORT_SYMBOL(ctrl_bridge_stop_all);
 
 int ctrl_bridge_open(struct bridge *brdg)
 {
@@ -365,7 +388,8 @@ static void ctrl_write_callback(struct urb *urb)
 	kfree(urb->transfer_buffer);
 	kfree(urb->setup_packet);
 	usb_free_urb(urb);
-	usb_autopm_put_interface_async(dev->intf);
+	if (dev->intf)
+		usb_autopm_put_interface_async(dev->intf);
 }
 
 int ctrl_bridge_write(unsigned int id, char *data, size_t size)
@@ -387,6 +411,10 @@ int ctrl_bridge_write(unsigned int id, char *data, size_t size)
 		result = -ENODEV;
 		goto free_data;
 	}
+
+	/* wait till, LPA wake complete */
+	if (pm_dev_wait_lpa_wake() < 0)
+		return -EAGAIN;
 
 	udev = interface_to_usbdev(dev->intf);
 
@@ -487,6 +515,7 @@ int ctrl_bridge_suspend(unsigned int id)
 
 	set_bit(SUSPENDED, &dev->flags);
 	usb_kill_anchored_urbs(&dev->tx_submitted);
+	ctrl_bridge_stop_read(dev);
 
 	return 0;
 }
@@ -764,6 +793,10 @@ void ctrl_bridge_disconnect(unsigned int id)
 	dev_dbg(&dev->udev->dev, "%s:\n", __func__);
 
 	platform_device_del(dev->pdev);
+
+	dev->intf = NULL;
+	usb_kill_urb(dev->readurb);
+	usb_kill_urb(dev->inturb);
 
 	kfree(dev->in_ctlreq);
 	kfree(dev->readbuf);

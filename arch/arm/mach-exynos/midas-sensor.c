@@ -2,7 +2,18 @@
 #include <linux/gpio.h>
 #include <linux/i2c.h>
 #include <linux/sensor/sensors_core.h>
+#ifdef CONFIG_SENSORS_AK8975C
 #include <linux/sensor/ak8975.h>
+#endif
+#ifdef CONFIG_SENSORS_AK8963C
+#include <linux/sensor/ak8963.h>
+#endif
+#ifdef CONFIG_INPUT_MPU6050
+#include <linux/mpu6050_input.h>
+#endif
+#ifdef CONFIG_SENSORS_AK8963
+#include <linux/akm8963.h>
+#endif
 #include <linux/sensor/k3dh.h>
 #include <linux/sensor/gp2a.h>
 #include <linux/sensor/lsm330dlc_accel.h>
@@ -39,14 +50,26 @@ static struct gyro_platform_data gyro_pdata = {
 };
 #endif
 
+#ifdef CONFIG_INPUT_MPU6050
+static struct mpu6050_input_platform_data mpu6050_pdata = {
+	.orientation = {-1, 0, 0,
+				0, 1, 0,
+				0, 0, -1},
+	.acc_cal_path = "/efs/calibration_data",
+	.gyro_cal_path = "/efs/gyro_cal_data",
+};
+#endif
+
 #ifdef CONFIG_SENSORS_SSP
 static int wakeup_mcu(void);
+static int check_mcu_busy(void);
 static int check_mcu_ready(void);
 static int set_mcu_reset(int on);
 static int check_ap_rev(void);
 
 static struct ssp_platform_data ssp_pdata = {
 	.wakeup_mcu = wakeup_mcu,
+	.check_mcu_busy = check_mcu_busy,
 	.check_mcu_ready = check_mcu_ready,
 	.set_mcu_reset = set_mcu_reset,
 	.check_ap_rev = check_ap_rev,
@@ -74,6 +97,11 @@ static struct i2c_board_info i2c_devs1[] __initdata = {
 		.platform_data = &ssp_pdata,
 		.irq = GPIO_MCU_AP_INT,
 	},
+#elif defined(CONFIG_INPUT_MPU6050)
+	{
+		I2C_BOARD_INFO("mpu6050_input", 0x68),
+		.platform_data = &mpu6050_pdata,
+	},
 #endif
 };
 
@@ -88,9 +116,9 @@ static int initialize_ssp_gpio(void)
 
 	s3c_gpio_cfgpin(GPIO_AP_MCU_INT, S3C_GPIO_OUTPUT);
 	s3c_gpio_setpull(GPIO_AP_MCU_INT, S3C_GPIO_PULL_NONE);
-	gpio_direction_output(GPIO_AP_MCU_INT, 0);
+	gpio_direction_output(GPIO_AP_MCU_INT, 1);
 
-	err = gpio_request(GPIO_MCU_AP_INT_2, "AP_MCU_INT_PIN2");
+	err = gpio_request(GPIO_MCU_AP_INT_2, "MCU_AP_INT_PIN2");
 	if (err)
 		printk(KERN_ERR "failed to request AP_MCU_INT for SSP\n");
 	s3c_gpio_cfgpin(GPIO_MCU_AP_INT_2, S3C_GPIO_INPUT);
@@ -108,9 +136,9 @@ static int initialize_ssp_gpio(void)
 
 static int wakeup_mcu(void)
 {
-	gpio_set_value(GPIO_AP_MCU_INT, 1);
-	udelay(1);
 	gpio_set_value(GPIO_AP_MCU_INT, 0);
+	udelay(1);
+	gpio_set_value(GPIO_AP_MCU_INT, 1);
 
 	return 0;
 }
@@ -123,6 +151,11 @@ static int set_mcu_reset(int on)
 		gpio_set_value(GPIO_MCU_NRST, 1);
 
 	return 0;
+}
+
+static int check_mcu_busy(void)
+{
+	return gpio_get_value(GPIO_MCU_AP_INT);
 }
 
 static int check_mcu_ready(void)
@@ -144,7 +177,11 @@ static int stm_get_position(void)
 	int position = 0;
 
 #if defined(CONFIG_MACH_M3) /* C2_SPR, M3 */
-		position = 2; /* top/lower-right */
+#if defined(CONFIG_MACH_M3_USA_TMO)
+	position = 4;
+#else
+	position = 2; /* top/lower-right */
+#endif
 #elif defined(CONFIG_MACH_M0_CMCC)
 	if (system_rev == 2)
 		position = 0; /* top/upper-left */
@@ -180,12 +217,19 @@ static int stm_get_position(void)
 	else
 		position = 2; /* top/lower-right */
 #elif defined(CONFIG_MACH_GC1)
-	if (system_rev < 2)
-		position = 0; /* top/upper-left */
-	else if (system_rev < 4)
-		position = 1;/* top/upper-right */
+	if (system_rev >= 6)
+		position = 6; /* bottom/lower-right */
+	else if (system_rev == 2 || system_rev == 3)
+		position = 1; /* top/upper-right */
 	else
 		position = 0; /* top/upper-left */
+#elif defined(CONFIG_MACH_BAFFIN_KOR_SKT) || defined(CONFIG_MACH_BAFFIN_KOR_KT)
+	if (system_rev >= 2)
+		position = 3; /* top/lower-left */
+	else
+		position = 2; /* top/lower-right */
+#elif defined(CONFIG_MACH_BAFFIN_KOR_LGT)
+		position = 3; /* top/lower-left */
 #else /* Common */
 	position = 2; /* top/lower-right */
 #endif
@@ -215,7 +259,7 @@ static int accel_gpio_init(void)
 }
 #endif
 
-#ifdef CONFIG_SENSORS_LSM330DLC
+#if defined(CONFIG_SENSORS_LSM330DLC)
 static int gyro_gpio_init(void)
 {
 	int ret = gpio_request(GPIO_GYRO_INT, "lsm330dlc_gyro_irq");
@@ -262,6 +306,32 @@ static int gyro_gpio_init(void)
 }
 #endif
 
+#ifdef CONFIG_INPUT_MPU6050
+static int mpu_gpio_init(void)
+{
+	int ret = gpio_request(GPIO_GYRO_INT, "mpu_irq");
+
+	pr_info("%s\n", __func__);
+
+	if (ret) {
+		pr_err("%s, Failed to request gpio mpu_irq(%d)\n",
+			__func__, ret);
+		return ret;
+	}
+
+	/* Accelerometer sensor interrupt pin initialization */
+	s5p_register_gpio_interrupt(GPIO_GYRO_INT);
+	s3c_gpio_cfgpin(GPIO_GYRO_INT, S3C_GPIO_INPUT);
+	gpio_set_value(GPIO_GYRO_INT, 2);
+	s3c_gpio_setpull(GPIO_GYRO_INT, S3C_GPIO_PULL_NONE);
+	s5p_gpio_set_drvstr(GPIO_GYRO_INT, S5P_GPIO_DRVSTR_LV1);
+	i2c_devs1[0].irq = gpio_to_irq(GPIO_GYRO_INT);
+
+	return ret;
+}
+#endif
+
+
 #if defined(CONFIG_SENSORS_GP2A) || defined(CONFIG_SENSORS_CM36651) || \
 	defined(CONFIG_SENSORS_CM3663)
 static int proximity_leda_on(bool onoff)
@@ -291,6 +361,29 @@ static int optical_gpio_init(void)
 	s3c_gpio_setpull(GPIO_PS_ALS_EN, S3C_GPIO_PULL_NONE);
 	return ret;
 }
+
+static unsigned long gp2a_get_threshold(u8 *thesh_diff)
+{
+	unsigned long threshold = 0x09;
+
+	if (thesh_diff)
+		*thesh_diff = 1;
+
+#if defined(CONFIG_MACH_BAFFIN)
+	threshold = 0x08;
+#elif defined(CONFIG_MACH_M3_USA_TMO)
+	threshold = 0x07;
+	if (thesh_diff)
+		*thesh_diff = 2;
+#endif
+
+	if (thesh_diff)
+		pr_info("%s, threshold low = 0x%lx, high = 0x%lx\n",
+			__func__, threshold, (threshold + *thesh_diff));
+	else
+		pr_info("%s, threshold = 0x%lx\n", __func__, threshold);
+	return threshold;
+}
 #endif
 
 #if defined(CONFIG_SENSORS_CM36651)
@@ -300,15 +393,16 @@ static u8 cm36651_get_threshold(void)
 	u8 threshold = 15;
 
 	/* Add model config and threshold here. */
-#if defined(CONFIG_MACH_M0)
-		threshold = 15;
+#if defined(CONFIG_MACH_M0_DUOSCTC)
+	threshold = 13;
+#elif defined(CONFIG_MACH_M0)
+	threshold = 15;
 #elif defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) ||\
 	defined(CONFIG_MACH_C1_KOR_LGT)
 	if (system_rev >= 6)
 		threshold = 15;
 #elif defined(CONFIG_MACH_M3)
-	if (system_rev >= 11)
-		threshold = 15;
+	threshold = 14;
 #elif defined(CONFIG_MACH_C1)
 	if (system_rev >= 7)
 		threshold = 15;
@@ -334,6 +428,7 @@ static struct cm3663_platform_data cm3663_pdata = {
 static struct gp2a_platform_data gp2a_pdata = {
 	.gp2a_led_on	= proximity_leda_on,
 	.p_out = GPIO_PS_ALS_INT,
+	.gp2a_get_threshold = gp2a_get_threshold,
 };
 
 static struct platform_device opt_gp2a = {
@@ -408,6 +503,109 @@ static int ak8975c_gpio_init(void)
 }
 #endif
 
+#ifdef CONFIG_SENSORS_AK8963C
+static struct akm8963_platform_data akm8963_pdata = {
+	.gpio_data_ready_int = GPIO_MSENSOR_INT,
+	.layout = 1,
+	.outbit = 1,
+	.gpio_RST = GPIO_MSENSE_RST_N,
+};
+
+static struct i2c_board_info i2c_devs10_emul[] __initdata = {
+	{
+		I2C_BOARD_INFO("ak8963", 0x0C),
+		.platform_data = &akm8963_pdata,
+	},
+};
+
+static int ak8963c_gpio_init(void)
+{
+	int ret;
+
+	pr_info("%s\n", __func__);
+
+	ret = gpio_request(GPIO_MSENSOR_INT, "gpio_akm_int");
+	if (ret) {
+		pr_err("%s, Failed to request gpio akm_int.(%d)\n",
+			__func__, ret);
+		return ret;
+	}
+	s5p_register_gpio_interrupt(GPIO_MSENSOR_INT);
+	s3c_gpio_setpull(GPIO_MSENSOR_INT, S3C_GPIO_PULL_DOWN);
+	s3c_gpio_cfgpin(GPIO_MSENSOR_INT, S3C_GPIO_SFN(0xF));
+	i2c_devs10_emul[0].irq = gpio_to_irq(GPIO_MSENSOR_INT);
+
+	ret = gpio_request(GPIO_MSENSE_RST_N, "gpio_akm_rst");
+	if (ret) {
+		pr_err("%s, Failed to request gpio akm_rst.(%d)\n",
+			__func__, ret);
+		return ret;
+	}
+	s3c_gpio_cfgpin(GPIO_MSENSE_RST_N, S3C_GPIO_OUTPUT);
+	s3c_gpio_setpull(GPIO_MSENSE_RST_N, S3C_GPIO_PULL_NONE);
+	gpio_direction_output(GPIO_MSENSE_RST_N, 1);
+
+	return ret;
+}
+#endif
+#ifdef CONFIG_SENSORS_AK8963
+
+static char ak_get_layout(void)
+{
+	char layout = 0;
+#ifdef CONFIG_MACH_BAFFIN
+	if (system_rev >= 1)
+		layout = 3;
+	else
+		layout = 4;
+#endif
+	return layout;
+}
+
+static struct akm8963_platform_data akm8963_pdata = {
+	.layout = ak_get_layout,
+	.outbit = 1,
+	.gpio_RST = GPIO_MSENSE_RST_N,
+};
+
+static struct i2c_board_info i2c_devs10_emul[] __initdata = {
+	{
+		I2C_BOARD_INFO("akm8963", 0x0C),
+		.platform_data = &akm8963_pdata,
+	},
+};
+
+static int ak8963c_gpio_init(void)
+{
+	int ret;
+
+	pr_info("%s\n", __func__);
+
+	ret = gpio_request(GPIO_MSENSOR_INT, "gpio_akm_int");
+	if (ret) {
+		pr_err("%s, Failed to request gpio akm_int.(%d)\n",
+			__func__, ret);
+		return ret;
+	}
+	s5p_register_gpio_interrupt(GPIO_MSENSOR_INT);
+	s3c_gpio_setpull(GPIO_MSENSOR_INT, S3C_GPIO_PULL_DOWN);
+	s3c_gpio_cfgpin(GPIO_MSENSOR_INT, S3C_GPIO_SFN(0xF));
+	i2c_devs10_emul[0].irq = gpio_to_irq(GPIO_MSENSOR_INT);
+
+	ret = gpio_request(GPIO_MSENSE_RST_N, "gpio_akm_rst");
+	if (ret) {
+		pr_err("%s, Failed to request gpio akm_rst.(%d)\n",
+			__func__, ret);
+		return ret;
+	}
+	s3c_gpio_cfgpin(GPIO_MSENSE_RST_N, S3C_GPIO_OUTPUT);
+	s3c_gpio_setpull(GPIO_MSENSE_RST_N, S3C_GPIO_PULL_NONE);
+	gpio_direction_output(GPIO_MSENSE_RST_N, 1);
+
+	return ret;
+}
+#endif
+
 #ifdef CONFIG_SENSORS_LPS331
 static int lps331_gpio_init(void)
 {
@@ -462,6 +660,12 @@ static int __init midas_sensor_init(void)
 		pr_err("%s, accel_gpio_init fail(err=%d)\n", __func__, ret);
 		return ret;
 	}
+#elif defined(CONFIG_INPUT_MPU6050)
+	ret = mpu_gpio_init();
+	if (ret < 0) {
+		pr_err("%s, mpu_gpio_init fail(err=%d)\n", __func__, ret);
+		return ret;
+	}
 #elif defined(CONFIG_SENSORS_SSP)
 	initialize_ssp_gpio();
 #endif
@@ -514,12 +718,41 @@ static int __init midas_sensor_init(void)
 		return ret;
 	}
 #endif
-
+#ifdef CONFIG_SENSORS_AK8963C
+		ret = ak8963c_gpio_init();
+		if (ret < 0) {
+			pr_err("%s, ak8963c_gpio_init fail(err=%d)\n",
+							 __func__, ret);
+			return ret;
+		}
+		ret = i2c_add_devices(10, i2c_devs10_emul,
+						ARRAY_SIZE(i2c_devs10_emul));
+		if (ret < 0) {
+			pr_err("%s, i2c10 adding i2c fail(err=%d)\n",
+							__func__, ret);
+			return ret;
+		}
+#endif
+#ifdef CONFIG_SENSORS_AK8963
+		ret = ak8963c_gpio_init();
+		if (ret < 0) {
+			pr_err("%s, ak8963c_gpio_init fail(err=%d)\n",
+							 __func__, ret);
+			return ret;
+		}
+		ret = i2c_add_devices(10, i2c_devs10_emul,
+						ARRAY_SIZE(i2c_devs10_emul));
+		if (ret < 0) {
+			pr_err("%s, i2c10 adding i2c fail(err=%d)\n",
+							__func__, ret);
+			return ret;
+		}
+#endif
 	/* Pressure Sensor */
 #ifdef CONFIG_SENSORS_LPS331
 	ret = lps331_gpio_init();
 	if (ret < 0) {
-		pr_err("%s, ak8975c_gpio_init fail(err=%d)\n", __func__, ret);
+		pr_err("%s, lps331_gpio_init fail(err=%d)\n", __func__, ret);
 		return ret;
 	}
 	ret = i2c_add_devices(11, i2c_devs11_emul, ARRAY_SIZE(i2c_devs11_emul));

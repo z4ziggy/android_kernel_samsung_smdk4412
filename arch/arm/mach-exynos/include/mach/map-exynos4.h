@@ -320,7 +320,7 @@
 
 #define S5P_SZ_UART			SZ_256
 
-#ifdef CONFIG_MACH_U1_NA_SPR
+#if defined(CONFIG_MACH_U1_NA_SPR) || defined(CONFIG_MACH_U1_NA_USCC)
 #define EXYNOS4_PA_MODEMIF      (0x13A00000)
 #define S5P_PA_MODEMIF          EXYNOS4_PA_MODEMIF
 #endif

@@ -11,10 +11,10 @@
 #define __AK8963_REG__
 
 /* Compass device dependent definition */
-#define AK8963_CNTL1_SNG_MEASURE	0x01
-#define	AK8963_CNTL1_SELF_TEST		0x08
-#define	AK8963_CNTL1_FUSE_ACCESS	0x0F
-#define	AK8963_CNTL1_POWER_DOWN		0x00
+#define AK8963_CNTL1_SNG_MEASURE	0x11
+#define	AK8963_CNTL1_SELF_TEST		0x18
+#define	AK8963_CNTL1_FUSE_ACCESS	0x1F
+#define	AK8963_CNTL1_POWER_DOWN		0x10
 
 /* Rx buffer size. i.e ST,TMPS,H1X,H1Y,H1Z*/
 #define SENSOR_DATA_SIZE		8

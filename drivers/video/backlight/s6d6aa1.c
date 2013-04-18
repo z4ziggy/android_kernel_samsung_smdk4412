@@ -704,8 +704,6 @@ static int s6d6aa1_notifier_callback(struct notifier_block *this,
 	if (lcd->power == FB_BLANK_POWERDOWN)
 		return NOTIFY_DONE;
 
-	/* chulspro_dbg log */
-	printk(KERN_INFO"[S6D6AA0]%s:event[%ld]\n", __func__, event);
 	switch (event) {
 	case EXYNOS4_DISPLAY_LV_HF:
 		s6d6aa1_panel_ctl(lcd, 1);
@@ -853,18 +851,23 @@ static int s6d6aa1_probe(struct mipi_dsim_lcd_device *dsim_dev)
 	}
 
 	s6d6aa1_regulator_ctl(lcd, true);
+
+	if (lcd->ddi_pd)
+		lcd->property = lcd->ddi_pd->pdata;
+
 #if defined(CONFIG_ARM_EXYNOS4_DISPLAY_DEVFREQ) || defined(CONFIG_DISPFREQ_OPP)
-	lcd->nb_disp.notifier_call = s6d6aa1_notifier_callback;
-	ret = exynos4_display_register_client(&lcd->nb_disp);
-	if (ret < 0)
-		dev_warn(&lcd->ld->dev, "failed to register exynos-display notifier\n");
+	if (lcd->property && lcd->property->dynamic_refresh) {
+		lcd->nb_disp.notifier_call = s6d6aa1_notifier_callback;
+		ret = exynos4_display_register_client(&lcd->nb_disp);
+		if (ret < 0)
+			dev_warn(&lcd->ld->dev, "failed to register exynos-display notifier\n");
+	}
 #endif
+
 	lcd->bd->props.max_brightness = MAX_BRIGHTNESS;
 	lcd->bd->props.brightness = MAX_BRIGHTNESS;
 	lcd->power = FB_BLANK_UNBLANK;
 	lcd->wm_mode = WM_MODE_CONSERVATIVE;
-	if (lcd->ddi_pd)
-		lcd->property = lcd->ddi_pd->pdata;
 	lcd->model = s6d6aa1_model;
 	lcd->model_count = ARRAY_SIZE(s6d6aa1_model);
 	for (i = 0; i < ARRAY_SIZE(device_attrs); i++) {
@@ -905,7 +908,8 @@ static void s6d6aa1_remove(struct mipi_dsim_lcd_device *dsim_dev)
 	regulator_put(lcd->reg_vddi);
 
 #if defined(CONFIG_ARM_EXYNOS4_DISPLAY_DEVFREQ) || defined(CONFIG_DISPFREQ_OPP)
-	exynos4_display_unregister_client(&lcd->nb_disp);
+	if (lcd->property && lcd->property->dynamic_refresh)
+		exynos4_display_unregister_client(&lcd->nb_disp);
 #endif
 	kfree(lcd);
 }

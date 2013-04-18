@@ -147,6 +147,8 @@ struct Si4709_device_t {
 
 	/*will be true is the client ans state fields are correct */
 	unsigned short valid_client_state;
+
+	u8 vol_idx;
 };
 
 extern int Si4709_dev_wait_flag;

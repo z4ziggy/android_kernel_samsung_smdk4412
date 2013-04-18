@@ -41,6 +41,7 @@
  * big pages broken.
  */
 #define MAX_RXDATA_SIZE		0x0E00	/* 4 * 1024 - 512 */
+#define MAX_BOOTDATA_SIZE	0x4008	/* EBL package format*/
 #define MAX_MULTI_FMT_SIZE	0x4000	/* 16 * 1024 */
 
 static const char hdlc_start[1] = { HDLC_START };
@@ -978,8 +979,9 @@ static void io_dev_modem_state_changed(struct io_device *iod,
 static void io_dev_sim_state_changed(struct io_device *iod, bool sim_online)
 {
 	if (atomic_read(&iod->opened) == 0) {
-		mif_err("iod is not opened: %s\n",
-				iod->name);
+		mif_err("iod is not opened: %s\n", iod->name);
+		/* update latest sim status */
+		iod->mc->sim_state.online = sim_online;
 	} else if (iod->mc->sim_state.online == sim_online) {
 		mif_err("sim state not changed.\n");
 	} else {
@@ -1050,6 +1052,9 @@ static unsigned int misc_poll(struct file *filp, struct poll_table_struct *wait)
 	} else if ((iod->mc->phone_state == STATE_CRASH_RESET) ||
 			(iod->mc->phone_state == STATE_CRASH_EXIT) ||
 			(iod->mc->phone_state == STATE_NV_REBUILDING) ||
+#if defined(CONFIG_SEC_DUAL_MODEM_MODE)
+			(iod->mc->phone_state == STATE_MODEM_SWITCH) ||
+#endif
 			(iod->mc->sim_state.changed)) {
 		if (iod->format == IPC_RAW) {
 			msleep(20);
@@ -1069,6 +1074,7 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	char cpinfo_buf[530] = "CP Crash ";
 	unsigned long size;
 	int ret;
+	char str[TASK_COMM_LEN];
 
 	mif_debug("cmd = 0x%x\n", cmd);
 
@@ -1106,10 +1112,13 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		    (p_state == STATE_CRASH_EXIT)) {
 			mif_err("<%s> send err state : %d\n",
 				iod->name, p_state);
-		} else if (iod->mc->sim_state.changed) {
+		} else if (iod->mc->sim_state.changed &&
+			!strcmp(get_task_comm(str, get_current()), "rild")) {
 			int s_state = iod->mc->sim_state.online ?
 					STATE_SIM_ATTACH : STATE_SIM_DETACH;
 			iod->mc->sim_state.changed = false;
+
+			mif_info("SIM states (%d) to %s\n", s_state, str);
 			return s_state;
 		} else if (p_state == STATE_NV_REBUILDING) {
 			mif_info("send nv rebuild state : %d\n",
@@ -1163,6 +1172,14 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		mif_err("misc_ioctl : IOCTL_MODEM_DUMP_RESET\n");
 		return iod->mc->ops.modem_dump_reset(iod->mc);
 
+#if defined(CONFIG_SEC_DUAL_MODEM_MODE)
+	case IOCTL_MODEM_SWITCH_MODEM:
+		mif_err("misc_ioctl : IOCTL_MODEM_SWITCH_MODEM\n");
+		iod->mc->phone_state = STATE_MODEM_SWITCH;
+		wake_up(&iod->wq);
+		return 0;
+#endif
+
 	case IOCTL_MIF_LOG_DUMP:
 		size = MAX_MIF_BUFF_SIZE;
 		ret = copy_to_user((void __user *)arg, &size,
@@ -1200,6 +1217,42 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	return 0;
 }
 
+static size_t _boot_write(struct io_device *iod, const char __user *buf,
+								size_t count)
+{
+	int rest_len = count, frame_len = 0;
+	char *cur = (char *)buf;
+	struct sk_buff *skb = NULL;
+	struct link_device *ld = get_current_link(iod);
+	int ret;
+
+	while (rest_len) {
+		frame_len = min(rest_len, MAX_BOOTDATA_SIZE);
+		skb = alloc_skb(frame_len, GFP_KERNEL);
+		if (!skb) {
+			mif_err("fail alloc skb (%d)\n", __LINE__);
+			return -ENOMEM;
+		}
+		if (copy_from_user(
+				skb_put(skb, frame_len), cur, frame_len) != 0) {
+			dev_kfree_skb_any(skb);
+			return -EFAULT;
+		}
+		rest_len -= frame_len;
+		cur += frame_len;
+
+		skbpriv(skb)->iod = iod;
+		skbpriv(skb)->ld = ld;
+
+		ret = ld->send(ld, iod, skb);
+		if (ret < 0) {
+			dev_kfree_skb_any(skb);
+			return ret;
+		}
+	}
+	return count;
+}
+
 static ssize_t misc_write(struct file *filp, const char __user *buf,
 			size_t count, loff_t *ppos)
 {
@@ -1222,6 +1275,10 @@ static ssize_t misc_write(struct file *filp, const char __user *buf,
 
 	skb = alloc_skb(frame_len, GFP_KERNEL);
 	if (!skb) {
+		if (frame_len > MAX_BOOTDATA_SIZE && iod->format == IPC_BOOT) {
+			mif_info("large alloc fail\n");
+			return _boot_write(iod, buf, count);
+		}
 		mif_err("fail alloc skb (%d)\n", __LINE__);
 		return -ENOMEM;
 	}
@@ -1486,7 +1543,8 @@ static int vnet_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	/* ip loop-back */
 	ip_header = (struct iphdr *)skb->data;
-	if (ip_header->daddr == iod->msd->loopback_ipaddr) {
+	if (iod->msd->loopback_ipaddr &&
+		ip_header->daddr == iod->msd->loopback_ipaddr) {
 		swap(ip_header->saddr, ip_header->daddr);
 		hd.channel = DATA_LOOPBACK_CHANNEL;
 	} else {

@@ -1,5 +1,5 @@
 /*
- *  midas_wm1811.c
+ *  grande_wm1811.c
  *
  *  Copyright (c) 2011 Samsung Electronics Co. Ltd
  *
@@ -32,6 +32,7 @@
 #include <linux/mfd/wm8994/core.h>
 #include <linux/mfd/wm8994/registers.h>
 #include <linux/mfd/wm8994/pdata.h>
+#include <linux/mfd/wm8994/gpio.h>
 
 #if defined(CONFIG_SND_USE_MUIC_SWITCH)
 #include <linux/mfd/max77693-private.h>
@@ -67,7 +68,7 @@ static struct wm8958_micd_rate midas_det_rates[] = {
 static struct wm8958_micd_rate midas_jackdet_rates[] = {
 	{ MIDAS_DEFAULT_MCLK2,     true,  0,  0 },
 	{ MIDAS_DEFAULT_MCLK2,    false,  0,  0 },
-	{ MIDAS_DEFAULT_SYNC_CLK,  true, 12, 12 },
+	{ MIDAS_DEFAULT_SYNC_CLK,  true, 11, 11 },
 	{ MIDAS_DEFAULT_SYNC_CLK, false,  7,  8 },
 };
 
@@ -96,6 +97,10 @@ const char *modem_mode_text[] = {
 	"CP1", "CP2"
 };
 
+static int aif2_digital_mute;
+const char *switch_mode_text[] = {
+	"Off", "On"
+};
 
 #ifndef CONFIG_SEC_DEV_JACK
 /* To support PBA function test */
@@ -219,6 +224,43 @@ static int set_modem_mode(struct snd_kcontrol *kcontrol,
 
 }
 
+static const struct soc_enum switch_mode_enum[] = {
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(switch_mode_text), switch_mode_text),
+};
+
+static int get_aif2_mute_status(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = aif2_digital_mute;
+	return 0;
+}
+
+static int set_aif2_mute_status(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	int reg;
+
+	aif2_digital_mute = ucontrol->value.integer.value[0];
+
+	if (snd_soc_read(codec, WM8994_POWER_MANAGEMENT_6)
+		& WM8994_AIF2_DACDAT_SRC)
+		aif2_digital_mute = 0;
+
+	if (aif2_digital_mute)
+		reg = WM8994_AIF1DAC1_MUTE;
+	else
+		reg = 0;
+
+	snd_soc_update_bits(codec, WM8994_AIF2_DAC_FILTERS_1,
+		WM8994_AIF1DAC1_MUTE, reg);
+
+	pr_info("aif2_digit_mute: %s\n", switch_mode_text[aif2_digital_mute]);
+
+	return 0;
+}
+
+
 static const struct soc_enum lineout_mode_enum[] = {
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(lineout_mode_text), lineout_mode_text),
 };
@@ -236,17 +278,6 @@ static int set_lineout_mode(struct snd_kcontrol *kcontrol,
 	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
 
 	lineout_mode = ucontrol->value.integer.value[0];
-
-#ifdef CONFIG_SND_USE_LINEOUT_SWITCH
-	if (lineout_mode) {
-		wm8994_vmid_mode(codec, WM8994_VMID_FORCE);
-		gpio_set_value(GPIO_LINEOUT_EN, 1);
-	} else {
-		gpio_set_value(GPIO_LINEOUT_EN, 0);
-		msleep(50);
-		wm8994_vmid_mode(codec, WM8994_VMID_NORMAL);
-	}
-#endif
 	dev_dbg(codec->dev, "set lineout mode : %s\n",
 		lineout_mode_text[lineout_mode]);
 	return 0;
@@ -430,6 +461,16 @@ static int midas_lineout_switch(struct snd_soc_dapm_widget *w,
 	}
 #endif
 
+#ifdef CONFIG_SND_USE_LINEOUT_SWITCH
+	switch (event) {
+	case SND_SOC_DAPM_POST_PMU:
+		gpio_set_value(GPIO_LINEOUT_EN, 1);
+		break;
+	case SND_SOC_DAPM_PRE_PMD:
+		gpio_set_value(GPIO_LINEOUT_EN, 0);
+		break;
+	}
+#endif
 	return 0;
 }
 
@@ -841,7 +882,7 @@ static int midas_wm1811_aif2_hw_params(struct snd_pcm_substream *substream,
 		prate = 8000;
 	}
 
-#if defined(CONFIG_MACH_GRANDE)
+#if defined(CONFIG_MACH_GRANDE) || defined(CONFIG_MACH_M0_DUOSCTC)
 	if (aif2_mode == 0)
 		/* Set the codec DAI configuration */
 		ret = snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_DSP_A
@@ -882,7 +923,7 @@ static int midas_wm1811_aif2_hw_params(struct snd_pcm_substream *substream,
 	if (ret < 0)
 		return ret;
 
-#if defined(CONFIG_MACH_GRANDE)
+#if defined(CONFIG_MACH_GRANDE) || defined(CONFIG_MACH_M0_DUOSCTC)
 	bclk = 2048000;
 #elif defined(CONFIG_MACH_IRON)
 	if (modem_mode == 1)
@@ -979,6 +1020,10 @@ static const struct snd_kcontrol_new midas_controls[] = {
 
 	SOC_ENUM_EXT("ModemSwitch Mode", modem_mode_enum[0],
 		get_modem_mode, set_modem_mode),
+
+	SOC_ENUM_EXT("AIF2 digital mute", switch_mode_enum[0],
+		get_aif2_mute_status, set_aif2_mute_status),
+
 };
 
 const struct snd_soc_dapm_widget midas_dapm_widgets[] = {
@@ -1015,6 +1060,19 @@ const struct snd_soc_dapm_route midas_dapm_routes[] = {
 	{ "HDMI", NULL, "LINEOUT1N" },
 	{ "HDMI", NULL, "LINEOUT1P" },
 
+#if defined(CONFIG_MACH_M0_DUOSCTC)
+	{ "IN2LP:VXRN", NULL, "Main Mic" },
+	{ "IN2LN", NULL, "Main Mic" },
+
+	{ "IN1RP", NULL, "MICBIAS1" },
+	{ "IN1RN", NULL, "MICBIAS1" },
+	{ "MICBIAS1", NULL, "Sub Mic" },
+
+	{ "IN1LP", NULL, "MICBIAS2" },
+	{ "MICBIAS2", NULL, "Headset Mic" },
+	{ "IN1LN", NULL, "MICBIAS2" },
+	{ "MICBIAS2", NULL, "Headset Mic" },
+#else
 	{ "IN1LP", NULL, "MICBIAS1" },
 	{ "IN1LN", NULL, "MICBIAS1" },
 	{ "MICBIAS1", NULL, "Main Mic" },
@@ -1024,7 +1082,7 @@ const struct snd_soc_dapm_route midas_dapm_routes[] = {
 
 	{ "IN2LP:VXRN", NULL, "MICBIAS2" },
 	{ "MICBIAS2", NULL, "Headset Mic" },
-
+#endif
 	{ "AIF1DAC1L", NULL, "S5P RP" },
 	{ "AIF1DAC1R", NULL, "S5P RP" },
 
@@ -1416,16 +1474,6 @@ static int midas_card_suspend_pre(struct snd_soc_card *card)
 	struct snd_soc_codec *codec = card->rtd->codec;
 	struct wm8994_priv *wm8994 = snd_soc_codec_get_drvdata(codec);
 
-#ifdef CONFIG_SND_USE_LINEOUT_SWITCH
-	if (lineout_mode == 1 &&
-		wm8994->vmid_mode == WM8994_VMID_FORCE) {
-		dev_dbg(codec->dev,
-			"%s: entering force vmid mode\n", __func__);
-		gpio_set_value(GPIO_LINEOUT_EN, 0);
-		msleep(50);
-		wm8994_vmid_mode(codec, WM8994_VMID_NORMAL);
-	}
-#endif
 #ifdef CONFIG_SEC_DEV_JACK
 	snd_soc_dapm_disable_pin(&codec->dapm, "AIF1CLK");
 #endif
@@ -1516,7 +1564,8 @@ static int midas_card_resume_post(struct snd_soc_card *card)
 {
 	struct snd_soc_codec *codec = card->rtd->codec;
 	struct wm8994_priv *wm8994 = snd_soc_codec_get_drvdata(codec);
-
+	int reg = 0;
+#if !defined(CONFIG_MACH_M0_DUOSCTC)
 	snd_soc_write(codec, 0x102, 0x3);
 	snd_soc_write(codec, 0xcb,  0x5151);
 	snd_soc_write(codec, 0xd3, 0x3f3f);
@@ -1527,16 +1576,19 @@ static int midas_card_resume_post(struct snd_soc_card *card)
 	snd_soc_write(codec, 0xd1,  0x87);
 	snd_soc_write(codec, 0x3b,  0x9);
 	snd_soc_write(codec, 0x3c,  0x2);
-
-#ifdef CONFIG_SND_USE_LINEOUT_SWITCH
-	if (lineout_mode == 1 &&
-		wm8994->vmid_mode == WM8994_VMID_NORMAL) {
-		dev_dbg(codec->dev,
-			"%s: entering normal vmid mode\n", __func__);
-		wm8994_vmid_mode(codec, WM8994_VMID_FORCE);
-		gpio_set_value(GPIO_LINEOUT_EN, 1);
-	}
 #endif
+
+	/* workaround for jack detection
+	 * sometimes WM8994_GPIO_1 type changed wrong function type
+	 * so if type mismatched, update to IRQ type
+	 */
+	reg = snd_soc_read(codec, WM8994_GPIO_1);
+
+	if ((reg & WM8994_GPN_FN_MASK) != WM8994_GP_FN_IRQ) {
+		dev_err(codec->dev, "%s: GPIO1 type 0x%x\n", __func__, reg);
+		snd_soc_write(codec, WM8994_GPIO_1, WM8994_GP_FN_IRQ);
+	}
+
 #ifdef CONFIG_SEC_DEV_JACK
 	snd_soc_dapm_force_enable_pin(&codec->dapm, "AIF1CLK");
 #endif

@@ -63,8 +63,8 @@ static int start_ipc(struct link_device *ld, struct io_device *iod)
 	struct usb_link_device *usb_ld = to_usb_link_device(ld);
 	struct if_usb_devdata *pipe_data = &usb_ld->devdata[IF_USB_FMT_EP];
 
-	if (usb_ld->link_pm_data->hub_handshake_done) {
-		mif_err("Aleady send start ipc, skip start ipc\n");
+	if (has_hub(usb_ld) && usb_ld->link_pm_data->hub_handshake_done) {
+		mif_err("Already send start ipc, skip start ipc\n");
 		err = 0;
 		goto exit;
 	}
@@ -75,8 +75,9 @@ static int start_ipc(struct link_device *ld, struct io_device *iod)
 		goto exit;
 	}
 
-	if (usb_ld->if_usb_initstates == INIT_IPC_START_DONE) {
-		mif_debug("aleady IPC started\n");
+	if (has_hub(usb_ld) &&
+		usb_ld->if_usb_initstates == INIT_IPC_START_DONE) {
+		mif_debug("Already IPC started\n");
 		err = 0;
 		goto exit;
 	}
@@ -595,8 +596,10 @@ static void if_usb_disconnect(struct usb_interface *intf)
 {
 	struct usb_link_device *usb_ld  = usb_get_intfdata(intf);
 	struct usb_device *usbdev = usb_ld->usbdev;
+	struct link_pm_data *pm_data = usb_ld->link_pm_data;
 	int dev_id = intf->altsetting->desc.bInterfaceNumber;
 	struct if_usb_devdata *pipe_data = &usb_ld->devdata[dev_id];
+
 
 	usb_set_intfdata(intf, NULL);
 
@@ -621,6 +624,8 @@ static void if_usb_disconnect(struct usb_interface *intf)
 		cancel_delayed_work_sync(&usb_ld->ld.tx_delayed_work);
 		usb_put_dev(usbdev);
 		usb_ld->usbdev = NULL;
+		if (!has_hub(usb_ld))
+			pm_runtime_forbid(pm_data->root_hub);
 	}
 }
 
@@ -760,7 +765,7 @@ static int __devinit if_usb_probe(struct usb_interface *intf,
 					dev_name(ehci_dev));
 			pm_runtime_allow(ehci_dev);
 
-			if (pm_data->block_autosuspend)
+			if (!pm_data->autosuspend)
 				pm_runtime_forbid(dev);
 
 			if (has_hub(usb_ld))

@@ -14,25 +14,25 @@
 
 #define VALUE_DIM_1000	1000
 #define VT_255_div_1000	605000
-#define VREG_OUT_1000		6500
-#define VREG_OUT_1000_1024	6656000
+#define VREG_OUT_1000		6100
+#define VREG_OUT_1000_1024	6246400
 #define VT_255_calc_param	(VT_255_div_1000 / VREG_OUT_1000)
 
-const u8 range_table_count[IV_TABLE_MAX] = {
+static const u8 range_table_count[IV_TABLE_MAX] = {
 	3, 8, 12, 12, 16, 36, 64, 52, 52, 1
 };
 
-const u32 table_radio[IV_TABLE_MAX] = {
+static const u32 table_radio[IV_TABLE_MAX] = {
 	16384, 4138, 2763, 2763, 2080, 918, 516, 636, 636, 0
 };
 
-const u32 dv_value[IV_MAX] = {
+static const u32 dv_value[IV_MAX] = {
 	0, 3, 11, 23, 35, 51, 87, 151, 203, 255
 };
 
-const char color_name[3] = {'R', 'G', 'B'};
+static const char color_name[3] = {'R', 'G', 'B'};
 
-const u8 *offset_table[IV_TABLE_MAX] = {
+static const u8 *offset_table[IV_TABLE_MAX] = {
 	NULL, /*V3*/
 	NULL, /*V11*/
 	NULL, /*V23*/
@@ -45,19 +45,34 @@ const u8 *offset_table[IV_TABLE_MAX] = {
 	NULL  /*V255*/
 };
 
-const unsigned char gamma_300cd_12[] = {
+static const unsigned char gamma_300cd_00[] = {
 	0x00, 0xE8, 0x00, 0xF7, 0x01, 0x03,
 	0xDB, 0xDB, 0xDC, 0xD9, 0xD8, 0xDA, 0xCB, 0xC8, 0xCB,
 	0xD4, 0xD3, 0xD7, 0xE6, 0xE6, 0xEA, 0xE2, 0xE4, 0xE5,
 	0xCE, 0xC3, 0xCF, 0xB9, 0x9D, 0xDE, 0x01, 0x01, 0x00
 };
 
-const unsigned char *gamma_300cd_list[GAMMA_300CD_MAX] = {
-	gamma_300cd_12,
+static const unsigned char gamma_300cd_02[] = {
+	0x01, 0x00, 0x01, 0x00, 0x01, 0x00,
+	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01, 0x03, 0x02
 };
 
-const unsigned char gamma_id_list[GAMMA_300CD_MAX] = {
-	0x12,
+static const unsigned char *gamma_300cd_list[GAMMA_300CD_MAX] = {
+	gamma_300cd_00,
+	gamma_300cd_00,
+	gamma_300cd_02,
+	gamma_300cd_02,
+	gamma_300cd_02,
+	gamma_300cd_02,
+	gamma_300cd_02,
+	gamma_300cd_02,
+	gamma_300cd_02,
+};
+
+static const unsigned char gamma_id_list[GAMMA_300CD_MAX] = {
+	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x25, 0x26,
 };
 
 static s16 s9_to_s16(s16 v)
@@ -65,7 +80,7 @@ static s16 s9_to_s16(s16 v)
 	return (s16)(v << 7) >> 7;
 }
 
-u32 calc_vt_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_vt_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	u32 ret = 0;
 
@@ -74,7 +89,7 @@ u32 calc_vt_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 	return ret;
 }
 
-u32 calc_v3_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v3_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	/* for CV : 64, DV :320 */
 	int ret = 0;
@@ -91,7 +106,7 @@ u32 calc_v3_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 	return ret;
 }
 
-u32 calc_v11_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v11_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	/* for CV : 64, DV :320*/
 	int ret = 0;
@@ -108,7 +123,7 @@ u32 calc_v11_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 	return ret;
 }
 
-u32 calc_v23_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v23_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	/* for CV : 64, DV :319 */
 	int ret = 0;
@@ -125,7 +140,7 @@ u32 calc_v23_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 	return ret;
 }
 
-u32 calc_v35_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v35_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	/* for CV : 65, DV :319 */
 	int ret = 0;
@@ -142,7 +157,7 @@ u32 calc_v35_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 	return ret;
 }
 
-u32 calc_v51_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v51_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	/* for CV : 65, DV :319 */
 	int ret = 0;
@@ -160,7 +175,7 @@ u32 calc_v51_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 
 }
 
-u32 calc_v87_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v87_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	/* for CV : 64, DV :319 */
 	int ret = 0;
@@ -177,7 +192,7 @@ u32 calc_v87_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 	return ret;
 }
 
-u32 calc_v151_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v151_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	/* for CV : 64, DV :319 */
 	int ret = 0;
@@ -194,7 +209,7 @@ u32 calc_v151_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 	return ret;
 }
 
-u32 calc_v203_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v203_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	/* for CV : 64, DV :319 */
 	int ret = 0;
@@ -211,7 +226,7 @@ u32 calc_v203_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 	return ret;
 }
 
-u32 calc_v255_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v255_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	u32 ret = 0;
 
@@ -220,7 +235,7 @@ u32 calc_v255_volt(s16 gamma, int rgb_index, u32 adjust_volt[CI_MAX][AD_IVMAX])
 	return ret;
 }
 
-u8 calc_voltage_table(struct str_smart_dim *smart, const u8 *mtp)
+u8 calc_voltage_table_ea8061(struct str_smart_dim *smart, const u8 *mtp)
 {
 	int c, i, j;
 #if defined(MTP_REVERSE)
@@ -347,7 +362,7 @@ u8 calc_voltage_table(struct str_smart_dim *smart, const u8 *mtp)
 }
 
 
-int init_table_info(struct str_smart_dim *smart)
+int init_table_info_ea8061(struct str_smart_dim *smart)
 {
 	int i;
 	int offset = 0;
@@ -361,16 +376,24 @@ int init_table_info(struct str_smart_dim *smart)
 
 	smart->flooktbl = flookup_table;
 	smart->g300_gra_tbl = gamma_300_gra_table;
-	smart->gamma_table[G_21] = gamma_21_table;
-	smart->gamma_table[G_212] = gamma_212_table;
-	smart->gamma_table[G_22] = gamma_22_table;
+	smart->gamma_table[G_21] = GAMMA_CONTROL_TABLE[G_21];
+	smart->gamma_table[G_213] = GAMMA_CONTROL_TABLE[G_213];
+	smart->gamma_table[G_215] = GAMMA_CONTROL_TABLE[G_215];
+	smart->gamma_table[G_218] = GAMMA_CONTROL_TABLE[G_218];
+	smart->gamma_table[G_22] = GAMMA_CONTROL_TABLE[G_22];
+	smart->gamma_table[G_221] = GAMMA_CONTROL_TABLE[G_221];
+	smart->gamma_table[G_222] = GAMMA_CONTROL_TABLE[G_222];
+	smart->gamma_table[G_223] = GAMMA_CONTROL_TABLE[G_223];
+	smart->gamma_table[G_224] = GAMMA_CONTROL_TABLE[G_224];
+	smart->gamma_table[G_225] = GAMMA_CONTROL_TABLE[G_225];
 
 	for (i = 0; i < GAMMA_300CD_MAX; i++) {
-		if (smart->panelid[1] == gamma_id_list[i])
+		if (smart->panelid[2] == gamma_id_list[i])
 			break;
 	}
 
 	if (i >= GAMMA_300CD_MAX) {
+		printk(KERN_ERR "[SMART DIMMING-WARNING] %s Can't found default gamma table\n", __func__);
 		smart->default_gamma = gamma_300cd_list[GAMMA_300CD_MAX-1];
 	} else
 		smart->default_gamma = gamma_300cd_list[i];
@@ -378,7 +401,7 @@ int init_table_info(struct str_smart_dim *smart)
 	return 0;
 }
 
-u32 lookup_vtbl_idx(struct str_smart_dim *smart, u32 gamma)
+static u32 lookup_vtbl_idx(struct str_smart_dim *smart, u32 gamma)
 {
 	u32 lookup_index;
 	u16 table_count, table_index;
@@ -440,12 +463,12 @@ u32 lookup_vtbl_idx(struct str_smart_dim *smart, u32 gamma)
 	return candidate;
 }
 
-u32 calc_vt_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_vt_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	return 0;
 }
 
-u32 calc_v3_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v3_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	u32 t1, t2;
 	u32 v0 = VREG_OUT_1000, v3, v11;
@@ -463,7 +486,7 @@ u32 calc_v3_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX
 	return ret;
 }
 
-u32 calc_v11_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v11_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	u32 t1, t2;
 	u32 vt, v11, v23;
@@ -480,7 +503,7 @@ u32 calc_v11_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMA
 	return ret;
 }
 
-u32 calc_v23_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v23_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	u32 t1, t2;
 	u32 vt, v23, v35;
@@ -499,7 +522,7 @@ u32 calc_v23_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMA
 	return ret;
 }
 
-u32 calc_v35_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v35_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	u32 t1, t2;
 	u32 vt, v35, v51;
@@ -518,7 +541,7 @@ u32 calc_v35_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMA
 	return ret;
 }
 
-u32 calc_v51_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v51_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	u32 t1, t2;
 	u32 vt, v51, v87;
@@ -538,7 +561,7 @@ u32 calc_v51_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMA
 }
 
 
-u32 calc_v87_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v87_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	u32 t1, t2;
 	u32 vt, v87, v151;
@@ -557,7 +580,7 @@ u32 calc_v87_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMA
 	return ret;
 }
 
-u32 calc_v151_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v151_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	u32 t1, t2;
 	u32 vt, v151, v203;
@@ -570,13 +593,13 @@ u32 calc_v151_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVM
 
 	t1 = (vt - v151) << 10;
 	t2 = (vt - v203) ? (vt - v203) : (vt) ? vt : 1;
-	ret = (320 * (t1/t2)) - (65 << 10);
+	ret = (320 * (t1/t2)) - (64 << 10);
 	ret >>= 10;
 
 	return ret;
 }
 
-u32 calc_v203_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v203_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	u32 t1, t2;
 	u32 vt, v151, v255;
@@ -595,7 +618,7 @@ u32 calc_v203_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVM
 	return ret;
 }
 
-u32 calc_v255_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
+static u32 calc_v255_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX])
 {
 	u32 ret;
 	u32 v255;
@@ -607,7 +630,7 @@ u32 calc_v255_reg(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVM
 	return ret;
 }
 
-u32 calc_gamma_table(struct str_smart_dim *smart, u32 gv, u8 result[], u8 gamma_curve, const u8 *mtp)
+u32 calc_gamma_table_ea8061(struct str_smart_dim *smart, u32 gv, u8 result[], u8 gamma_curve, const u8 *mtp)
 {
 	u32 i, c, t1;
 	u32 temp;
@@ -699,7 +722,7 @@ for (i = IV_VT; i < IV_255; i++)  {
 return 0;
 }
 
-u32 calc_gamma_table_215_190(struct str_smart_dim *smart, u32 gv, u8 result[], u8 gamma_curve, const u8 *mtp)
+u32 calc_gamma_table_190_ea8061(struct str_smart_dim *smart, u32 gv, u8 result[], u8 gamma_curve, const u8 *mtp)
 {
 	u32 i, c, t1;
 	u32 temp;
@@ -727,9 +750,12 @@ u32 calc_gamma_table_215_190(struct str_smart_dim *smart, u32 gv, u8 result[], u
 #endif
 
 	for (i = IV_3; i < IV_MAX; i++) {
-		if (i ==  IV_23) {
+		if (i ==  IV_151) {
 			temp = (smart->gamma_table[gamma_curve][dv_value[i]] * gv)/1000;
-			lidx_215_190 = lookup_vtbl_idx(smart, temp)+1;
+			lidx_215_190 = lookup_vtbl_idx(smart, temp)-1;
+		} else if ((i ==  IV_203) || (i ==  IV_255)) {
+			temp = (smart->gamma_table[gamma_curve][dv_value[i]] * gv)/1000;
+			lidx_215_190 = lookup_vtbl_idx(smart, temp)-2;
 		} else {
 			temp = (smart->gamma_table[gamma_curve][dv_value[i]] * gv)/1000;
 			lidx_215_190 = lookup_vtbl_idx(smart, temp);
@@ -789,6 +815,102 @@ u32 calc_gamma_table_215_190(struct str_smart_dim *smart, u32 gv, u8 result[], u
 		printk("V Level : %d - ", i);
 		for (c = CI_RED; c < CI_MAX; c++)
 				printk("2.15Gamma %c : %3d, 0x%2x", color_name[c], gamma_215_190[c][i], gamma_215_190[c][i]);
+		printk("\n");
+	}
+#endif
+	return 0;
+}
+
+u32 calc_gamma_table_20_100_ea8061(struct str_smart_dim *smart, u32 gv, u8 result[], u8 gamma_curve, const u8 *mtp)
+{
+	u32 i, c, t1;
+	u32 temp;
+	u32 lidx_110;
+	u32 dv[CI_MAX][IV_MAX];
+	s16 gamma_110[CI_MAX][IV_MAX];
+	u16 offset;
+	u32(*calc_reg[IV_MAX])(int ci, u32 dv[CI_MAX][IV_MAX], u32 adjust_volt[CI_MAX][AD_IVMAX]) = {
+		calc_vt_reg,
+		calc_v3_reg,
+		calc_v11_reg,
+		calc_v23_reg,
+		calc_v35_reg,
+		calc_v51_reg,
+		calc_v87_reg,
+		calc_v151_reg,
+		calc_v203_reg,
+		calc_v255_reg,
+	};
+	memset(gamma_110, 0, sizeof(gamma_110));
+
+#if 0
+	for (c = CI_RED; c < CI_MAX; c++)
+		dv[c][IV_1] = smart->ve[AD_IV1].v[c];
+#endif
+
+	for (i = IV_3; i < IV_MAX; i++) {
+		if (i ==  IV_11) {
+			temp = (smart->gamma_table[gamma_curve][dv_value[i]] * gv)/1000;
+			lidx_110 = lookup_vtbl_idx(smart, temp)-1;
+		} else {
+			temp = (smart->gamma_table[gamma_curve][dv_value[i]] * gv)/1000;
+			lidx_110 = lookup_vtbl_idx(smart, temp);
+		}
+
+		for (c = CI_RED; c < CI_MAX; c++)
+			dv[c][i] = smart->ve[lidx_110].v[c];
+	}
+
+	for (c = CI_RED; c < CI_MAX; c++) {
+		offset = c*2;
+		t1 = s9_to_s16(mtp[offset]<<8|mtp[offset+1]);
+		smart->mtp[c][IV_255] = t1;
+	}
+
+	for (i = 1; i < 10; i++) {
+		for (c = CI_RED; c < CI_MAX; c++) {
+			t1 = (s8)mtp[CI_MAX*(i + 1)+c];
+			smart->mtp[c][IV_255 - i] = t1;
+		}
+	}
+
+	/* for IV1 does not calculate value */
+	/* just use default gamma value (IV1) */
+#if 0
+	for (c = CI_RED; c < CI_MAX; c++)
+		gamma_210_110[c][IV_VT] = smart->default_gamma[c];
+#endif
+
+	for (i = IV_3; i < IV_MAX; i++) {
+		for (c = CI_RED; c < CI_MAX; c++)
+			gamma_110[c][i] = (s16)calc_reg[i](c, dv, smart->adjust_volt) - smart->mtp[c][i];
+	}
+
+	for (c = CI_RED; c < CI_MAX; c++) {
+		offset = IV_255*CI_MAX+c*2;
+		result[offset+1] = gamma_110[c][IV_255] & 0xff;
+		result[offset] = (u8)((gamma_110[c][IV_255] >> 8) & 0xff);
+	}
+
+	for (c = CI_RED; c < CI_MAX; c++) {
+		for (i = IV_VT; i < IV_255; i++)
+			result[(CI_MAX*i)+c] = gamma_110[c][i];
+	}
+
+#if 0
+	printk(KERN_INFO "\n\n++++++++++++++++++++++++++++++ FOUND VOLTAGE ++++++++++++++++++++++++++++++\n");
+	for (i = IV_VT; i < IV_MAX; i++) {
+		printk("V Level : %d - ", i);
+		for (c = CI_RED; c < CI_MAX; c++)
+			printk("%c : %04dV", color_name[c], dv[c][i]);
+		printk("\n");
+	}
+
+	printk(KERN_INFO "\n\n++++++++++++++++++++++++++++++ FOUND REG ++++++++++++++++++++++++++++++\n");
+	for (i = IV_VT; i < IV_MAX; i++) {
+		printk("V Level : %d - ", i);
+		for (c = CI_RED; c < CI_MAX; c++)
+			printk("2.15Gamma %c : %3d, 0x%2x", color_name[c], gamma_110[c][i], gamma_210_110[c][i]);
 		printk("\n");
 	}
 #endif

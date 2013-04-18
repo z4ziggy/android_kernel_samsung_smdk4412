@@ -1231,7 +1231,7 @@ my_handle_response_reset(cy_as_device *dev_p,
 		cy_as_device_set_low_level_stopped(dev_p);
 		cy_as_device_set_intr_stopped(dev_p);
 		cy_as_device_clear_suspend_mode(dev_p);
-#ifndef CONFIG_MACH_U1_NA_SPR
+#if !defined(CONFIG_MACH_U1_NA_SPR) && !defined(CONFIG_MACH_U1_NA_USCC)
 		cy_as_usb_cleanup(dev_p);
 #endif
 		cy_as_storage_cleanup(dev_p);
@@ -1265,7 +1265,7 @@ cy_as_misc_reset(cy_as_device_handle handle,
 
 	/* Make sure the device is ready for the command. */
 	dev_p = (cy_as_device *)handle;
-#ifndef CONFIG_MACH_U1_NA_SPR
+#if !defined(CONFIG_MACH_U1_NA_SPR) && !defined(CONFIG_MACH_U1_NA_USCC)
 	cy_as_check_device_ready(dev_p) ;
 #endif
 	/*

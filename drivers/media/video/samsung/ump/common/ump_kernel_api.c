@@ -205,11 +205,20 @@ UMP_KERNEL_API_EXPORT void ump_dd_reference_release(ump_dd_handle memh)
 		 * called by file->f_op->release to release the physical
 		 * memory region finally.
 		 */
-		if (mem->import_attach)
-			dma_buf_put(mem->import_attach->dmabuf);
-		else
+		if (mem->import_attach) {
+			struct dma_buf_attachment *attach = mem->import_attach;
+
+			if (mem->sgt)
+				dma_buf_unmap_attachment(attach, mem->sgt,
+							DMA_BIDIRECTIONAL);
+
+			dma_buf_put(attach->dmabuf);
+
+			dma_buf_detach(attach->dmabuf, attach);
+
+		}
 #endif
-			mem->release_func(mem->ctx, mem);
+		mem->release_func(mem->ctx, mem);
 
 		_mali_osk_free(mem);
 	}

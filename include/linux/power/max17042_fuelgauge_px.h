@@ -61,6 +61,7 @@
 #define FG_CHECK_STATUS 6
 #define FG_VF_SOC 7
 #define FG_VOLTAGE_NOW 8
+#define FG_RAW_LEVEL 9
 
 #define LOW_BATT_COMP_RANGE_NUM	5
 #define LOW_BATT_COMP_LEVEL_NUM	2
@@ -107,9 +108,7 @@ struct fuelgauge_info {
 	int low_batt_comp_cnt[LOW_BATT_COMP_RANGE_NUM][LOW_BATT_COMP_LEVEL_NUM];
 	int check_start_vol;
 	int low_batt_comp_flag;
-#if defined(CONFIG_TARGET_LOCALE_KOR)
 	int psoc;
-#endif
 };
 
 struct max17042_chip {

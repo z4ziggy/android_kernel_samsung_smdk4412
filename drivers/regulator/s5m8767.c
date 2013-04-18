@@ -21,6 +21,9 @@
 #include <linux/regulator/machine.h>
 #include <linux/mfd/s5m87xx/s5m-core.h>
 #include <linux/mfd/s5m87xx/s5m-pmic.h>
+#include <linux/sched.h>
+
+#include <mach/sec_debug.h>
 
 struct s5m8767_info {
 	struct device *dev;
@@ -28,6 +31,7 @@ struct s5m8767_info {
 	int num_regulators;
 	struct regulator_dev **rdev;
 	struct s5m_opmode_data *opmode_data;
+	struct delayed_work set_buchg;
 
 	u8 device_id;
 	int ramp_delay;
@@ -486,7 +490,7 @@ static int s5m8767_set_voltage(struct regulator_dev *rdev,
 	*selector = i;
 
 	if (val < i) {
-		udelay(DIV_ROUND_UP(desc->step * (i - val),
+		udelay(1 + DIV_ROUND_UP(desc->step * (i - val),
 			s5m8767->ramp_delay * 1000));
 	}
 	return ret;
@@ -524,8 +528,22 @@ static int s5m8767_set_voltage_buck(struct regulator_dev *rdev,
 
 	switch (reg_id) {
 	case S5M8767_BUCK1:
+		sec_debug_aux_log(SEC_DEBUG_AUXLOG_CPU_BUS_CLOCK_CHANGE,
+			"%s: BUCK1: min_vol=%d, max_vol=%d(%ps)",
+			__func__, min_vol, max_vol,
+			__builtin_return_address(0));
 		return s5m8767_set_voltage(rdev, min_uV, max_uV, selector);
-	case S5M8767_BUCK2 ... S5M8767_BUCK4:
+	case S5M8767_BUCK2:
+		sec_debug_aux_log(SEC_DEBUG_AUXLOG_CPU_BUS_CLOCK_CHANGE,
+			"%s: BUCK2: min_vol=%d, max_vol=%d(%ps)",
+			__func__, min_vol, max_vol,
+			__builtin_return_address(0));
+	case S5M8767_BUCK3:
+		sec_debug_aux_log(SEC_DEBUG_AUXLOG_CPU_BUS_CLOCK_CHANGE,
+			"%s: BUCK3: min_vol=%d, max_vol=%d(%ps)",
+			__func__, min_vol, max_vol,
+			__builtin_return_address(0));
+	case S5M8767_BUCK4:
 		break;
 	case S5M8767_BUCK5 ... S5M8767_BUCK6:
 		return s5m8767_set_voltage(rdev, min_uV, max_uV, selector);
@@ -687,6 +705,20 @@ static struct regulator_desc regulators[] = {
 		.owner	= THIS_MODULE,
 	},
 };
+
+static void s5m_set_buchg(struct work_struct *work)
+{
+	struct s5m8767_info *s5m8767;
+	u8 val;
+	val = 0x4f; /* set for BUCHG 100uA */
+
+	s5m8767 = container_of(work, struct s5m8767_info, set_buchg.work);
+
+	s5m_reg_write(s5m8767->iodev->i2c, S5M8767_REG_BUCHG, val);
+
+	s5m_reg_read(s5m8767->iodev->i2c, S5M8767_REG_BUCHG, &val);
+	pr_info("%s set S5M8767_REG_BUCHG = 0x%02x\n", __func__, val);
+}
 
 static __devinit int s5m8767_pmic_probe(struct platform_device *pdev)
 {
@@ -986,6 +1018,9 @@ static __devinit int s5m8767_pmic_probe(struct platform_device *pdev)
 			goto err;
 		}
 	}
+
+	INIT_DELAYED_WORK_DEFERRABLE(&s5m8767->set_buchg,  s5m_set_buchg);
+	schedule_delayed_work(&s5m8767->set_buchg, msecs_to_jiffies(40000));
 
 	return 0;
 err:

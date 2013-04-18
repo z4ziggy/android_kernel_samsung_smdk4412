@@ -52,53 +52,65 @@
 
 #define VBLANK_OFF_DELAY	50000
 
-static int exynos_drm_list_gem_info(int id, void *ptr, void *data)
+struct exynos_drm_gem_info_data {
+	struct drm_file *filp;
+	struct seq_file *m;
+};
+
+static int exynos_drm_gem_one_info(int id, void *ptr, void *data)
 {
 	struct drm_gem_object *obj = ptr;
-	struct drm_file *filp = data;
-	struct exynos_drm_gem_obj *gem = to_exynos_gem_obj(obj);
-	struct exynos_drm_gem_buf *buf = gem->buffer;
+	struct exynos_drm_gem_info_data *gem_info_data = data;
+	struct drm_exynos_file_private *file_priv =
+					gem_info_data->filp->driver_priv;
+	struct exynos_drm_gem_obj *exynos_gem = to_exynos_gem_obj(obj);
+	struct exynos_drm_gem_buf *buf = exynos_gem->buffer;
 
-	DRM_INFO("%3d \t%3d \t%2d \t\t%2d \t0x%lx \t0x%x \t0x%lx "\
-			"\t%2d \t\t%2d \t\t%2d\n",
-			filp->pid,
-			id,
-			atomic_read(&obj->refcount.refcount),
-			atomic_read(&obj->handle_count),
-			gem->size,
-			gem->flags,
-			buf->page_size,
-			buf->pfnmap,
-			obj->export_dma_buf ? 1 : 0,
-			obj->import_attach ? 1 : 0);
+	seq_printf(gem_info_data->m, "%3d \t%3d \t%3d \t%2d \t\t%2d \t0x%08lx"\
+				" \t0x%x \t0x%08lx \t%2d \t\t%2d \t\t%2d\n",
+				gem_info_data->filp->pid,
+				file_priv->tgid,
+				id,
+				atomic_read(&obj->refcount.refcount),
+				atomic_read(&obj->handle_count),
+				exynos_gem->size,
+				exynos_gem->flags,
+				buf->page_size,
+				buf->pfnmap,
+				obj->export_dma_buf ? 1 : 0,
+				obj->import_attach ? 1 : 0);
 
 	return 0;
 }
 
-static ssize_t exynos_drm_show_gem_info(struct device *dev,
-					struct device_attribute *attr,
-					char *buf)
+static int exynos_drm_gem_info(struct seq_file *m, void *data)
 {
-	struct drm_device *drm_dev = dev_get_drvdata(dev);
-	struct drm_file *filp;
+	struct drm_info_node *node = (struct drm_info_node *)m->private;
+	struct drm_device *drm_dev = node->minor->dev;
+	struct exynos_drm_gem_info_data gem_info_data;
 
-	DRM_INFO("pid \thandle \trefcount \thcount \tsize \t\tflags "\
-		"\tpage_size \tpfnmap \texport_to_fd \timport_from_fd\n");
+	gem_info_data.m = m;
 
-	list_for_each_entry(filp, &drm_dev->filelist, lhead)
-		idr_for_each(&filp->object_idr, &exynos_drm_list_gem_info,
-				filp);
+	seq_printf(gem_info_data.m, "pid \ttgid \thandle \trefcount \thcount "\
+				"\tsize \t\tflags \tpage_size \tpfnmap \t"\
+				"exyport_to_fd \timport_from_fd\n");
 
-	return strlen(buf);
+	list_for_each_entry(gem_info_data.filp, &drm_dev->filelist, lhead)
+		idr_for_each(&gem_info_data.filp->object_idr,
+				exynos_drm_gem_one_info, &gem_info_data);
+
+	return 0;
 }
 
-static const struct device_attribute exynos_device_attrs[] = {
-	__ATTR(gem_info, S_IRUGO, exynos_drm_show_gem_info, NULL)
+static struct drm_info_list exynos_drm_debugfs_list[] = {
+	{"gem_info", exynos_drm_gem_info, DRIVER_GEM},
 };
+#define EXYNOS_DRM_DEBUGFS_ENTRIES ARRAY_SIZE(exynos_drm_debugfs_list)
 
 static int exynos_drm_load(struct drm_device *dev, unsigned long flags)
 {
 	struct exynos_drm_private *private;
+	struct drm_minor *minor;
 	int ret;
 	int nr;
 
@@ -178,9 +190,12 @@ static int exynos_drm_load(struct drm_device *dev, unsigned long flags)
 
 	drm_vblank_offdelay = VBLANK_OFF_DELAY;
 
-	ret = device_create_file(dev->dev, &exynos_device_attrs[0]);
-	if (ret < 0)
-		DRM_DEBUG_DRIVER("failed to create sysfs.\n");
+	minor = dev->primary;
+	ret = drm_debugfs_create_files(exynos_drm_debugfs_list,
+						EXYNOS_DRM_DEBUGFS_ENTRIES,
+						minor->debugfs_root, minor);
+	if (ret)
+		DRM_DEBUG_DRIVER("failed to create exynos-drm debugfs.\n");
 
 	return 0;
 
@@ -215,6 +230,9 @@ static int exynos_drm_unload(struct drm_device *dev)
 
 	dev->dev_private = NULL;
 
+	drm_debugfs_remove_files(exynos_drm_debugfs_list,
+				EXYNOS_DRM_DEBUGFS_ENTRIES, dev->primary);
+
 	return 0;
 }
 
@@ -227,6 +245,8 @@ static int exynos_drm_open(struct drm_device *dev, struct drm_file *file)
 	file_priv = kzalloc(sizeof(*file_priv), GFP_KERNEL);
 	if (!file_priv)
 		return -ENOMEM;
+
+	file_priv->tgid = task_tgid_nr(current);
 
 	drm_prime_init_file_private(&file->prime);
 	file->driver_priv = file_priv;

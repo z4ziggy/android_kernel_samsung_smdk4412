@@ -342,7 +342,9 @@ static int check_usb_op(void)
 }
 
 #ifdef CONFIG_SND_SAMSUNG_RP
+#if defined(CONFIG_MACH_U1_NA_SPR)
 #include "../../../sound/soc/samsung/srp-types.h"
+#endif
 extern int srp_get_op_level(void);	/* By srp driver */
 #endif
 
@@ -371,11 +373,20 @@ static inline int check_gps_uart_op(void)
 #ifdef CONFIG_INTERNAL_MODEM_IF
 static int check_idpram_op(void)
 {
+#ifdef CONFIG_SEC_MODEM_U1_SPR
+	/* This pin is high when CP might be accessing dpram */
+	/* return !!gpio_get_value(GPIO_CP_DUMP_INT); */
+	int x1_2 = __raw_readl(S5P_VA_GPIO2 + 0xC24) & 4; /* GPX1(2) */
+	if (x1_2 != 0)
+		pr_info("%s x1_2 is %s\n", __func__, x1_2 ? "high" : "low");
+	return x1_2;
+#else
 	/* This pin is high when CP might be accessing dpram */
 	int cp_int = gpio_get_value(GPIO_CP_AP_DPRAM_INT);
 	if (cp_int != 0)
 		pr_info("%s cp_int is high.\n", __func__);
 	return cp_int;
+#endif
 }
 #endif
 
@@ -408,8 +419,10 @@ static int exynos4_check_operation(void)
 #ifdef CONFIG_SND_SAMSUNG_RP
 	if (srp_get_op_level())
 		return 1;
+#if defined(CONFIG_MACH_U1_NA_SPR)
 	if (!srp_get_status(IS_RUNNING))
 		return 1;
+#endif
 #endif
 	if (check_usb_op())
 		return 1;

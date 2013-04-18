@@ -130,6 +130,12 @@ int ump_ion_import_wrapper(u32 __user * argument, struct ump_session_data  * ses
 	sg_ion = ion_map_dma(ion_client_ump,ion_hnd);
 
 	blocks = (ump_dd_physical_block*)_mali_osk_malloc(sizeof(ump_dd_physical_block)*1024);
+
+	if (NULL == blocks) {
+		MSG_ERR(("Failed to allocate blocks in ump_ioctl_allocate()\n"));
+		return -ENOMEM;
+	}
+
 	sg = sg_ion;
 	do {
 		blocks[i].addr = sg_phys(sg);
@@ -283,6 +289,13 @@ int ump_dmabuf_import_wrapper(u32 __user *argument,
 	block_size = sizeof(ump_dd_physical_block) * npages;
 
 	blocks = (ump_dd_physical_block *)_mali_osk_malloc(block_size);
+	/*here, need to add error handling*/
+	if (NULL == blocks) {
+		MSG_ERR(("Failed to allocate blocks\n"));
+		ret = -ENOMEM;
+		goto err_dmu_buf_unmap
+	}
+
 	sgl = sgt->sgl;
 
 	while (i < npages) {
@@ -312,6 +325,7 @@ int ump_dmabuf_import_wrapper(u32 __user *argument,
 
 	session->mem = (ump_dd_mem *)ump_handle;
 	session->mem->import_attach = attach;
+	session->mem->sgt = sgt;
 
 	_mali_osk_lock_wait(session_data->lock, _MALI_OSK_LOCKMODE_RW);
 	_mali_osk_list_add(&(session->list),
@@ -339,6 +353,7 @@ err_free_session:
 	_mali_osk_free(session);
 err_free_block:
 	_mali_osk_free(blocks);
+err_dmu_buf_unmap:
 	dma_buf_unmap_attachment(attach, sgt, DMA_BIDIRECTIONAL);
 err_dma_buf_detach:
 	dma_buf_detach(dma_buf, attach);

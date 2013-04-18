@@ -18,6 +18,8 @@
 
 #define MXT224_MAX_MT_FINGERS	10
 #define MXT_DEV_NAME "Atmel MXT224S"
+#define CHECK_ANTITOUCH		1
+
 enum { RESERVED_T0 = 0,
 	RESERVED_T1,
 	DEBUG_DELTAS_T2,
@@ -62,7 +64,7 @@ enum { RESERVED_T0 = 0,
 	SPARE_T41,
 	PROCI_TOUCHSUPPRESSION_T42,
 	SPT_DIGITIZER_T43,
-	SPARE_T44,
+	MESSAGECOUNT_T44,
 	SPARE_T45,
 	SPT_CTECONFIG_T46,
 	PROCI_STYLUS_T47,
@@ -135,12 +137,23 @@ struct mxt224s_platform_data {
 	u8 yedgedist_charging;
 	u8 tchhyst_batt;
 	u8 tchhyst_charging;
-	const u8 *t48_config_batt_e;
-	const u8 *t48_config_chrg_e;
+#if CHECK_ANTITOUCH
+	u8 check_antitouch;
+	u8 check_timer;
+	u8 check_autocal;
+	u8 check_calgood;
+#endif
+	const u8 *t9_config_batt;
+	const u8 *t9_config_chrg;
+	const u8 *t56_config_batt;
+	const u8 *t56_config_chrg;
+	const u8 *t62_config_batt;
+	const u8 *t62_config_chrg;
 	void (*power_on) (void);
 	void (*power_off) (void);
 	void (*register_cb) (void *);
 	void (*read_ta_status) (void *);
+	const u8 *config_fw_version;
 };
 typedef enum
     { MXT_PAGE_UP = 0x01, MXT_PAGE_DOWN = 0x02, MXT_DELTA_MODE =

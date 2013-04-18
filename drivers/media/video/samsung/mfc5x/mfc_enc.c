@@ -512,7 +512,7 @@ static int pre_seq_start(struct mfc_inst_ctx *ctx)
 	write_reg(mfc_mem_base_ofs(enc_ctx->streamaddr) >> 11, MFC_ENC_SI_CH1_SB_ADR);
 	write_reg(enc_ctx->streamsize, MFC_ENC_SI_CH1_SB_SIZE);
 #if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
-	write_shm(ctx, 1, HW_VERSRION);
+	write_shm(ctx, 1, HW_VERSION);
 #endif
 
 	return 0;
@@ -582,6 +582,12 @@ static int h264_pre_seq_start(struct mfc_inst_ctx *ctx)
 		write_shm(ctx, shm, FRAME_PACK_ENC_INFO);
 
 		h264->change &= ~(CHG_FRAME_PACKING);
+	}
+
+	if (h264->sps_pps_gen == 1) {
+		write_shm(ctx,
+			((h264->sps_pps_gen << 8) | read_shm(ctx, EXT_ENC_CONTROL)),
+			EXT_ENC_CONTROL);
 	}
 
 	return 0;
@@ -1055,6 +1061,22 @@ static int h264_set_codec_cfg(struct mfc_inst_ctx *ctx, int type, void *arg)
 		h264->change |= CHG_FRAME_PACKING;
 
 		break;
+
+	case MFC_ENC_SETCONF_SPS_PPS_GEN:
+		mfc_dbg("MFC_ENC_SETCONF_SPS_PPS_GEN : %d\n", ctx->state);
+
+		if ((ctx->state < INST_STATE_CREATE) || (ctx->state > INST_STATE_EXE)) {
+			mfc_err("MFC_ENC_SETCONF_SPS_PPS_GEN : state is invalid\n");
+			return MFC_STATE_INVALID;
+		}
+
+		if (usercfg->basic.values[0] > 0)
+			h264->sps_pps_gen = 1;
+		else
+			h264->sps_pps_gen = 0;
+
+		break;
+
 	default:
 		mfc_dbg("invalid set cfg type: 0x%08x\n", type);
 		ret = -2;

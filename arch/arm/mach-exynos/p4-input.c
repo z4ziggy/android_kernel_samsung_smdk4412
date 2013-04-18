@@ -111,6 +111,18 @@ static struct i2c_board_info i2c_synaptics[] __initdata = {
 #include <linux/i2c/mxt1664s.h>
 static struct mxt_callbacks *mxt_callbacks;
 static u32 hw_rev;
+
+/* Caution: Note10(p4note) has various H/W revision and each revision
+ * has different TSP tunning data.
+ * So If you add or change the tunning data, please refer the below
+ * simple description.
+ *
+ * H/W revision		Project
+ * ~ 0.6			3G note10(N8010) final revision is 0.6
+ * 0.7 ~ 0.8		Reserved
+ * 0.9				LTE model such as N8020
+ */
+
 static u8 inform_data_rev6[] = {0,
 	7, 0, 48, 255,
 	7, 1, 11, 255,
@@ -140,6 +152,30 @@ static u8 inform_data_rev5[] = {0,
 	62, 13, 0, 21,
 	62, 19, 128, 112,
 	62, 20, 20, 30,
+};
+
+/* Added for the LTE model */
+static u8 inform_data_rev9[] = {0,
+	7, 0, 48, 255,
+	7, 1, 11, 255,
+	46, 3, 16, 24,
+	47, 1, 35, 45,
+	47, 9, 16, 24,
+	55, 0, 1, 0,
+	55, 1, 25, 11,
+	55, 2, 7, 3,
+	56, 3, 45, 40,
+	56, 36, 0, 3,
+	62, 3, 0, 23,
+	62, 7, 90, 18,
+	62, 8, 1, 8,
+	62, 10, 0, 8,
+	62, 12, 0, 8,
+	62, 13, 1, 0,
+	62, 19, 136, 100,
+	62, 21, 35, 45,
+	62, 25, 16, 24,
+	62, 26, 16, 24,
 };
 
 static u8 inform_data[] = {0,
@@ -179,11 +215,14 @@ static u8 *ts_register_callback(struct mxt_callbacks *cb)
 	inform_data[0] = sizeof(inform_data);
 	inform_data_rev5[0] = sizeof(inform_data_rev5);
 	inform_data_rev6[0] = sizeof(inform_data_rev6);
+	inform_data_rev9[0] = sizeof(inform_data_rev9);
 
 	if (0x5 == hw_rev)
 		return inform_data_rev5;
 	else if (0x6 == hw_rev)
 		return inform_data_rev6;
+	else if (0x9 <= hw_rev)
+		return inform_data_rev9;
 	else
 		return inform_data;
 }
@@ -306,6 +345,8 @@ static int ts_power_reset(void)
 	Configuration for MXT1664-S
 */
 #define MXT1664S_CONFIG_DATE		"N80XX_ATM_0703"
+#define MXT1664S_CONFIG_DATE_FOR_OVER_HW9	"N80XX_LTE_ATM_0905"
+
 #define MXT1664S_MAX_MT_FINGERS	10
 #define MXT1664S_BLEN_BATT		112
 #define MXT1664S_CHRGTIME_BATT	180
@@ -322,7 +363,7 @@ static u8 t8_config_s[] = { GEN_ACQUISITIONCONFIG_T8,
 };
 
 static u8 t9_config_s[] = { TOUCH_MULTITOUCHSCREEN_T9,
-	0x83, 0, 0, P4_NOTE_X_NUM, P4_NOTE_Y_NUM,
+	0x8B, 0, 0, P4_NOTE_X_NUM, P4_NOTE_Y_NUM,
 	0, MXT1664S_BLEN_BATT, MXT1664S_THRESHOLD_BATT, 1, 1,
 	10, 15, 1, 65, MXT1664S_MAX_MT_FINGERS, 20, 30, 20, 255, 15,
 	255, 15, 5, 246, 5, 5, 0, 0, 0, 0,
@@ -504,32 +545,66 @@ static void switch_config(u32 rev)
 		t62_config_s[27] = 24;
 		t62_config_s[35] = 64;
 		t62_config_s[36] = 45;
-	} else if (0x6 < rev) {
-		t8_config_s[1] = 16;
+	} else if (0x9 <= rev) {
+		u8 tmp = 0;
+		t7_config_s[1] = 48;
+		t7_config_s[2] = 11;
 
-		t9_config_s[7] = 132;
-		t9_config_s[11] = 0;
-		t9_config_s[12] = 5;
-		t9_config_s[16] = 10;
-		t9_config_s[17] = 20;
+		t8_config_s[1] = 1;
+
+		t9_config_s[7] = 116;
+		t9_config_s[8] = 55;
+		t9_config_s[14] = 50;
+		t9_config_s[27] = 64;
+
+		t40_config_s[4] = 2;
+		t40_config_s[5] = 2;
 
 		t46_config_s[11] = 11;
 
-		t55_config_s[1] = 0;
+		t47_config_s[2] = 35;
 
-		t62_config_s[10] = 15;
-		t62_config_s[11] = 22;
-		t62_config_s[12] = 15;
-		t62_config_s[13] = 22;
-		t62_config_s[14] = 15;
+		t56_config_s[4] = 45;
+		tmp = 22;
+		for (i = 5; i < 21; i++) {
+			if (1 == i % 4)
+				tmp--;
+			t56_config_s[i] = tmp;
+		}
+
+		for (i = 21; i < 28; i++)
+			t56_config_s[i] = 17;
+
+		for (i = 28; i < 31; i++)
+			t56_config_s[i] = 16;
+
+		t56_config_s[39] = 1;
+
+		t62_config_s[1] = 125;
+		t62_config_s[2] = 1;
+		t62_config_s[4] = 0;
+		t62_config_s[8] = 90;
+		t62_config_s[9] = 1;
+		t62_config_s[11] = 0;
+		t62_config_s[13] = 0;
+		t62_config_s[14] = 1;
 		t62_config_s[20] = 136;
-		t62_config_s[21] = 15;
-		t62_config_s[23] = 24;
+		t62_config_s[22] = 35;
 		t62_config_s[35] = 80;
-		t62_config_s[36] = 55;
+		t62_config_s[36] = 40;
+		t62_config_s[38] = 5;
+		t62_config_s[40] = 50;
 		t62_config_s[42] = 30;
 		t62_config_s[43] = 40;
+		t62_config_s[44] = 10;
+		t62_config_s[45] = 0;
+		t62_config_s[48] = 30;
+		t62_config_s[49] = 30;
 		t62_config_s[53] = 20;
+
+		/* Change Config Name for LTE */
+		mxt1664s_pdata.config_version =
+			MXT1664S_CONFIG_DATE_FOR_OVER_HW9;
 	}
 }
 
@@ -604,6 +679,7 @@ static int wacom_resume_hw(void);
 static int wacom_early_suspend_hw(void);
 static int wacom_late_resume_hw(void);
 static int wacom_reset_hw(void);
+static void wacom_compulsory_flash_mode(bool en);
 static void wacom_register_callbacks(struct wacom_g5_callbacks *cb);
 
 static struct wacom_g5_platform_data wacom_platform_data = {
@@ -613,6 +689,9 @@ static struct wacom_g5_platform_data wacom_platform_data = {
 	.gpio_pendct = GPIO_PEN_PDCT_18V,
 #ifdef WACOM_PEN_DETECT
 	.gpio_pen_insert = GPIO_S_PEN_IRQ,
+#endif
+#ifdef WACOM_HAVE_FWE_PIN
+	.compulsory_flash_mode = wacom_compulsory_flash_mode,
 #endif
 	.init_platform_hw = wacom_init_hw,
 	.suspend_platform_hw = wacom_suspend_hw,
@@ -670,8 +749,27 @@ static int wacom_init_hw(void)
 	s3c_gpio_setpull(GPIO_S_PEN_IRQ, S3C_GPIO_PULL_UP);
 #endif
 
+#ifdef WACOM_HAVE_FWE_PIN
+	ret = gpio_request(GPIO_PEN_FWE0, "GPIO_PEN_FWE0");
+	if (ret) {
+		printk(KERN_ERR "[E-PEN] faile to request gpio(GPIO_PEN_FWE0)\n");
+		return ret;
+	}
+	s3c_gpio_cfgpin(GPIO_PEN_FWE0, S3C_GPIO_SFN(0x1));
+	s3c_gpio_setpull(GPIO_PEN_FWE0, S3C_GPIO_PULL_NONE);
+	gpio_direction_output(GPIO_PEN_FWE0, 0);
+#endif
+
 	return 0;
 }
+
+#ifdef WACOM_HAVE_FWE_PIN
+static void wacom_compulsory_flash_mode(bool en)
+{
+	gpio_set_value(GPIO_PEN_FWE0, en);
+}
+
+#endif
 
 static int wacom_suspend_hw(void)
 {

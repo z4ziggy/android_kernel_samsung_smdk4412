@@ -471,8 +471,13 @@ static int max77686_set_voltage(struct regulator_dev *rdev,
 	defined(CONFIG_MACH_P4NOTE) || \
 	defined(CONFIG_MACH_GC1) || defined(CONFIG_MACH_T0) || \
 	defined(CONFIG_MACH_GRANDE) || defined(CONFIG_MACH_IRON)
+#if !defined(CONFIG_MACH_T0_CHN_CU_DUOS) || \
+	!defined(CONFIG_MACH_T0_CHN_CMCC) || \
+	!defined(CONFIG_MACH_T0_CHN_OPEN_DUOS) || \
+	!defined(CONFIG_MACH_T0_CHN_CTC)
 	/* Test code for HDMI debug */
 	if (!gpio_get_value(GPIO_HDMI_EN))
+#endif
 #endif
 		printk(PMIC_REG_DEBUG "max77686: id=%d, org=%x, val=%x",
 			rdev_get_id(rdev), org, i);

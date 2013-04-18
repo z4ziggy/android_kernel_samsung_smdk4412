@@ -69,22 +69,37 @@ static ssize_t show_uart_sel(struct device *dev,
 	return sprintf(buf, "%d", val_sel1 << (1 - val_sel2));
 #else
 	int val_sel;
+#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
+	int val_sel2;
+#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
 	const char *mode;
 
 	val_sel = gpio_get_value(GPIO_UART_SEL);
+#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
+	val_sel2 = gpio_get_value(GPIO_UART_SEL2);
+#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
 
 	if (val_sel == 0) {
 		/* CP */
 		mode = "CP";
 	} else {
-		/* AP */
-		mode = "AP";
+#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
+		if (val_sel2 == 0) {
+#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
+			/* AP */
+			mode = "AP";
+#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
+		} else {
+			/* Keyboard DOCK */
+			mode = "DOCK";
+		}
+#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
 	}
 
 	pr_info("%s: %s\n", __func__, mode);
 
 	return sprintf(buf, "%s\n", mode);
-#endif
+#endif /* CONFIG_MACH_P8LTE */
 }
 
 static ssize_t store_uart_sel(struct device *dev,
@@ -92,6 +107,10 @@ static ssize_t store_uart_sel(struct device *dev,
 			      const char *buf, size_t count)
 {
 	int uart_sel = -1;
+#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
+	int uart_sel2 = -1;
+#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
+
 #ifdef CONFIG_MACH_P8LTE
 	int set_val1, set_val2, ret = 0;
 #endif /* CONFIG_MACH_P8LTE */
@@ -111,17 +130,39 @@ static ssize_t store_uart_sel(struct device *dev,
 	gpio_set_value(GPIO_UART_SEL1, set_val1);
 	gpio_set_value(GPIO_UART_SEL2, set_val2);
 #else
+	uart_sel = gpio_get_value(GPIO_UART_SEL);
+#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
+	uart_sel2 = gpio_get_value(GPIO_UART_SEL2);
+#endif
 	if (!strncasecmp(buf, "AP", 2)) {
 		uart_sel = 1;
+#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
+		uart_sel2 = 0;
+#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
 	} else if (!strncasecmp(buf, "CP", 2)) {
 		uart_sel = 0;
 	} else {
+#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
+		if (!strncasecmp(buf, "DOCK", 4)) {
+			uart_sel = 1;
+			uart_sel2 = 1;
+		} else {
+#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
 		pr_err("%s: wrong uart_sel value(%s)!!\n", __func__, buf);
 		return -EINVAL;
+#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
+		}
+#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
 	}
 
 	/* 1 for AP, 0 for CP */
 	gpio_set_value(GPIO_UART_SEL, uart_sel);
+	pr_info("%s: uart_sel(%d)\n", __func__, uart_sel);
+#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
+	/* 1 for (AP)DOCK, 0 for (AP)FAC */
+	gpio_set_value(GPIO_UART_SEL2, uart_sel2);
+	pr_info("%s: uart_sel2(%d)\n", __func__, uart_sel2);
+#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
 #endif /* CONFIG_MACH_P8LTE */
 
 	return count;
@@ -336,6 +377,13 @@ sysfs_noti:
   ...
   usb_switch_unlock(); (this restores previous usb switch settings)
 */
+enum usb_path_t usb_switch_get_path(void)
+{
+	pr_info("%s: current path(%d)\n", __func__, current_path);
+
+	return current_path;
+}
+
 void usb_switch_set_path(enum usb_path_t path)
 {
 	pr_info("%s: %x current_path before changing\n",
@@ -372,6 +420,11 @@ void usb_switch_unlock(void)
 #ifdef CONFIG_MACH_P4NOTE
 static void init_gpio(void)
 {
+	int uart_sel = -1;
+#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
+	int uart_sel2 = -1;
+#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
+
 	s3c_gpio_cfgpin(GPIO_USB_SEL0, S3C_GPIO_OUTPUT);
 	s3c_gpio_setpull(GPIO_USB_SEL0, S3C_GPIO_PULL_NONE);
 
@@ -383,6 +436,18 @@ static void init_gpio(void)
 
 	s3c_gpio_cfgpin(GPIO_UART_SEL, S3C_GPIO_OUTPUT);
 	s3c_gpio_setpull(GPIO_UART_SEL, S3C_GPIO_PULL_NONE);
+
+#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
+	s3c_gpio_cfgpin(GPIO_UART_SEL2, S3C_GPIO_OUTPUT);
+	s3c_gpio_setpull(GPIO_UART_SEL2, S3C_GPIO_PULL_NONE);
+#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
+
+	uart_sel = gpio_get_value(GPIO_UART_SEL);
+	pr_info("%s: uart_sel(%d)\n", __func__, uart_sel);
+#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
+	uart_sel2 = gpio_get_value(GPIO_UART_SEL2);
+	pr_info("%s: uart_sel2(%d)\n", __func__, uart_sel2);
+#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
 }
 #endif
 
@@ -449,60 +514,76 @@ static int __init usb_switch_init(void)
 {
 	int ret;
 
+/* USB_SEL gpio_request */
 #if defined(CONFIG_MACH_P4NOTE)
 	gpio_request(GPIO_USB_SEL0, "GPIO_USB_SEL0");
 	gpio_request(GPIO_USB_SEL1, "GPIO_USB_SEL1");
 	gpio_request(GPIO_USB_SEL_CP, "GPIO_USB_SEL_CP");
-	gpio_request(GPIO_UART_SEL, "GPIO_UART_SEL");
 #else
 	gpio_request(GPIO_USB_SEL1, "GPIO_USB_SEL1");
 	gpio_request(GPIO_USB_SEL2, "GPIO_USB_SEL2");
 	gpio_request(GPIO_USB_SEL3, "GPIO_USB_SEL3");
+#endif /* CONFIG_MACH_P4NOTE */
+
+/* UART_SEL gpio_request */
 #ifdef CONFIG_MACH_P8LTE
 	gpio_request(GPIO_UART_SEL1, "GPIO_UART_SEL1");
 	gpio_request(GPIO_UART_SEL2, "GPIO_UART_SEL2");
 #else
 	gpio_request(GPIO_UART_SEL, "GPIO_UART_SEL");
-#endif
-#endif
+#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
+	gpio_request(GPIO_UART_SEL2, "GPIO_UART_SEL2");
+#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
+#endif /* CONFIG_MACH_P8LTE */
 
+/* USB_SEL gpio_export */
 #if defined(CONFIG_MACH_P4NOTE)
 	gpio_export(GPIO_USB_SEL0, 1);
 	gpio_export(GPIO_USB_SEL1, 1);
 	gpio_export(GPIO_USB_SEL_CP, 1);
-	gpio_export(GPIO_UART_SEL, 1);
 #else
 	gpio_export(GPIO_USB_SEL1, 1);
 	gpio_export(GPIO_USB_SEL2, 1);
 	gpio_export(GPIO_USB_SEL3, 1);
+#endif /* CONFIG_MACH_P4NOTE */
+
+/* UART_SEL gpio_export */
 #ifdef CONFIG_MACH_P8LTE
 	gpio_export(GPIO_UART_SEL1, 1);
 	gpio_export(GPIO_UART_SEL2, 1);
 #else
 	gpio_export(GPIO_UART_SEL, 1);
-#endif
-#endif
+#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
+	gpio_export(GPIO_UART_SEL2, 1);
+#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
+#endif /* CONFIG_MACH_P8LTE */
 
 	BUG_ON(!sec_class);
 	sec_switch_dev = device_create(sec_class, NULL, 0, NULL, "switch");
 
 	BUG_ON(!sec_switch_dev);
+
+/* USB_SEL gpio_export_link */
 #if defined(CONFIG_MACH_P4NOTE)
 	gpio_export_link(sec_switch_dev, "GPIO_USB_SEL0", GPIO_USB_SEL0);
 	gpio_export_link(sec_switch_dev, "GPIO_USB_SEL1", GPIO_USB_SEL1);
 	gpio_export_link(sec_switch_dev, "GPIO_USB_SEL_CP", GPIO_USB_SEL_CP);
-	gpio_export_link(sec_switch_dev, "GPIO_UART_SEL", GPIO_UART_SEL);
 #else
 	gpio_export_link(sec_switch_dev, "GPIO_USB_SEL1", GPIO_USB_SEL1);
 	gpio_export_link(sec_switch_dev, "GPIO_USB_SEL2", GPIO_USB_SEL2);
 	gpio_export_link(sec_switch_dev, "GPIO_USB_SEL3", GPIO_USB_SEL3);
+#endif /* CONFIG_MACH_P4NOTE */
+
+/* UART_SEL gpio_export_link */
 #ifdef CONFIG_MACH_P8LTE
 	gpio_export_link(sec_switch_dev, "GPIO_UART_SEL1", GPIO_UART_SEL1);
 	gpio_export_link(sec_switch_dev, "GPIO_UART_SEL2", GPIO_UART_SEL2);
 #else
 	gpio_export_link(sec_switch_dev, "GPIO_UART_SEL", GPIO_UART_SEL);
-#endif
-#endif
+#if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
+	gpio_export_link(sec_switch_dev, "GPIO_UART_SEL2", GPIO_UART_SEL2);
+#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
+#endif /* CONFIG_MACH_P8LTE */
 
 #ifdef CONFIG_TARGET_LOCALE_KOR
 	usb_lock = device_create(sec_class, sec_switch_dev,

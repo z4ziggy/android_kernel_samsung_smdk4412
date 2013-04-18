@@ -346,7 +346,7 @@ int exynos_drm_crtc_create(struct drm_device *dev, unsigned int nr)
 	}
 
 	exynos_crtc->pipe = nr;
-	exynos_crtc->dpms = DRM_MODE_DPMS_OFF;
+	exynos_crtc->dpms = DRM_MODE_DPMS_ON;
 	exynos_crtc->plane = exynos_plane_init(dev, 1 << nr, true);
 	if (!exynos_crtc->plane) {
 		kfree(exynos_crtc);

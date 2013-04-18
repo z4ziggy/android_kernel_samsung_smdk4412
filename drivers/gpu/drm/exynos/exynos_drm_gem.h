@@ -64,6 +64,7 @@ struct exynos_drm_iommu_info {
  * *userptr: user space address.
  * @dma_addr: bus address(accessed by dma) to allocated memory region.
  * @dev_addr: device address for IOMMU.
+ * @paddr: physical address to allocated buffer.
  * @write: whether pages will be written to by the caller.
  * @sgt: sg table to transfer page data.
  * @pages: contain all pages to allocated memory region.
@@ -71,7 +72,6 @@ struct exynos_drm_iommu_info {
  * @size: size of allocated memory region.
  * @shared: indicate shared mfc memory region.
  *	(temporarily used and it should be removed later.)
- * @shared_refcount: a reference count for this buffer being shared with others.
  * @pfnmap: indicate whether memory region from userptr is mmaped with
  *	VM_PFNMAP or not.
  */
@@ -81,13 +81,13 @@ struct exynos_drm_gem_buf {
 	unsigned long		userptr;
 	dma_addr_t		dma_addr;
 	dma_addr_t		dev_addr;
+	dma_addr_t		paddr;
 	unsigned int		write;
 	struct sg_table		*sgt;
 	struct page		**pages;
 	unsigned long		page_size;
 	unsigned long		size;
 	bool			shared;
-	atomic_t		shared_refcount;
 	bool			pfnmap;
 };
 
@@ -104,7 +104,10 @@ struct exynos_drm_gem_buf {
  *	or at framebuffer creation.
  * @iommu_info: contain iommu mapping information to each device driver
  *	using its own iommu.
- * @size: total memory size to physically non-continuous memory region.
+ * @size: size requested from user, in bytes and this size is aligned
+ *	in page unit.
+ * @packed_size: real size of the gem object, in bytes and
+ *	this size isn't aligned in page unit.
  * @flags: indicate memory type to allocated buffer and cache attruibute.
  * @vmm: vmm object for iommu framework.
  * @priv_handle: handle to specific buffer object.
@@ -118,6 +121,7 @@ struct exynos_drm_gem_obj {
 	struct exynos_drm_gem_buf	*buffer;
 	struct exynos_drm_iommu_info	iommu_info;
 	unsigned long			size;
+	unsigned long			packed_size;
 	struct vm_area_struct		*vma;
 	unsigned int			flags;
 	void				*vmm;

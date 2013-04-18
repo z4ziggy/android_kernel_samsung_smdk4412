@@ -10,6 +10,7 @@
  * published by the Free Software Foundation.
 */
 
+#include <mach/gpio.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
@@ -22,9 +23,9 @@
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
-#include <mach/gpio.h>
 #include <linux/delay.h>
 #include <linux/lcd.h>
+#include <linux/rtc.h>
 
 #include "s3cfb.h"
 #include "s3cfb_mdnie.h"
@@ -47,22 +48,29 @@
 #include "mdnie_color_tone_4210.h"
 #else	/* CONFIG_CPU_EXYNOS4210 */
 #if defined(CONFIG_FB_S5P_S6E8AA0)
+#if defined(CONFIG_S6E8AA0_AMS465XX)
+#include "mdnie_table_superior.h"
+#else
 #include "mdnie_table_c1m0.h"
-#elif defined(CONFIG_FB_S5P_EA8061)
-#include "mdnie_table_c1m0.h"
+#endif
+#elif defined(CONFIG_FB_S5P_EA8061) || defined(CONFIG_FB_S5P_S6EVR02)
+#include "mdnie_table_t0.h"
 #elif defined(CONFIG_FB_S5P_S6E63M0)
 #include "mdnie_table_c1m0.h"
 #elif defined(CONFIG_FB_S5P_S6C1372)
 #include "mdnie_table_p4note.h"
 #elif defined(CONFIG_FB_S5P_S6D6AA1)
 #include "mdnie_table_gc1.h"
+#elif defined(CONFIG_FB_S5P_LMS501XX)
+#include "mdnie_table_baffin.h"
 #else
 #include "mdnie_table_4412.h"
 #endif
 #include "mdnie_color_tone.h"	/* sholud be added for 4212, 4412 */
 #endif
-
-#if defined(CONFIG_TDMB) || defined(CONFIG_TARGET_LOCALE_NTT)
+#if defined(CONFIG_FB_S5P_LMS501XX)
+#include "mdnie_dmb_baffin.h"
+#elif defined(CONFIG_TDMB) || defined(CONFIG_TARGET_LOCALE_NTT)
 #include "mdnie_dmb.h"
 #endif
 
@@ -165,13 +173,15 @@ void set_mdnie_value(struct mdnie_info *mdnie, u8 force)
 
 	if (mdnie->negative == NEGATIVE_ON) {
 		dev_info(mdnie->dev, "NEGATIVE_ON\n");
-		mdnie_send_sequence(mdnie, tune_negative[mdnie->cabc].seq);
+		mdnie_send_sequence(mdnie, negative_table[mdnie->cabc].seq);
 		goto exit;
 	}
 
 #if defined(CONFIG_TDMB) || defined(CONFIG_TARGET_LOCALE_NTT)
 	if (SCENARIO_IS_DMB(mdnie->scenario)) {
 		idx = mdnie->scenario - DMB_NORMAL_MODE;
+		mdnie->tone = idx;
+
 		mdnie_send_sequence(mdnie, tune_dmb[mdnie->mode].seq);
 		dev_info(mdnie->dev, "mode=%d, scenario=%d, outdoor=%d, cabc=%d, %s\n",
 			mdnie->mode, mdnie->scenario, mdnie->outdoor,
@@ -182,20 +192,15 @@ void set_mdnie_value(struct mdnie_info *mdnie, u8 force)
 
 	if (SCENARIO_IS_COLOR(mdnie->scenario)) {
 		idx = mdnie->scenario - COLOR_TONE_1;
-		mdnie_send_sequence(mdnie, tune_color_tone[idx].seq);
+		mdnie_send_sequence(mdnie, color_tone_table[idx].seq);
 		dev_info(mdnie->dev, "mode=%d, scenario=%d, outdoor=%d, cabc=%d, %s\n",
 			mdnie->mode, mdnie->scenario, mdnie->outdoor, mdnie->cabc,
-			tune_color_tone[idx].name);
+			color_tone_table[idx].name);
 
 		goto exit;
-	} else if ((mdnie->scenario == CAMERA_MODE) && (mdnie->outdoor == OUTDOOR_OFF)) {
-		mdnie_send_sequence(mdnie, tune_camera);
-		dev_info(mdnie->dev, "%s\n", "CAMERA");
-
-		goto exit;
-	} else if ((mdnie->scenario == CAMERA_MODE) && (mdnie->outdoor == OUTDOOR_ON)) {
-		mdnie_send_sequence(mdnie, tune_camera_outdoor);
-		dev_info(mdnie->dev, "%s\n", "CAMERA_OUTDOOR");
+	} else if (mdnie->scenario == CAMERA_MODE) {
+		mdnie_send_sequence(mdnie, camera_table[mdnie->outdoor].seq);
+		dev_info(mdnie->dev, "%s\n", camera_table[mdnie->outdoor].name);
 
 		goto exit;
 	} else {
@@ -555,6 +560,11 @@ static ssize_t cabc_store(struct device *dev,
 	unsigned int value;
 	int ret;
 
+#if defined(CONFIG_FB_S5P_S6C1372)
+	if (mdnie->auto_brightness)
+		return -EINVAL;
+#endif
+
 	ret = strict_strtoul(buf, 0, (unsigned long *)&value);
 
 	dev_info(dev, "%s :: value=%d\n", __func__, value);
@@ -671,12 +681,12 @@ static ssize_t negative_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct mdnie_info *mdnie = dev_get_drvdata(dev);
-	char temp[3];
+	char *pos = buf;
+	u32 i;
 
-	sprintf(temp, "%d\n", mdnie->negative);
-	strcpy(buf, temp);
+	pos += sprintf(pos, "%d\n", mdnie->negative);
 
-	return strlen(buf);
+	return pos - buf;
 }
 
 static ssize_t negative_store(struct device *dev,
@@ -687,7 +697,7 @@ static ssize_t negative_store(struct device *dev,
 	int ret;
 
 	ret = strict_strtoul(buf, 0, (unsigned long *)&value);
-	dev_info(dev, "%s :: value=%d\n", __func__, value);
+	dev_info(dev, "%s :: value=%d, by %s\n", __func__, value, current->comm);
 
 	if (ret < 0)
 		return ret;
@@ -714,11 +724,7 @@ static struct device_attribute mdnie_attributes[] = {
 	__ATTR(scenario, 0664, scenario_show, scenario_store),
 	__ATTR(outdoor, 0664, outdoor_show, outdoor_store),
 #if defined(CONFIG_FB_MDNIE_PWM)
-#if defined(CONFIG_FB_S5P_S6C1372)
-	__ATTR(cabc, 0444, cabc_show, NULL),
-#else
 	__ATTR(cabc, 0664, cabc_show, cabc_store),
-#endif
 #endif
 	__ATTR(tunning, 0664, tunning_show, tunning_store),
 	__ATTR(negative, 0664, negative_show, negative_store),
@@ -726,14 +732,16 @@ static struct device_attribute mdnie_attributes[] = {
 };
 
 #ifdef CONFIG_PM
-#if defined(CONFIG_HAS_EARLYSUSPEND) && defined(CONFIG_FB_MDNIE_PWM)
+#if defined(CONFIG_HAS_EARLYSUSPEND)
 void mdnie_early_suspend(struct early_suspend *h)
 {
 	struct mdnie_info *mdnie = container_of(h, struct mdnie_info, early_suspend);
 	struct lcd_platform_data *pd = NULL;
-	pd = mdnie->lcd_pd;
 
 	dev_info(mdnie->dev, "+%s\n", __func__);
+
+#if defined(CONFIG_FB_MDNIE_PWM)
+	pd = mdnie->lcd_pd;
 
 	mdnie->bd_enable = FALSE;
 
@@ -747,6 +755,7 @@ void mdnie_early_suspend(struct early_suspend *h)
 		dev_info(&mdnie->bd->dev, "power_on is NULL.\n");
 	else
 		pd->power_on(NULL, 0);
+#endif
 
 	dev_info(mdnie->dev, "-%s\n", __func__);
 
@@ -755,10 +764,13 @@ void mdnie_early_suspend(struct early_suspend *h)
 
 void mdnie_late_resume(struct early_suspend *h)
 {
+	u32 i;
 	struct mdnie_info *mdnie = container_of(h, struct mdnie_info, early_suspend);
 	struct lcd_platform_data *pd = NULL;
 
 	dev_info(mdnie->dev, "+%s\n", __func__);
+
+#if defined(CONFIG_FB_MDNIE_PWM)
 	pd = mdnie->lcd_pd;
 
 	if (mdnie->enable)
@@ -778,6 +790,10 @@ void mdnie_late_resume(struct early_suspend *h)
 	}
 
 	mdnie->bd_enable = TRUE;
+#endif
+
+	set_mdnie_value(mdnie, 1);
+
 	dev_info(mdnie->dev, "-%s\n", __func__);
 
 	return ;
@@ -862,12 +878,10 @@ static int mdnie_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_HAS_WAKELOCK
 #ifdef CONFIG_HAS_EARLYSUSPEND
-#if defined(CONFIG_FB_MDNIE_PWM)
 	mdnie->early_suspend.suspend = mdnie_early_suspend;
 	mdnie->early_suspend.resume = mdnie_late_resume;
 	mdnie->early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB - 1;
 	register_early_suspend(&mdnie->early_suspend);
-#endif
 #endif
 #endif
 
@@ -889,20 +903,17 @@ static int mdnie_probe(struct platform_device *pdev)
 
 #if defined(CONFIG_FB_S5P_S6F1202A)
 	if (pdata->display_type == 0) {
-		memcpy(tunning_table, tunning_table_hy, sizeof(tunning_table));
-		memcpy(etc_table, etc_table_hy, sizeof(etc_table));
-		tune_camera = tune_camera_hy;
-		tune_camera_outdoor = tune_camera_outdoor_hy;
+		memcpy(tunning_table, tunning_table_hydis, sizeof(tunning_table));
+		memcpy(etc_table, etc_table_hydis, sizeof(etc_table));
+		memcpy(camera_table, camera_table_hydis, sizeof(camera_table));
 	} else if (pdata->display_type == 1) {
 		memcpy(tunning_table, tunning_table_sec, sizeof(tunning_table));
 		memcpy(etc_table, etc_table_sec, sizeof(etc_table));
-		tune_camera = tune_camera_sec;
-		tune_camera_outdoor = tune_camera_outdoor_sec;
+		memcpy(camera_table, camera_table_sec, sizeof(camera_table));
 	} else if (pdata->display_type == 2) {
-		memcpy(tunning_table, tunning_table_bo, sizeof(tunning_table));
-		memcpy(etc_table, etc_table_bo, sizeof(etc_table));
-		tune_camera = tune_camera_bo;
-		tune_camera_outdoor = tune_camera_outdoor_bo;
+		memcpy(tunning_table, tunning_table_boe, sizeof(tunning_table));
+		memcpy(etc_table, etc_table_boe, sizeof(etc_table));
+		memcpy(camera_table, camera_table_boe, sizeof(camera_table));
 	}
 #endif
 

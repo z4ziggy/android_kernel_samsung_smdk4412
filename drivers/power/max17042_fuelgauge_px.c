@@ -367,28 +367,50 @@ static int fg_read_soc(void)
 	struct max17042_chip *chip = i2c_get_clientdata(client);
 	u8 data[2];
 	u32 soc = 0;
-#if defined(CONFIG_TARGET_LOCALE_KOR)
 	u32 soc_lsb = 0;
-#endif
+	int psoc = 0;
 
 	if (fg_i2c_read(client, SOCREP_REG, data, 2) < 0) {
 		pr_err("%s: Failed to read SOCREP\n", __func__);
 		return -1;
 	}
 
-	soc = data[1];
-
-#if defined(CONFIG_TARGET_LOCALE_KOR)
 	soc_lsb = (data[0] * 100) / 256;
-	chip->info.psoc = (soc * 100) + soc_lsb;
-#endif
+	psoc = (data[1] * 100) + soc_lsb;
+	soc = psoc / 99;
+	chip->info.psoc = psoc;
 
 	if (!(chip->info.pr_cnt % PRINT_COUNT))
-		pr_info("%s: soc(%d, 0x%04x), vfsoc(%d)\n", __func__,
-				soc, (data[1]<<8) | data[0], fg_read_vfsoc());
+		pr_info("%s: soc(%d), psoc(%d), vfsoc(%d)\n", __func__,
+			soc, psoc, fg_read_vfsoc());
 
 	return soc;
 }
+
+static int fg_read_raw_soc(void)
+{
+	struct i2c_client *client = fg_i2c_client;
+	struct max17042_chip *chip = i2c_get_clientdata(client);
+	u8 data[2];
+	u32 soc_lsb = 0;
+	int psoc = 0;
+
+	if (fg_i2c_read(client, SOCREP_REG, data, 2) < 0) {
+		pr_err("%s: Failed to read SOCREP\n", __func__);
+		return -1;
+	}
+
+	soc_lsb = (data[0] * 100) / 256;
+	psoc = (data[1] * 100) + soc_lsb;
+	chip->info.psoc = psoc;
+
+	if (!(chip->info.pr_cnt % PRINT_COUNT))
+		pr_info("%s: psoc(%d), vfsoc(%d)\n", __func__,
+			 psoc, fg_read_vfsoc());
+
+	return psoc;
+}
+
 
 static int fg_read_current(void)
 {
@@ -1624,6 +1646,9 @@ int get_fuelgauge_value(int data)
 		ret = fg_read_voltage_now();
 		break;
 
+	case FG_RAW_LEVEL:
+		ret = fg_read_raw_soc();
+		break;
 	default:
 		ret = -1;
 		break;

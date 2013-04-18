@@ -255,7 +255,7 @@ exynos_drm_encoder_create(struct drm_device *dev,
 		return NULL;
 	}
 
-	exynos_encoder->dpms = DRM_MODE_DPMS_OFF;
+	exynos_encoder->dpms = DRM_MODE_DPMS_ON;
 	exynos_encoder->manager = manager;
 	encoder = &exynos_encoder->drm_encoder;
 	encoder->possible_crtcs = possible_crtcs;

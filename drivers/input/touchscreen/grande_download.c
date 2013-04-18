@@ -489,8 +489,8 @@ void melfas_send_download_enable_command(void)
 //============================================================
 //#include "MCS5080_SAMPLE_FIRMWARE_R01_V00_bin.c"
 //#include "MMH_SVESTA_R00_V02_bin.c"  //1 include bin file
-#define BINARY_FIRMWARE_VERSION 0x18
-#include "MCH_SW999_R03_V18_bin.c"
+#define BINARY_FIRMWARE_VERSION 0x01
+#include "MCH_SW889_R01_V01_bin.c"
 
 //============================================================
 //

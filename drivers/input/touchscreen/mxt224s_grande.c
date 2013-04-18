@@ -30,7 +30,7 @@
 #include <linux/firmware.h>
 #include <linux/string.h>
 
-#define CONFIG_READ_FROM_FILE
+/* #define CONFIG_READ_FROM_FILE */
 #ifdef CONFIG_READ_FROM_FILE
 #define CONFIG_READ_FROM_SDCARD
 #define MXT_CFG_MAGIC		"OBP_RAW V1"
@@ -46,16 +46,8 @@ struct mxt_info {
 	u8 matrix_ysize;
 	u8 object_num;
 };
-
 #endif
 
-#define STYLUS_FILTER_TEST
-#ifdef STYLUS_FILTER_TEST
-static unsigned char g_ucFilterNum;
-static unsigned char g_ucFilterConst1;		
-static unsigned char g_ucFilterConst2;
-static unsigned char g_ucFilterConst3;
-#endif
 
 #define OBJECT_TABLE_START_ADDRESS	7
 #define OBJECT_TABLE_ELEMENT_SIZE	6
@@ -82,9 +74,16 @@ static unsigned char g_ucFilterConst3;
 #define MXT_BOOT_HIGH		0x25
 
 /* FIRMWARE NAME */
-#define MXT_FW_NAME			"tsp_atmel/mXT224S.fw"
+#define MXT_FW_NAME			"tsp_atmel/mxt224s.fw"
 #define MXT_BOOT_VALUE		0xa5
 #define MXT_BACKUP_VALUE	0x55
+
+#if CHECK_ANTITOUCH
+#define MXT_T61_TIMER_ONESHOT			0
+#define MXT_T61_TIMER_REPEAT			1
+#define MXT_T61_TIMER_CMD_START		1
+#define MXT_T61_TIMER_CMD_STOP		2
+#endif
 
 /* Bootloader mode status */
 #define MXT_WAITING_BOOTLOAD_CMD	0xc0	/* valid 7 6 bit only */
@@ -113,49 +112,36 @@ static unsigned char g_ucFilterConst3;
 /* Feature */
 /*#######################################*/
 #define TOUCH_BOOSTER				1
-#define USE_SUMSIZE					0
 #define SYSFS	1
 #define FOR_BRINGUP  1
 #define UPDATE_ON_PROBE   1
 #define READ_FW_FROM_HEADER	1
-#define FOR_DEBUGGING_TEST_DOWNLOADFW_BIN 1
+#define FOR_DEBUGGING_TEST_DOWNLOADFW_BIN 0
 #define ITDEV	1
 #define SHOW_COORDINATE	1
 #define DEBUG_INFO	0
 #define HIGH_RESOLUTION	0
-#define CHECK_ANTITOUCH	1
+#define TREAT_ERR				0
+#define FORCE_RELEASE				0
+#define DOWNLOAD_CONFIG				0
 /*#######################################*/
 
-#if CHECK_ANTITOUCH
-#define MXT_T61_TIMER_MODE_ONESHOT			0
-#define MXT_T61_TIMER_REPEAT			1
-#define MXT_T61_TIMER_CMD_START		1
-#define MXT_T61_TIMER_CMD_STOP		2
-#endif
 
 /* touch booster */
 #if TOUCH_BOOSTER
 #include <mach/cpufreq.h>
-#define TOUCH_BOOSTER_TIME		3000
-#define TOUCH_BOOSTER_LIMIT_CLK	500000
+#define TOUCH_BOOSTER_TIME	          3000
+#define TOUCH_BOOSTER_LIMIT_CLK	        500000
 
 static bool tsp_press_status;
 static bool touch_cpu_lock_status;
 static int cpu_lv = -1;
 #endif
 
-/* use sumsize in T57 register */
-#if USE_SUMSIZE
-#define MAX_SUMSIZE	40
-#define MAX_SINGLE_SUMSIZE		100
-
-static uint16_t sum_size;
-#endif
-
 /* Firmware */
 #if READ_FW_FROM_HEADER
 static u8 firmware_mXT[] = {
-	#include "mxt224s_V1.1.C1_.h"
+	#include "mxt224s_V1.1.AA_.h"
 };
 #endif
 
@@ -178,6 +164,10 @@ static int debug_enabled;
 
 static int Flip_status_tsp;
 static int Tsp_current_addr;
+
+static int Tsp_main_initialized;
+static int Tsp_sub_initialized;
+static int Tsp_probe_passed;
 #endif
 
 /* add for protection code */
@@ -212,10 +202,6 @@ struct report_id_map_t {
 	u8 instance;        /*!< Instance number. */
 };
 
-u8 max_report_id;
-struct report_id_map_t *rid_map;
-static bool rid_map_alloc;
-
 struct mxt_data {
 	struct i2c_client *client;
 	struct input_dev *input_dev;
@@ -243,14 +229,8 @@ struct mxt_data {
 	u8 calcfg_batt;
 	u8 calcfg_charging;
 	u8 disable_config_write;
-	const u8 *t48_config_batt;
-	const u8 *t48_config_chrg;
-#if CHECK_ANTITOUCH
-	u8 ucfCheck_AntiTouch;
-	u8 ucfCheck_Timer;
-	u8 ucfCheck_AutoCal;
-	u8 ucfCheck_Calgood;
-#endif
+	unsigned char Report_touch_number;
+	u16 distance[10];
 #if TOUCH_BOOSTER
 	struct delayed_work dvfs_dwork;
 #endif
@@ -266,10 +246,15 @@ struct mxt_data {
 #ifdef CONFIG_READ_FROM_FILE
 	struct mxt_info info;
 #endif
+	u8 max_report_id;
+	struct report_id_map_t *rid_map;
+	bool rid_map_alloc;
+	unsigned int  touch_area_cnt;
+	int tcount[10];
 	struct finger_info fingers[];
 };
 
-struct mxt_data *copy_data;
+static struct mxt_data *copy_data;
 
 int touch_is_pressed;
 EXPORT_SYMBOL(touch_is_pressed);
@@ -278,13 +263,13 @@ static bool g_debug_switch;
 static u8 threshold;
 static int firm_status_data;
 
-static u8 firmware_latest[] = {0x10, 0xaa};	/* version, build_version */
+static u16 pre_x[][4] = {{0}, };
+static u16 pre_y[][4] = {{0}, };
+
+static u8 firmware_latest[] = {0x11, 0xaa};	/* version, build_version */
 
 #if DEBUG_INFO
-static u8	*object_type_name[60] = {
-/*	[0]	= "Reserved",	*/
-/*	[2]	= "T2 - Obsolete",	*/
-/*	[3]	= "T3 - Obsolete",	*/
+static u8	*object_type_name[63] = {
 	[5]	= "GEN_MESSAGEPROCESSOR_T5",
 	[6]	= "GEN_COMMANDPROCESSOR_T6",
 	[7]	= "GEN_POWERCONFIG_T7",
@@ -292,23 +277,48 @@ static u8	*object_type_name[60] = {
 	[9]	= "TOUCH_MULTITOUCHSCREEN_T9",
 	[15]	= "TOUCH_KEYARRAY_T15",
 	[18]	= "SPT_COMCONFIG_T18",
-/*	[22]	= "PROCG_NOISESUPPRESSION_T22",*/
-/*	[23]	= "TOUCH_PROXIMITY_T23",*/
-/*	[24]	= "PROCI_ONETOUCHGESTUREPROCESSOR_T24",*/
+	[23]	= "TOUCH_PROXIMITY_T23",
 	[25]	= "SPT_SELFTEST_T25",
-/*	[26]	= "T26 - Obsolete",*/
-/*	[27]	= "PROCI_TWOTOUCHGESTUREPROCESSOR_T27",*/
-/*	[28]	= "SPT_CTECONFIG_T28",*/
 	[37]	= "DEBUG_DIAGNOSTICS_T37",
 	[38]	= "USER_DATA_T38",
 	[40]	= "PROCI_GRIPSUPPRESSION_T40",
 	[42]	= "PROCI_TOUCHSUPPRESSION_T42",
-	[43]	= "SPT_DIGITIZER_T43",
+	[44]	= "MESSAGECOUNT_T44",
 	[46]	= "SPT_CTECONFIG_T46",
-	[48]	= "PROCG_NOISESUPPRESSION_T48",
+	[47]	= "PROCI_STYLUS_T47",
+	[55]	= "PROCI_ADAPTIVETHRESHOLD_T55",
 	[56]	= "PROCI_SHIELDLESS_T56",
 	[57]	= "SPT_GENERICDATA_T57",
+	[61]	= "SPT_TIMER_T61",
+	[62]	= "PROCG_NOISESUPPRESSION_T62",
 };
+#endif
+
+#if TOUCH_BOOSTER
+static void mxt_set_dvfs_off(struct work_struct *work)
+{
+	struct mxt_data *data =
+		container_of(work, struct mxt_data, dvfs_dwork.work);
+
+	if (mxt_enabled) {
+		disable_irq(data->client->irq);
+		if (touch_cpu_lock_status
+			&& !tsp_press_status){
+			exynos_cpufreq_lock_free(DVFS_LOCK_ID_TSP);
+			touch_cpu_lock_status = 0;
+		}
+		enable_irq(data->client->irq);
+	}
+}
+
+static void mxt_set_dvfs_on(struct mxt_data *data)
+{
+	cancel_delayed_work(&data->dvfs_dwork);
+	if (cpu_lv < 0)
+		exynos_cpufreq_get_level(TOUCH_BOOSTER_LIMIT_CLK, &cpu_lv);
+	exynos_cpufreq_lock(DVFS_LOCK_ID_TSP, cpu_lv);
+	touch_cpu_lock_status = 1;
+}
 #endif
 
 extern struct class *sec_class;
@@ -318,10 +328,10 @@ int mxt_download_config(struct mxt_data *data, const char *fn);
 #endif
 
 /* declare function proto type */
-#if 0
+/*
 static void mxt_ta_probe(int ta_status);
 static void report_input_data(struct mxt_data *data);
-#endif
+*/
 static int read_mem(struct mxt_data *data, u16 reg, u8 len, u8 *buf)
 {
 	int ret;
@@ -401,6 +411,73 @@ static int get_object_info(struct mxt_data *data, u8 object_type, u16 *size,
 	return -ENODEV;
 }
 
+#if CHECK_ANTITOUCH
+void mxt_t61_timer_set(struct mxt_data *data, u8 mode, u8 cmd, u16 msPeriod)
+{
+	int ret = 0;
+	u8 buf[5] = {3, 0, 0, 0, 0};
+	u16 size = 0;
+	u16 obj_address = 0;
+
+	get_object_info(data, SPT_TIMER_T61,
+			&size, &obj_address);
+
+	buf[1] = cmd;
+	buf[2] = mode;
+	buf[3] = msPeriod & 0xFF;
+	buf[4] = (msPeriod >> 8) & 0xFF;
+
+	ret = write_mem(data, obj_address, 5, buf);
+	if (ret)
+		pr_err("%s write error T%d address[0x%x]\n",
+			__func__, SPT_TIMER_T61, obj_address);
+
+	pr_info("T61 Timer Enabled %d\n", msPeriod);
+}
+
+void mxt_t8_cal_set(struct mxt_data *data, u8 mstime)
+{
+	int ret = 0;
+	u16 size = 0;
+	u16 obj_address = 0;
+
+	if (mstime) {
+		data->pdata->check_autocal = 1;
+		pr_info("T8 Autocal Enabled %d\n", mstime);
+	} else {
+		data->pdata->check_autocal = 0;
+		pr_info("T8 Autocal Disabled %d\n", mstime);
+	}
+
+	get_object_info(data, GEN_ACQUISITIONCONFIG_T8,
+									&size, &obj_address);
+
+
+	ret = write_mem(data, obj_address + 4, 1, &mstime);
+	if (ret)
+		pr_err("%s write error T%d address[0x%x]\n",
+			__func__, SPT_TIMER_T61, obj_address);
+}
+
+/*
+static void mxt_check_coordinate(struct mxt_data *data,bool detect, u8 id,u16 *px, u16 *py)
+{
+	if (detect) {
+		data->tcount[id] = 0;
+		data->distance[id] = 0;
+	}
+	if (data->tcount[id] >= 1) {													// 2rd
+		data->distance[id] = abs(pre_x[id][0] - *px) + abs(pre_y[id][0] - *py);
+		pr_info("[TSP]Check Distance ID:%d, %d\n",id, data->distance[id]);
+	}
+	pre_x[id][0] = *px;
+	pre_y[id][0] = *py;
+
+	data->tcount[id]++;
+}
+*/
+#endif	/* CHECK_ANTITOUCH */
+
 static int write_config(struct mxt_data *data, u8 type, const u8 *cfg)
 {
 	int ret;
@@ -455,6 +532,7 @@ static int init_write_config(struct mxt_data *data, u8 type, const u8 *cfg)
 	return ret;
 }
 
+#if TREAT_ERR
 static int change_config(struct mxt_data *data,
 			u16 reg, u8 offeset, u8 change_value)
 {
@@ -463,6 +541,7 @@ static int change_config(struct mxt_data *data,
 	value = change_value;
 	return write_mem(data, reg+offeset, 1, &value);
 }
+#endif
 
 static u32 __devinit crc24(u32 crc, u8 byte1, u8 byte2)
 {
@@ -500,7 +579,7 @@ static int __devinit calculate_infoblock_crc(struct mxt_data *data,
 	return 0;
 }
 
-uint8_t calibrate_chip_e(void)
+static uint8_t calibrate_chip_e(void)
 {
 	u8 cal_data = 1;
 	int ret = 0;
@@ -515,88 +594,7 @@ uint8_t calibrate_chip_e(void)
 	return ret;
 }
 
-#if CHECK_ANTITOUCH
-void mxt_t61_timer_set(struct mxt_data *data, u8 mode, u8 cmd, u16 msPeriod)
-{
-	struct mxt_object *object;
-	int ret = 0;
-	u8 buf[5] = {3, 0, 0, 0, 0};
-	u16 obj_address = 0;
-	u16 size = 0;
-
-	get_object_info(data, SPT_TIMER_T61,
-								&size, &obj_address);
-
-	buf[1] = cmd;
-	buf[2] = mode;
-	buf[3] = msPeriod & 0xFF;
-	buf[4] = (msPeriod >> 8 ) & 0xFF;
-
-	ret = write_mem(data, obj_address, 5, buf);
-
-
-	if (ret)
-		pr_err("%s write error T%d address[0x%x]\n",
-			__func__, SPT_TIMER_T61, obj_address);
-
-	pr_info("T61 Timer Enabled %d\n", msPeriod);
-}
-
-void mxt_t8_autocal_set(struct mxt_data *data, u8 mstime)
-{
-	struct mxt_object *object;
-	int ret = 0;
-	u16 obj_address = 0;
-	u16 size = 0;
-
-	if (mstime) {
-		data->ucfCheck_AutoCal=1;
-		pr_info("T8 Autocal Enabled %d\n", mstime);
-	} else {
-		data->ucfCheck_AutoCal=0;
-		pr_info("T8 Autocal Disabled %d\n", mstime);
-	}
-
-	get_object_info(data, GEN_ACQUISITIONCONFIG_T8,
-									&size, &obj_address);
-
-
-	ret = write_mem(data,
-			obj_address+ 4,
-			1, &mstime);
-	if (ret)
-		pr_err("%s write error T%d address[0x%x]\n",
-			__func__, SPT_TIMER_T61, obj_address);
-}
-
-static void mxt_check_coordinate(struct mxt_data *data,
-	bool detect, u8 id, u16 *px, u16 *py)
-{
-	static int tcount[] = {0, };
-	static u16 pre_x[][4] = {{0}, };
-	static u16 pre_y[][4] = {{0}, };
-	int distance = 0;
-
-	if (detect)
-		tcount[id] = 0;
-
-	if (tcount[id] > 1) {
-		distance = abs(pre_x[id][0] - *px) + abs(pre_y[id][0] - *py);
-		pr_info("Check Distance ID:%d, %d\n", id, distance);
-
-		/* AutoCal Disable */
-		if(distance > 3)
-			mxt_t8_autocal_set(data, 0);
-	}
-
-	pre_x[id][0] = *px;
-	pre_y[id][0] = *py;
-
-	tcount[id]++;
-}
-#endif	/* CHECK_ANTITOUCH */
-
-
+#if TREAT_ERR
 static void treat_error_status(void)
 {
 	bool ta_status = 0;
@@ -750,32 +748,6 @@ static void treat_error_status(void)
 			pr_err("failed to write error status\n");
 	}
 }
-
-#if TOUCH_BOOSTER
-static void mxt_set_dvfs_off(struct work_struct *work)
-{
-	struct mxt_data *data =
-		container_of(work, struct mxt_data, dvfs_dwork.work);
-
-	if (mxt_enabled) {
-		disable_irq(data->client->irq);
-		if (touch_cpu_lock_status
-			&& !tsp_press_status){
-			exynos_cpufreq_lock_free(DVFS_LOCK_ID_TSP);
-			touch_cpu_lock_status = 0;
-		}
-		enable_irq(data->client->irq);
-	}
-}
-
-static void mxt_set_dvfs_on(struct mxt_data *data)
-{
-	cancel_delayed_work(&data->dvfs_dwork);
-	if (cpu_lv < 0)
-		exynos_cpufreq_get_level(TOUCH_BOOSTER_LIMIT_CLK, &cpu_lv);
-	exynos_cpufreq_lock(DVFS_LOCK_ID_TSP, cpu_lv);
-	touch_cpu_lock_status = 1;
-}
 #endif
 
 static void mxt_ta_probe(int ta_status)
@@ -790,7 +762,7 @@ static void mxt_ta_probe(int ta_status)
 #if 1//!(FOR_BRINGUP)
 	u16 obj_address = 0;
 	u16 size;
-	int error;
+	int error = 0;
 	u8 value = 0;
 
 	struct mxt_data *data = copy_data;
@@ -799,56 +771,46 @@ static void mxt_ta_probe(int ta_status)
 		pr_err("%s mxt_enabled is 0\n", __func__);
 		return;
 	}
-#if 0
-	if (treat_median_error_status)
-		treat_median_error_status = 0;
+
 	if (ta_status) {
-		error = write_config(data, data->t48_config_chrg[0],
-					data->t48_config_chrg + 1);
-
-		threshold = data->tchthr_charging;
-
-		if (error < 0)
-			pr_err("ta_probe write config Error!!\n");
+		write_config(copy_data, copy_data->pdata->t9_config_chrg[0], copy_data->pdata->t9_config_chrg + 1);
+		write_config(copy_data, copy_data->pdata->t56_config_chrg[0], copy_data->pdata->t56_config_chrg + 1);
+		write_config(copy_data, copy_data->pdata->t62_config_chrg[0], copy_data->pdata->t62_config_chrg + 1);
+#ifdef CONFIG_READ_FROM_FILE
+		mxt_download_config(data, MXT_TA_CFG_NAME);
+#endif
 	} else {
-		error |= write_config(data, data->t48_config_batt[0],
-					data->t48_config_batt + 1);
-
-		threshold = data->tchthr_batt;
-
-		if (error < 0)
-			pr_err("%s write config Error!!\n", __func__);
+		write_config(copy_data, copy_data->pdata->t9_config_batt[0], copy_data->pdata->t9_config_batt + 1);
+		write_config(copy_data, copy_data->pdata->t56_config_batt[0], copy_data->pdata->t56_config_batt + 1);
+		write_config(copy_data, copy_data->pdata->t62_config_batt[0], copy_data->pdata->t62_config_batt + 1);
+#ifdef CONFIG_READ_FROM_FILE
+		mxt_download_config(data, MXT_BATT_CFG_NAME);
+#endif
 	}
-#else
+#endif
     get_object_info(data, PROCG_NOISESUPPRESSION_T62,
     	&size, &obj_address);
 
 	//Read CALCFG1 for Setting CHRGON
 	read_mem(data, obj_address+1, 1, &value);
 
-	if (ta_status) {
-		get_object_info(data, PROCG_NOISESUPPRESSION_T62,
-			&size, &obj_address);
+
+	value &= 0xFE;
+	error = write_mem(data, obj_address+1, 1, &value);
+
 
 		value |= 0x01;
 		error = write_mem(data, obj_address+1, 1, &value);
-	} else {
-
-		value &= 0xFE;
-		error = write_mem(data, obj_address+1, 1, &value);
-	}
-#endif
-#endif
 #endif
 	pr_info("%s : threshold[%d]\n", __func__, threshold);
 };
 
-uint8_t reportid_to_type(struct mxt_data *data, u8 report_id, u8 *instance)
+static uint8_t reportid_to_type(struct mxt_data *data, u8 report_id, u8 *instance)
 {
 	struct report_id_map_t *report_id_map;
-	report_id_map = rid_map;
+	report_id_map = data->rid_map;
 
-	if (report_id <= max_report_id) {
+	if (report_id <= data->max_report_id) {
 		*instance = report_id_map[report_id].instance;
 		return report_id_map[report_id].object_type;
 	} else
@@ -868,7 +830,7 @@ static int __devinit mxt_init_touch_driver(struct mxt_data *data)
 	int ret;
 	u8 type_count = 0;
 	u8 tmp;
-	int current_report_id, start_report_id;
+	int cur_rep_id, start_report_id;
 
 	ret = read_mem(data, 0, sizeof(id), id);
 	if (ret)
@@ -896,12 +858,12 @@ static int __devinit mxt_init_touch_driver(struct mxt_data *data)
 	if (ret)
 		goto err;
 
-	max_report_id = 0;
+	data->max_report_id = 0;
 
 	for (i = 0; i < data->objects_len; i++) {
 		object_table[i].i2c_address =
 			le16_to_cpu(object_table[i].i2c_address);
-		max_report_id += object_table[i].num_report_ids *
+		data->max_report_id += object_table[i].num_report_ids *
 						(object_table[i].instances + 1);
 		tmp = 0;
 		if (object_table[i].num_report_ids) {
@@ -923,32 +885,31 @@ static int __devinit mxt_init_touch_driver(struct mxt_data *data)
 			break;
 		}
 	}
-	if (rid_map_alloc) {
-		rid_map_alloc = false;
-		kfree(rid_map);
+	if (data->rid_map_alloc) {
+		data->rid_map_alloc = false;
+		kfree(data->rid_map);
 	}
-	rid_map = kmalloc((sizeof(report_id_map_t) * max_report_id + 1),
-					GFP_KERNEL);
+	data->rid_map = kmalloc((sizeof(report_id_map_t) * data->max_report_id + 1), GFP_KERNEL);
 
-	if (!rid_map) {
+	if (!data->rid_map) {
 		kfree(object_table);
 		return -ENOMEM;
 	}
-	rid_map_alloc = true;
-	rid_map[0].instance = 0;
-	rid_map[0].object_type = 0;
-	current_report_id = 1;
+	data->rid_map_alloc = true;
+	data->rid_map[0].instance = 0;
+	data->rid_map[0].object_type = 0;
+	cur_rep_id = 1;
 
 	for (i = 0; i < data->objects_len; i++) {
 		if (object_table[i].num_report_ids != 0) {
 			for (j = 0; j <= object_table[i].instances; j++) {
-				for (start_report_id = current_report_id;
-				     current_report_id <
+				for (start_report_id = cur_rep_id;
+				     cur_rep_id <
 				     (start_report_id +
 				      object_table[i].num_report_ids);
-				     current_report_id++) {
-					rid_map[current_report_id].instance = j;
-					rid_map[current_report_id].object_type =
+				     cur_rep_id++) {
+					data->rid_map[cur_rep_id].instance = j;
+					data->rid_map[cur_rep_id].object_type =
 					    object_table[i].object_type;
 				}
 			}
@@ -994,18 +955,16 @@ static int __devinit mxt_init_touch_driver(struct mxt_data *data)
 			data->objects_len);
 
 	for (i = 0; i < data->objects_len; i++) {
-	/*	pr_info("Type:\t\t\t[%d]: %s\n",
+		pr_info("Type:\t\t\t[%d]: %s\n",
 			 object_table[i].object_type,
-			 object_type_name[object_table[i].object_type]);*/
-		 pr_info("Type:[%d]:   ",
-			 object_table[i].object_type);
-		pr_info("Address:0x%04X   ",
+			 object_type_name[object_table[i].object_type]);
+		pr_info("\tAddress:\t0x%04X\n",
 			 object_table[i].i2c_address);
-		pr_info("Size:%d Bytes   ",
+		pr_info("\tSize:\t\t%d Bytes\n",
 			 object_table[i].size);
-		pr_info("Instances:   %d\n",
+		pr_info("\tInstances:\t%d\n",
 			 object_table[i].instances);
-		pr_info("Report Id's:%d\n",
+		pr_info("\tReport Id's:\t%d\n",
 			 object_table[i].num_report_ids);
 	}
 #endif
@@ -1017,68 +976,6 @@ err:
 	return ret;
 }
 
-#ifdef STYLUS_FILTER_TEST
-
-#define Square(x) ((x) * (x))
-
-static void equalize_coordinate(bool detect, u8 id, u16 *px, u16 *py)
-{
-	static u16 pre_x[MAX_USING_FINGER_NUM];
-	static u16 pre_y[MAX_USING_FINGER_NUM];
-	static u8 nn[MAX_USING_FINGER_NUM];
-	u16 cur_x = *px;
-	u16 cur_y = *py;
-
-	if (g_ucFilterNum == 0)
-		return;
-
-	if (detect) { /* PRESS */
-		pre_x[id] = *px;
-		pre_y[id] = *py;
-		nn[id] = 1;
-		return;
-	}
-
-	if (g_ucFilterNum == 1) {
-		if ((Square(pre_x[id] - *px) + Square(pre_y[id] - *py)) <= Square(20)) {
-			*px = (pre_x[id] * 4 + *px) / (4 + 1);
-			*py = (pre_y[id] * 4 + *py) / (4 + 1);
-		}
-		if (!( abs(*px - pre_x[id]) > 1 && abs(*py - pre_y[id]) > 1 )) {
-			*px = pre_x[id];
-			*py = pre_y[id];
-		}
-	} else if (g_ucFilterNum == 2) {
-		*px = (pre_x[id]*g_ucFilterConst1 + *px) / (g_ucFilterConst1 + 1);
-		*py = (pre_y[id]*g_ucFilterConst1 + *py) / (g_ucFilterConst1 + 1);
-
-		if (abs(*px - pre_x[id]) > g_ucFilterConst2)
-			*px = (pre_x[id]*g_ucFilterConst3 + *px) / (g_ucFilterConst3 + 1);
-		if (abs(*py - pre_y[id]) > g_ucFilterConst2)
-			*py = (pre_y[id]*g_ucFilterConst3 + *py) / (g_ucFilterConst3 + 1);
-	} else if (g_ucFilterNum == 3) {
-		if (nn[id] > 0) {
-			if ((Square(pre_x[id] - *px) + Square(pre_y[id] - *py)) > g_ucFilterConst2)
-				if (nn[id] > 1) nn[id] >>=1;  //4->2->1
-
-			*px = (pre_x[id]*nn[id] + *px) / (nn[id] + 1);
-			*py = (pre_y[id]*nn[id] + *py) / (nn[id] + 1);
-		}
-
-		if (nn[id] < g_ucFilterConst1)
-			nn[id]++;
-
-	}
-
-	printk("[TSP] ID[%d] P[%d, %d] C[%d, %d] F[%d, %d] M[%d, %d, %d, %d]\n",
-		id, pre_x[id], pre_y[id], cur_x, cur_y, *px, *py,
-		g_ucFilterNum, g_ucFilterConst1, g_ucFilterConst2, g_ucFilterConst3);
-
-	/* Save Current X/Y */
-	pre_x[id] = *px;
-	pre_y[id] = *py;	
-}
-#endif
 
 static void report_input_data(struct mxt_data *data)
 {
@@ -1117,7 +1014,7 @@ static void report_input_data(struct mxt_data *data)
 #if SHOW_COORDINATE
 		switch (data->fingers[i].state) {
 		case MXT_STATE_PRESS:
-			pr_info("[TSP] P: "
+			pr_info("P: "
 				"id[%d],x=%d,y=%d,w=%d, z=%d\n",
 				i, data->fingers[i].x, data->fingers[i].y
 				, data->fingers[i].w, data->fingers[i].z);
@@ -1131,7 +1028,7 @@ static void report_input_data(struct mxt_data *data)
 			break;
 */
 		case MXT_STATE_RELEASE:
-			pr_info("[TSP] R: "
+			pr_info("R: "
 				"id[%d],mc=%d\n",
 				i, data->fingers[i].mcount);
 			break;
@@ -1140,10 +1037,10 @@ static void report_input_data(struct mxt_data *data)
 		}
 #else
 		if (data->fingers[i].state == MXT_STATE_PRESS)
-			pr_info("[TSP] P: id[%d],w=%d\n"
+			pr_info("P: id[%d],w=%d\n"
 				, i, data->fingers[i].w);
 		else if (data->fingers[i].state == MXT_STATE_RELEASE)
-			pr_info("[TSP] R: id[%d],mc=%d\n"
+			pr_info("R: id[%d],mc=%d\n"
 				, i, data->fingers[i].mcount);
 #endif
 		if (data->fingers[i].state == MXT_STATE_RELEASE) {
@@ -1180,19 +1077,34 @@ static void report_input_data(struct mxt_data *data)
 	data->finger_mask = 0;
 }
 
+#if CHECK_ANTITOUCH
+static u16 mxt_dist_check(struct mxt_data *data,	unsigned char touch_num)
+{
+	int count;
+	u16 dist_sum = 0;
+
+	for (count = 0; count < touch_num; count++) {
+		if (data->distance[count] < 4) { /* touch_num==2이면,, data->distance[0],data->distance[1] 을 체믘  */
+			dist_sum++;
+		} else {
+			dist_sum = 0;
+		}
+	}
+	pr_info("[TSP] dis0 = %d, dis1 = %d, dis2 = %d, dis3 = %d, dis4 = %d, dis5 = %d\n", data->distance[0], data->distance[1], data->distance[2], data->distance[3], data->distance[4], data->distance[5]);
+	return dist_sum;
+}
+#endif
+
 static irqreturn_t mxt_irq_thread(int irq, void *ptr)
 {
 	struct mxt_data *data = ptr;
 	int id;
 	u8 msg[data->msg_object_size];
 	u8 touch_message_flag = 0;
-	u16 obj_address = 0;
-	u16 size;
-	u8 value;
-	int error;
 	u8 object_type, instance;
-
+#if CHECK_ANTITOUCH
 	u16 tch_area = 0, atch_area = 0;
+#endif
 
 #if DEBUG_INFO
 	pr_info("[TSP] mxt_irq_thread()\n");
@@ -1213,7 +1125,6 @@ static irqreturn_t mxt_irq_thread(int irq, void *ptr)
 			print_hex_dump(KERN_INFO, "MXT MSG:",
 			DUMP_PREFIX_NONE, 16, 1, msg, sizeof(msg), false);
 #endif
-
 		object_type = reportid_to_type(data, msg[0] , &instance);
 
 		if (object_type == GEN_COMMANDPROCESSOR_T6) {
@@ -1223,31 +1134,32 @@ static irqreturn_t mxt_irq_thread(int irq, void *ptr)
 				pr_info("I2C checksum error\n");
 			if ((msg[1]&0x08) == 0x08) /* config error */
 				pr_info("config error\n");
-			if ((msg[1]&0x10) == 0x10) /* calibration */
+			if ((msg[1]&0x10) == 0x10) {
+				/* calibration */
 				pr_info("calibration is"
 					" on going !!\n");			
 
 #if CHECK_ANTITOUCH
 			/* After Calibration */
-			data->ucfCheck_AntiTouch = 1;
+			pr_info("[TSP] mxt_check_coordinate Disable autocal = 0\n");
+			mxt_t8_cal_set(data, 0);
+			data->pdata->check_antitouch = 1;
 			mxt_t61_timer_set(data,
-				MXT_T61_TIMER_MODE_ONESHOT,
+						MXT_T61_TIMER_ONESHOT,
 				MXT_T61_TIMER_CMD_STOP, 0);
-			data->ucfCheck_Timer = 0;
-			data->ucfCheck_Calgood = 0;
+			data->pdata->check_timer = 0;
+			data->pdata->check_calgood = 0;
 #endif
-
+			}
 			if ((msg[1]&0x20) == 0x20) /* signal error */
 				pr_info("signal error\n");
 			if ((msg[1]&0x40) == 0x40) /* overflow */
 				pr_info("overflow detected\n");
 			if ((msg[1]&0x80) == 0x80) /* reset */
-				pr_info("reset is ongoing\n");
+				pr_info("[TSP] reset is ongoing\n");
 		}
 
 		if (object_type == PROCI_TOUCHSUPPRESSION_T42) {
-			get_object_info(data, GEN_ACQUISITIONCONFIG_T8,
-							&size, &obj_address);
 			if ((msg[1] & 0x01) == 0x00) {
 				/* Palm release */
 				pr_info("palm touch released\n");
@@ -1260,121 +1172,76 @@ static irqreturn_t mxt_irq_thread(int irq, void *ptr)
 				touch_message_flag = 1;
 			}
 		}
-#if 0
-		if (object_type == PROCG_NOISESUPPRESSION_T48) {
-			/* pr_info("T48 [STATUS]:%#02x"
-				"[ADCSPERX]:%#02x[FRQ]:%#02x"
-				"[STATE]:%#02x[NLEVEL]:%#02x\n"
-				, msg[1], msg[2], msg[3], msg[4], msg[5]);*/
-
-			if (msg[4] == 5) { /* Median filter error */
-				pr_info("Median filter error\n");
-				if ((data->family_id == 0xA1)
-					&& ((data->tsp_version == 0x13)
-					|| (data->tsp_version == 0x20))) {
-					if (data->read_ta_status)
-						treat_error_status();
-				} else {
-					get_object_info(data,
-						PROCG_NOISESUPPRESSION_T48,
-						&size, &obj_address);
-					value = data->calcfg_batt;
-					error = write_mem(data,
-						obj_address+2, 1, &value);
-					msleep(20);
-					value |= 0x20;
-					error |= write_mem(data,
-						obj_address+2, 1, &value);
-					if (error)
-						pr_err("failed to"
-							"reenable CHRGON\n");
-				}
-			}
-		}
-#endif
-#if USE_SUMSIZE
-		if (object_type == SPT_GENERICDATA_T57) {			
-
+		if (object_type == PROCI_EXTRATOUCHSCREENDATA_T57) {
 #if CHECK_ANTITOUCH
 			tch_area = msg[3] | (msg[4] << 8);
 			atch_area = msg[5] | (msg[6] << 8);
-			if (data->ucfCheck_AntiTouch) {
+
+			data->Report_touch_number = 0;
+
+			if (data->pdata->check_antitouch) {
 				if (tch_area) {
 					pr_info("TCHAREA=%d\n", tch_area);
 
 					/* First Touch After Calibration */
-					if (data->ucfCheck_Timer == 0) {
+					if (data->pdata->check_timer == 0) {
 						mxt_t61_timer_set(data,
-							MXT_T61_TIMER_MODE_ONESHOT,
+							MXT_T61_TIMER_ONESHOT,
 							MXT_T61_TIMER_CMD_START, 3000);
-						data->ucfCheck_Timer = 1;
+						data->pdata->check_timer = 1;
 					}
 
-					if (tch_area <= 2) {
-						mxt_t8_autocal_set(data, 5);
-						//data->ucfCheck_Timer = 0;
-					}
+					if (tch_area <= 2)
+						mxt_t8_cal_set(data, 5);
 				}
 
 				if (atch_area >= 3) {
 					pr_info("ATCHAREA=%d\n", atch_area);
-					calibrate_chip_e(data);
-				}
-
-				if(data->finger_mask & ~(1<<2)){
-					if(tch_area > atch_area) {
-						pr_info("TCHAREA=%d, ATCHAREA = %d,\
-								finger_mask= %d\n", tch_area,\
-								atch_area, data->finger_mask);
-						calibrate_chip_e(data);
-					 }
-					 else  {
-						pr_info("TCHAREA=%d, ATCHAREA = %d,\
-							finger_mask= %d\n", tch_area,\
-							atch_area, data->finger_mask);
-						calibrate_chip_e(data);
-					 }
-				}
-				else {
-					if(atch_area > 0) {
-						pr_info("ATCHAREA = %d,\
-								finger_mask= %d\n",\
-								atch_area, data->finger_mask);
-								calibrate_chip_e(data);
-					 }
+					calibrate_chip_e();
 				}
 			}
 
-
-
-			if (data->ucfCheck_Calgood == 1){
-				if ((atch_area - tch_area) > 8){
+			if (data->pdata->check_calgood == 1) {
+				if ((atch_area - tch_area) > 8) {
 					if (tch_area < 35) {
-						pr_info("Cal Not Good %d %d\n",
-							atch_area, tch_area);
-						calibrate_chip_e(data);
-					}
+						pr_info("Cal Not Good %d %d\n",	atch_area, tch_area);
+						calibrate_chip_e();
 				}
+					 }
 				if ((tch_area - atch_area) >= 40) {
 					pr_info("Cal Not Good 2 - %d %d\n",
-						atch_area, tch_area);
-					calibrate_chip_e(data);
+							atch_area, tch_area);
+					calibrate_chip_e();
+					 }
 				}
+#endif	/* CHECK_ANTITOUCH */
 			}
 
+#if CHECK_ANTITOUCH
+		if (object_type == SPT_TIMER_T61) {
+			if ((msg[1] & 0xa0) == 0xa0) {
+
+				if (data->pdata->check_calgood == 1)
+					data->pdata->check_calgood = 0;
+
+				if (data->pdata->check_antitouch) {
+					pr_info("SPT_TIMER_T61 Stop\n");
+					data->pdata->check_antitouch = 0;
+					data->pdata->check_timer = 0;
+					mxt_t8_cal_set(data, 0);
+					data->pdata->check_calgood = 1;
+					mxt_t61_timer_set(data, MXT_T61_TIMER_ONESHOT, MXT_T61_TIMER_CMD_START, 10000);
+					}
+				}
+			}
 #endif	/* CHECK_ANTITOUCH */
-
-			sum_size = msg[1];
-			sum_size +=  (msg[2]<<8);
-		}
-#endif
-
 		if (object_type == TOUCH_MULTITOUCHSCREEN_T9) {
 			id = msg[0] - data->finger_type;
 
 			/* If not a touch event, then keep going */
 			if (id < 0 || id >= data->num_fingers)
 					continue;
+
 			if (data->finger_mask & (1U << id))
 				report_input_data(data);
 
@@ -1404,47 +1271,29 @@ static irqreturn_t mxt_irq_thread(int irq, void *ptr)
 					>> data->y_dropbits);
 #if HIGH_RESOLUTION
 				/* high X resolution version*/
-				data->fingers[id].x = (u16)((data->fingers[id].x * /*800*/480) / 4096);
-				data->fingers[id].y = (u16)((data->fingers[id].y * /*480*/800) /4096);
+				data->fingers[id].x = (u16)((data->fingers[id].x * 480) / 4096);             /* 800 -> 480 */
+				data->fingers[id].y = (u16)((data->fingers[id].y * 800) / 4096);	 /* 480 -> 800 */
 #endif
 
 				data->finger_mask |= 1U << id;
 
 				if (msg[1] & PRESS_MSG_MASK) {
-					data->fingers[id].state =
-						MXT_STATE_PRESS;
-					data->fingers[id].mcount = 0;				
-
+					data->fingers[id].state = MXT_STATE_PRESS;
+					data->fingers[id].mcount = 0;
 #if CHECK_ANTITOUCH
-			if(data->ucfCheck_AutoCal)
-				mxt_check_coordinate(data, 1, id,
-					&data->fingers[id].x, &data->fingers[id].y);
+					/* mxt_check_coordinate(data, 1, id, &data->fingers[id].x, &data->fingers[id].y);*/
 #endif
 
-
-
-#ifdef STYLUS_FILTER_TEST
-					equalize_coordinate(1, id, &data->fingers[id].x, &data->fingers[id].y);
-#endif
 				} else if (msg[1] & MOVE_MSG_MASK) {
-					data->fingers[id].mcount += 1;					
-
-
+					data->fingers[id].mcount += 1;
 #if CHECK_ANTITOUCH
-			if(data->ucfCheck_AutoCal)
-				mxt_check_coordinate(data, 0, id,
-					&data->fingers[id].x, &data->fingers[id].y);
+					/* mxt_check_coordinate(data, 0, id, &data->fingers[id].x, &data->fingers[id].y);*/
 #endif
+				}
 
-
-#ifdef STYLUS_FILTER_TEST					
-					equalize_coordinate(0, id, &data->fingers[id].x, &data->fingers[id].y);
-#endif										
-				}	
-
-				#ifdef _SUPPORT_SHAPE_TOUCH_
+#ifdef _SUPPORT_SHAPE_TOUCH_
 				data->fingers[id].component = msg[7];
-				#endif
+#endif
 
 			} else if ((msg[1] & SUPPRESS_MSG_MASK)
 			&& (data->fingers[id].state != MXT_STATE_INACTIVE)) {
@@ -1461,70 +1310,11 @@ static irqreturn_t mxt_irq_thread(int irq, void *ptr)
 				continue;
 			}
 		}
-#if CHECK_ANTITOUCH
-		if (object_type == SPT_TIMER_T61)
-		{
-			if((msg[1] & 0xa0) == 0xa0) {
-
-				if (data->ucfCheck_Calgood == 1)
-					data->ucfCheck_Calgood = 0;
-
-				if (data->ucfCheck_AntiTouch) {
-					pr_info("SPT_TIMER_T61 Stop\n");
-					data->ucfCheck_AntiTouch = 0;
-					data->ucfCheck_Timer = 0;
-					mxt_t8_autocal_set(data, 0);
-					data->ucfCheck_Calgood = 1;
-					mxt_t61_timer_set(data,
-						MXT_T61_TIMER_MODE_ONESHOT,
-						MXT_T61_TIMER_CMD_START, 10000);
-				}
-			}
-		}
-#endif	/* CHECK_ANTITOUCH */
-
-
-
 	} while (!gpio_get_value(data->gpio_read_done));
 
-	if (data->finger_mask) {
-#if USE_SUMSIZE
-		if (sum_size > 0) {
-			/* case of normal configuration */
-			u8 num_finger = 0;
-			u8 i;
-			uint16_t t9_sum_size = 0;
-
-			for (i = 0; i < data->num_fingers; i++) {
-				if (data->fingers[i].state == MXT_STATE_INACTIVE
-				|| data->fingers[i].state == MXT_STATE_RELEASE)
-					continue;
-				t9_sum_size += data->fingers[i].w;
-
-				num_finger++;
-			}
-
-			if ((num_finger == 1)
-				&& ((sum_size-t9_sum_size) >= MAX_SUMSIZE)) {
-				pr_info(
-					"recalibrate for max sumsize[%d]"
-					"t9_sum_size[%d]\n"
-					, sum_size, t9_sum_size);
-				calibrate_chip_e();
-			} else {
-				report_input_data(data);
-			}
-
-			t9_sum_size = 0;
-			sum_size = 0;
-		} else {
-			/* case of recovery configuration */
-			report_input_data(data);
-		}
-#else
+	if (data->finger_mask)
 		report_input_data(data);
-#endif
-	}
+
 
 	return IRQ_HANDLED;
 }
@@ -1574,10 +1364,11 @@ void samsung_switching_tsp_suspend(void)
 	/******************************************************/
 	/*	  One TSP has to enter suspend mode					*/
 	/******************************************************/
-	if (Flip_status_tsp == FLIP_OPEN) {/* Sub-TSP need to enter suspend-mode*/
+	printk("[TSP] ++++samsung_switching_tsp_suspend()\n");
+	if (Flip_status_tsp == FLIP_OPEN) {/* Sub_TSP need to enter suspend-mode*/
 		Tsp_current_addr = MXT224S_ADDR_SUB;
 		gpio_set_value(GPIO_TSP_SEL, TSP_SEL_toSUB);
-	} else {/* Main-TSP need to enter suspend-mode*/
+	} else {/* Main_TSP need to enter suspend-mode*/
 		Tsp_current_addr = MXT224S_ADDR_MAIN;
 		gpio_set_value(GPIO_TSP_SEL, TSP_SEL_toMAIN);
 	}
@@ -1590,10 +1381,10 @@ void samsung_switching_tsp_suspend(void)
 	} while (ret && i < 10);
 
 
-	if (Flip_status_tsp == FLIP_OPEN) { /* retunr to Main-TSP*/
+	if (Flip_status_tsp == FLIP_OPEN) { /* return to Main_TSP*/
 		Tsp_current_addr = MXT224S_ADDR_MAIN;
 		gpio_set_value(GPIO_TSP_SEL, TSP_SEL_toMAIN);
-	} else {/* retunr to Main-TSP*/
+	} else {/* return to Sub_TSP*/
 		Tsp_current_addr = MXT224S_ADDR_SUB;
 		gpio_set_value(GPIO_TSP_SEL, TSP_SEL_toSUB);
 	}
@@ -1608,8 +1399,49 @@ void samsung_switching_tsp_resume(void)
 	bool ta_status = 0;
 	int ret;
 	int i=0;
+	struct mxt_data *data = copy_data;
 	
 	printk("[TSP]%s : addr:%02x, tspsel :%d\n", __FUNCTION__, Tsp_current_addr, gpio_get_value(GPIO_TSP_SEL));
+
+	if (Tsp_main_initialized == 0) {
+	/******************************************************/
+	/*				Main TSP or Sub TSP ini						*/
+	/******************************************************/
+		Tsp_main_initialized = 1;
+
+		printk("[TSP] samsung_switching_tsp_resume() : Main TSP init	#############\n");
+		if (data->read_ta_status) {
+			data->read_ta_status(&ta_status);
+			pr_info("ta_status is %d\n", ta_status);
+			mxt_ta_probe(ta_status);
+		}
+		#ifdef CONFIG_READ_FROM_FILE
+		else{
+			mxt_download_config(data, MXT_BATT_CFG_NAME);
+		}
+		#endif
+		calibrate_chip_e();
+	}
+
+	if (Tsp_sub_initialized == 0) {
+	/******************************************************/
+	/*				Sub TSP init								*/
+	/******************************************************/
+		Tsp_sub_initialized = 1;
+
+		printk("[TSP] samsung_switching_tsp_resume() :Sub TSP init		#############\n");
+		if (data->read_ta_status) {
+			data->read_ta_status(&ta_status);
+			pr_info("ta_status is %d\n", ta_status);
+			mxt_ta_probe(ta_status);
+		}
+		#ifdef CONFIG_READ_FROM_FILE
+		else{
+			mxt_download_config(data, MXT_BATT_CFG_NAME);
+		}
+		#endif
+		calibrate_chip_e();
+	}
 
 
 	do {
@@ -1625,6 +1457,9 @@ void samsung_switching_tsp_resume(void)
 
 void samsung_switching_tsp(int flip)
 {
+	if (Tsp_probe_passed == 0)
+		return;
+
 	printk("[TSP]%s\n", __FUNCTION__);
 	printk("[TSP] Flip_status_tsp:%s, flip:%d(hallSW:%d)\n", Flip_status_tsp ? "FLIP OPEN" : "FLIP OPEN", flip, gpio_get_value(GPIO_HALL_SW));
 	printk( "[TSP] tspsel:%d, addr:%02x, current addr:%02x\n", gpio_get_value(GPIO_TSP_SEL), copy_data->client->addr, Tsp_current_addr);
@@ -1635,6 +1470,7 @@ void samsung_switching_tsp(int flip)
 		return;
 	}
 
+	disable_irq(copy_data->client->irq); /* do not accept tsp irq before folder open/close complete */
 	if (mxt_enabled == 0) {
 		Flip_status_tsp = flip;
 	} else {
@@ -1644,6 +1480,7 @@ void samsung_switching_tsp(int flip)
 			samsung_switching_tsp_resume();
 		}
 	}
+	enable_irq(copy_data->client->irq); /* enable tsp irq again */
 
 	return;
 }
@@ -1666,6 +1503,8 @@ static void mxt_early_suspend(struct early_suspend *h)
 		touch_is_pressed = 0;
 		disable_irq(data->client->irq);
 		mxt_internal_suspend(data);
+		Tsp_main_initialized = 0;
+		Tsp_sub_initialized = 0;
 	} else
 		pr_err("%s. but touch already off\n", __func__);
 }
@@ -1677,46 +1516,53 @@ static void mxt_late_resume(struct early_suspend *h)
 								early_suspend);
 
 	if (mxt_enabled == 0) {
-		pr_info("%s\n", __func__);
+		pr_info("[TSP]        +%s\n", __func__);
 		mxt_internal_resume(data);
 
 		mxt_enabled = 1;
 
 #if DUAL_TSP
-/******************************************************/
-/*				Main TSP init							    */
-/******************************************************/
+	if (Flip_status_tsp == FLIP_OPEN) {
+	/******************************************************/
+	/*				Main TSP or Sub TSP init					    */
+	/******************************************************/
+		Tsp_main_initialized = 1;
+
 		Tsp_current_addr = MXT224S_ADDR_MAIN;
 	        gpio_set_value(GPIO_TSP_SEL, TSP_SEL_toMAIN);
-
+		printk("[TSP] mxt_late_resume() : Main TSP init		#############\n");
 		if (data->read_ta_status) {
 			data->read_ta_status(&ta_status);
 			pr_info("ta_status is %d\n", ta_status);
 			mxt_ta_probe(ta_status);
 		}
-#ifdef CONFIG_READ_FROM_FILE
+		#ifdef CONFIG_READ_FROM_FILE
 		else{
 			mxt_download_config(data, MXT_BATT_CFG_NAME);
 		}
-#endif
+		#endif
 		calibrate_chip_e();
-/******************************************************/
-/*				Sub TSP init							    */
-/******************************************************/
+	} else {
+	/******************************************************/
+	/*				Sub TSP init							    */
+	/******************************************************/
+		Tsp_sub_initialized = 1;
+
 		Tsp_current_addr = MXT224S_ADDR_SUB;
 	        gpio_set_value(GPIO_TSP_SEL, TSP_SEL_toSUB);
-
+		printk("[TSP] mxt_late_resume() :Sub TSP init		#############\n");
 		if (data->read_ta_status) {
 			data->read_ta_status(&ta_status);
 			pr_info("ta_status is %d\n", ta_status);
 			mxt_ta_probe(ta_status);
 		}
-#ifdef CONFIG_READ_FROM_FILE
+		#ifdef CONFIG_READ_FROM_FILE
 		else{
 			mxt_download_config(data, MXT_BATT_CFG_NAME);
 		}
-#endif
+		#endif
 		calibrate_chip_e();
+	}
 
 /******************************************************/
 /*	  One TSP has to enter suspend mode					    */
@@ -1741,9 +1587,11 @@ static void mxt_late_resume(struct early_suspend *h)
 		calibrate_chip_e();
 #endif
 		enable_irq(data->client->irq);
+		pr_info("[TSP]        +%s\n", __func__);
 	} else
 		pr_err("%s. but touch already on\n", __func__);
 }
+
 #else
 static int mxt_suspend(struct device *dev)
 {
@@ -1767,14 +1615,6 @@ static int mxt_resume(struct device *dev)
 
 	ret = mxt_internal_resume(data);
 
-#ifdef STYLUS_FILTER_TEST
-	get_object_info(data, SPT_USERDATA_T38, &size, &obj_address);
-    read_mem(data, obj_address + 1, 1, &g_ucFilterNum);	
-    read_mem(data, obj_address + 2, 1, &g_ucFilterConst1);	
-    read_mem(data, obj_address + 3, 1, &g_ucFilterConst2);	
-    read_mem(data, obj_address + 4, 1, &g_ucFilterConst3);	
-#endif
-
 	mxt_enabled = 1;
 
 	if (data->read_ta_status) {
@@ -1791,7 +1631,8 @@ static int mxt_resume(struct device *dev)
 }
 #endif
 
-void Mxt_force_released(void)
+#if FORCE_RELEASE
+static void Mxt_force_released(void)
 {
 	struct mxt_data *data = copy_data;
 	int i;
@@ -1811,6 +1652,7 @@ void Mxt_force_released(void)
 
 	calibrate_chip_e();
 };
+#endif
 
 #if SYSFS
 static ssize_t mxt_debug_setting(struct device *dev,
@@ -1879,17 +1721,18 @@ static ssize_t mxt_object_show(struct device *dev,
 	return count;
 }
 
-struct device *sec_touchscreen;
-struct device *mxt_noise_test;
+static struct device *sec_touchscreen;
+static struct device *mxt_noise_test;
 /*
 	top_left, top_right, center, bottom_left, bottom_right
 */
-unsigned int test_node[5] = {642, 98, 367, 668, 124};
+static unsigned char test_node[5] = {15, 23, 145, 239, 247};
+uint16_t mxt_delta_node[384] = { 0 };
+uint16_t mxt_refer_node[384] = { 0 };
+static int index_reference;
+static int index_delta;
 
-uint16_t qt_refrence_node[768] = { 0 };
-uint16_t qt_delta_node[768] = { 0 };
-
-void diagnostic_chip(u8 mode)
+static void diagnostic_chip(u8 mode)
 {
 	int error;
 	u16 t6_address = 0;
@@ -1916,7 +1759,7 @@ void diagnostic_chip(u8 mode)
 	}
 }
 
-uint8_t read_uint16_t(struct mxt_data *data, uint16_t address, uint16_t *buf)
+static uint8_t read_uint16_t(struct mxt_data *data, uint16_t address, uint16_t *buf)
 {
 	uint8_t status;
 	uint8_t temp[2];
@@ -1927,7 +1770,7 @@ uint8_t read_uint16_t(struct mxt_data *data, uint16_t address, uint16_t *buf)
 	return status;
 }
 
-void read_dbg_data(uint8_t dbg_mode , uint16_t node, uint16_t *dbg_data)
+static void read_dbg_data(uint8_t dbg_mode , uint16_t node, uint16_t *dbg_data)
 {
 	u8 read_page, read_point;
 	uint8_t mode, page;
@@ -1987,20 +1830,12 @@ void read_dbg_data(uint8_t dbg_mode , uint16_t node, uint16_t *dbg_data)
 
 #define MIN_VALUE 19744
 #define MAX_VALUE 28884
-#define MIN_VALUE_TA_ERROR_MODE	19125
+static u16 max_ref, min_ref;
 
-#define T48_CALCFG_CHRGON		0x20
-
-/* caution : should check the sensor level
-this value is depend on tsp tunning state */
-#define SENSOR_GAIN_TAERROR	5
-
-int read_all_data(uint16_t dbg_mode)
+static int read_all_data(uint16_t dbg_mode)
 {
 	u8 read_page, read_point;
 	u16 max_value = MIN_VALUE, min_value = MAX_VALUE;
-	u16 ref_max_value = MAX_VALUE;
-	u16 ref_min_value = MIN_VALUE;
 	u16 object_address = 0;
 	u8 data_buffer[2] = { 0 };
 	u8 node = 0;
@@ -2008,43 +1843,13 @@ int read_all_data(uint16_t dbg_mode)
 	int num = 0;
 	int ret;
 	u16 size;
-	u8 val = 0;
-	u8 sensor_gain = 0;
-	bool ta_status = 0;
+	u8 val;
+	bool dual_x_mode = 0;
 
-	if (!mxt_enabled) {
-		pr_err("%s : mxt_enabled is 0\n", __func__);
-		return 1;
-	}
-
-	if (copy_data->read_ta_status) {
-		copy_data->read_ta_status(&ta_status);
-		pr_info("ta_status is %d\n", ta_status);
-	}
-
-	/* check the CHRG_ON bit is set or not */
-	/* when CHRG_ON is setted dual x is on so skip read last line*/
-	get_object_info(copy_data,
-		PROCG_NOISESUPPRESSION_T48, &size, &object_address);
-	ret = read_mem(copy_data, object_address+2 , 1, &val);
-	if (ret < 0)
-		pr_err("TSP read fail : %s", __func__);
-
-	pr_info("%s CALCFG[%#02x]\n", __func__, val);
-	val = val & T48_CALCFG_CHRGON;
-
-	/* read sensor gain to check reference value */
-	if (val == T48_CALCFG_CHRGON) {
-
-		ret = read_mem(copy_data, object_address+34 , 1, &sensor_gain);
-		if (ret < 0)
-			pr_err("TSP read fail : %s", __func__);
-		sensor_gain = (sensor_gain&0xF0)>>4;
-
-		pr_info("%s BLEN[%d]\n", __func__, sensor_gain);
-		if (sensor_gain == SENSOR_GAIN_TAERROR)
-			ref_min_value = MIN_VALUE_TA_ERROR_MODE;
-	}
+	ret = get_object_info(copy_data, PROCG_NOISESUPPRESSION_T62, &size, &object_address);
+	read_mem(copy_data, object_address + 3, 1, &val);
+	if (val & 0x01)
+		dual_x_mode = 1;
 
 	/* Page Num Clear */
 	diagnostic_chip(MXT_CTE_MODE);
@@ -2055,69 +1860,53 @@ int read_all_data(uint16_t dbg_mode)
 
 	ret = get_object_info(copy_data,
 		DEBUG_DIAGNOSTIC_T37, &size, &object_address);
-
+	/*jerry no need to leave it */
 	msleep(50); /* msleep(20);  */
 
-	/* 768/64 */
-	for (read_page = 0 ; read_page < 12; read_page++) {
+	for (read_page = 0 ; read_page < 4; read_page++) {
 		for (node = 0; node < 64; node++) {
 			read_point = (node * 2) + 2;
-			read_mem(copy_data,
-				object_address+(u16)read_point, 2, data_buffer);
-			qt_refrence_node[num] = ((uint16_t)data_buffer[1]<<8)
-				+ (uint16_t)data_buffer[0];
+			read_mem(copy_data, object_address + (u16)read_point, 2, data_buffer);
+			mxt_refer_node[num] = ((u16)data_buffer[1]<<8)	+ (u16)data_buffer[0];
 
-			/* last X line has 1/2 reference during
-				TA mode So do not check min/max value */
-			if ((val != T48_CALCFG_CHRGON)
-				|| (val == T48_CALCFG_CHRGON && (num < 736))) {
-				if ((qt_refrence_node[num] < ref_min_value)
-				|| (qt_refrence_node[num] > ref_max_value)) {
-					if (sensor_gain == SENSOR_GAIN_TAERROR)
-						state = 2;
-					else
-						state = 1;
-					pr_err(
-						"qt_refrence_node[%3d] = %5d\n"
-						, num, qt_refrence_node[num]);
+			if ((mxt_refer_node[num] > MIN_VALUE) || (mxt_refer_node[num] < MAX_VALUE)) {
+				state = 1;
+				printk(KERN_ERR
+					"[TSP] mxt_refer_node[%3d] = %5d\n",
+					num, mxt_refer_node[num]);
 				}
 
 				if (data_buffer[0] != 0) {
-					if (qt_refrence_node[num] > max_value)
-						max_value =
-							qt_refrence_node[num];
-					if (qt_refrence_node[num] < min_value)
-						min_value =
-							qt_refrence_node[num];
+				if (mxt_refer_node[num] != 0) {
+					if (mxt_refer_node[num] > max_value)
+						max_value = mxt_refer_node[num];
+					if (mxt_refer_node[num] < min_value)
+						min_value = mxt_refer_node[num];
 				}
 			}
-
 			num++;
-			/* all node => 24 * 32 = 768 => (12page * 64) */
-			/* if ((read_page == 11) && (node == 64))
-				break; */
-			if (qt_refrence_node[num-1] == 0)
-				pr_err("qt_refrence_node"
-					"[%d] = 0\n", num);
-			if (num == 768)
+			/* all node => 19 * 11 = 209 => (3page * 64) + 17 */
+			if ((read_page == 3) && (node == 16))
 				break;
 		}
 		diagnostic_chip(MXT_PAGE_UP);
-		msleep(35);
-		if (num == 768)
-			break;
+		msleep(20);
 	}
 
-	if ((max_value - min_value) > 4500) {
-		pr_err("diff = %d, max_value = %d, min_value = %d\n",
+	if ((max_value - min_value) > 4000) {
+		printk(KERN_ERR
+			"[TSP] diff = %d, max_value = %d, min_value = %d\n",
 			(max_value - min_value), max_value, min_value);
 		state = 1;
 	}
 
+	max_ref = max_value;
+	min_ref = min_value;
+
 	return state;
 }
 
-int read_all_delta_data(uint16_t dbg_mode)
+static int read_all_delta_data(uint16_t dbg_mode)
 {
 	u8 read_page, read_point;
 	u16 object_address = 0;
@@ -2143,26 +1932,30 @@ int read_all_delta_data(uint16_t dbg_mode)
 	ret = get_object_info(copy_data,
 		DEBUG_DIAGNOSTIC_T37, &size, &object_address);
 /*jerry no need to leave it */
-#if 0
+/*
 	for (i = 0; i < 5; i++) {
 		if (data_buffer[0] == dbg_mode)
 			break;
 
 		msleep(20);
 	}
-#else
+*/
 	msleep(50); /* msleep(20);  */
-#endif
+
 
 	/* 768/64 */
-	for (read_page = 0 ; read_page < 12; read_page++) {
+	for (read_page = 0 ; read_page < 6; read_page++) {
 		for (node = 0; node < 64; node++) {
 			read_point = (node * 2) + 2;
 			read_mem(copy_data,
 				object_address+(u16)read_point, 2, data_buffer);
-				qt_delta_node[num] =
+				mxt_delta_node[num] =
 					((uint16_t)data_buffer[1]<<8)
 					+ (uint16_t)data_buffer[0];
+
+					printk(KERN_ERR
+						"[TSP] mxt_delta_node[%3d] = %5d\n",
+						num, mxt_delta_node[num]);
 
 			num++;
 
@@ -2205,16 +1998,16 @@ int find_channel(uint16_t dbg_mode)
 	ret = get_object_info(copy_data,
 		DEBUG_DIAGNOSTIC_T37, &size, &object_address);
 /*jerry no need to leave it */
-#if 0
+/*
 	for (i = 0; i < 5; i++) {
 		if (data_buffer[0] == dbg_mode)
 			break;
 
 		msleep(20);
 	}
-#else
+*/
 	msleep(50); /* msleep(20);  */
-#endif
+
 
 	/* 768/64 */
 	for (read_page = 0 ; read_page < 12; read_page++) {
@@ -2686,10 +2479,9 @@ static ssize_t set_all_refer_mode_show(struct device *dev,
 
 	status = read_all_data(MXT_REFERENCE_MODE);
 
-	return sprintf(buf, "%u\n", status);
+	return snprintf(buf, 20,
+			"%u, %u, %u\n", status, max_ref, min_ref);
 }
-
-static int index_reference;
 
 static int atoi(const char *str)
 {
@@ -2704,13 +2496,13 @@ static int atoi(const char *str)
 	return result;
 }
 
-ssize_t disp_all_refdata_show(struct device *dev,
+static ssize_t disp_all_refdata_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%u\n",  qt_refrence_node[index_reference]);
+	return sprintf(buf, "%u\n",  mxt_refer_node[index_reference]);
 }
 
-ssize_t disp_all_refdata_store(struct device *dev,
+static ssize_t disp_all_refdata_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	index_reference = atoi(buf);
@@ -2727,20 +2519,18 @@ static ssize_t set_all_delta_mode_show(struct device *dev,
 	return sprintf(buf, "%u\n", status);
 }
 
-static int index_delta;
-
-ssize_t disp_all_deltadata_show(struct device *dev,
+static ssize_t disp_all_deltadata_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
-	if (qt_delta_node[index_delta] < 32767)
-		return sprintf(buf, "%u\n", qt_delta_node[index_delta]);
+	if (mxt_delta_node[index_delta] < 32767)
+		return sprintf(buf, "%u\n", mxt_delta_node[index_delta]);
 	else
-		qt_delta_node[index_delta] = 65535 - qt_delta_node[index_delta];
+		mxt_delta_node[index_delta] = 65535 - mxt_delta_node[index_delta];
 
-	return sprintf(buf, "-%u\n", qt_delta_node[index_delta]);
+	return sprintf(buf, "-%u\n", mxt_delta_node[index_delta]);
 }
 
-ssize_t disp_all_deltadata_store(struct device *dev,
+static ssize_t disp_all_deltadata_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	index_delta = atoi(buf);
@@ -3141,12 +2931,21 @@ static ssize_t set_mxt_firm_version_read_show(struct device *dev,
 	return sprintf(buf, "%#02x\n", data->tsp_version);
 }
 
+static ssize_t set_mxt_config_version_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mxt_data *data = dev_get_drvdata(dev);
+
+	return snprintf(buf, 20,
+				"%s\n", data->pdata->config_fw_version);
+}
+
 static ssize_t mxt_touchtype_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	char temp[15];
 
-	sprintf(temp, "ATMEL,MXT1664S\n");
+	sprintf(temp, "ATMEL,MXT224S\n");
 	strcat(buf, temp);
 
 	return strlen(buf);
@@ -3403,11 +3202,7 @@ static ssize_t command_backup_store(struct device *dev,
 	client = to_i2c_client(dev);
 	mxt = i2c_get_clientdata(client);
 
-#if 0
-	ret = backup_to_nv(mxt);
-#else
 	ret = mxt_backup(mxt);
-#endif
 
 	return (ret < 0) ? ret : count;
 }
@@ -3466,6 +3261,8 @@ static DEVICE_ATTR(tsp_firm_version_phone, S_IRUGO,
 /*PART*/	/* firmware version resturn in TSP panel version */
 static DEVICE_ATTR(tsp_firm_version_panel, S_IRUGO,
 	set_mxt_firm_version_read_show, NULL);
+static DEVICE_ATTR(tsp_firm_version_config, S_IRUGO,
+			set_mxt_config_version_show, NULL);
 static DEVICE_ATTR(object_show, S_IWUSR | S_IWGRP, NULL,
 	mxt_object_show);
 static DEVICE_ATTR(object_write, S_IWUSR | S_IWGRP, NULL,
@@ -3478,6 +3275,9 @@ static DEVICE_ATTR(x_line, S_IRUGO,
 	x_line_show, NULL);
 static DEVICE_ATTR(y_line, S_IRUGO,
 	y_line_show, NULL);
+static DEVICE_ATTR(set_tsp_name, S_IRUGO,
+			mxt_touchtype_show, NULL);
+
 #if ITDEV
 /* Sysfs files for libmaxtouch interface */
 static DEVICE_ATTR(pause_driver, 0666,
@@ -3527,12 +3327,11 @@ static int __devinit mxt_init_config(struct mxt_data *data)
 	u16 obj_address = 0;
 
 	u8 **tsp_config;
-
+/*
 	if (client->addr == MXT_APP_LOW)
 		client->addr = MXT_BOOT_LOW;
 	else
 		client->addr = MXT_BOOT_HIGH;
-
 
 	ret = mxt_check_bootloader(client, MXT_WAITING_BOOTLOAD_CMD);
 	if (ret >= 0) {
@@ -3545,7 +3344,7 @@ static int __devinit mxt_init_config(struct mxt_data *data)
 		else
 			client->addr = MXT_APP_HIGH;
 	}
-
+*/
 	ret = mxt_init_touch_driver(data);
 
 	if (ret) {
@@ -3586,7 +3385,6 @@ static int __devinit mxt_init_config(struct mxt_data *data)
 	}
 #endif
 #endif
-
 	} else {
 		pr_err("ERROR : There is no valid TSP ID\n");
 		goto err_config;
@@ -3596,13 +3394,6 @@ static int __devinit mxt_init_config(struct mxt_data *data)
 	get_object_info(data, SPT_USERDATA_T38, &size, &obj_address);
 	read_mem(data, obj_address + 0, 1, &data->disable_config_write);
 
-#ifdef STYLUS_FILTER_TEST
-	get_object_info(data, SPT_USERDATA_T38, &size, &obj_address);
-	read_mem(data, obj_address + 1, 1, &g_ucFilterNum);
-	read_mem(data, obj_address + 2, 1, &g_ucFilterConst1);
-	read_mem(data, obj_address + 3, 1, &g_ucFilterConst2);
-	read_mem(data, obj_address + 4, 1, &g_ucFilterConst3);
-#endif
 
 	for (i = 0; tsp_config[i][0] != RESERVED_T255; i++) {
 #if FOR_DEBUGGING_TEST_DOWNLOADFW_BIN
@@ -3659,8 +3450,6 @@ static int __devinit mxt_init_config(struct mxt_data *data)
 
 	return 0;
 
-	err_irq:
-		pr_info("mxt err_irq \n");
 	err_reset:
 		pr_info("mxt ierr_reset \n");
 	err_backup:
@@ -3671,16 +3460,8 @@ static int __devinit mxt_init_config(struct mxt_data *data)
 	err_init_drv:
 		gpio_free(data->gpio_read_done);
 		pr_info("mxt err_init_drv \n");
-	/* err_gpio_req:
-		data->power_off();
-		input_unregister_device(input_dev); */
-	err_reg_dev:
-		pr_info("mxt err_reg_dev \n");
 
-	err_alloc_dev:
-		pr_info("mxt err_alloc_dev \n");
-		kfree(data);
-		return ret;
+	return ret;
 
 }
 
@@ -3692,10 +3473,7 @@ static int __devinit mxt_probe(struct i2c_client *client,
 	struct input_dev *input_dev;
 	int ret;
 	int i=0;
-	bool ta_status = 0;
-	u16 size;
-	u16 obj_address = 0;
-	u8 **tsp_config;
+
 
 	pr_info("%s +++\n", __func__);
 
@@ -3779,28 +3557,36 @@ static int __devinit mxt_probe(struct i2c_client *client,
 #endif
 
 #if DUAL_TSP
+	Tsp_main_initialized = 0;
+	Tsp_sub_initialized = 0;
+	mxt_enabled = 0;
+	Tsp_probe_passed  = 0;
 /******************************************************/
 /*              Main TSP init                                                                      */
 /******************************************************/
 	Tsp_current_addr = MXT224S_ADDR_MAIN;
 	gpio_set_value(GPIO_TSP_SEL, TSP_SEL_toMAIN);
 	copy_data->client->addr = Tsp_current_addr;
+	printk("[TSP]mxt_probe() :  Main TSP init    #############  \n");
 	ret = mxt_init_config(data);
 	if (ret) {
 		pr_err("[TSP] chip config initialization failed\n");
 		return ret;
 	}
+	Tsp_main_initialized = 1;
 /******************************************************/
 /*				Sub TSP init						           */
 /******************************************************/
 	Tsp_current_addr = MXT224S_ADDR_SUB;
 	gpio_set_value(GPIO_TSP_SEL, TSP_SEL_toSUB);
 	copy_data->client->addr = Tsp_current_addr;
+	printk("[TSP]mxt_probe() :   Sub TSP init    #############  \n");
 	ret = mxt_init_config(data);
 	if (ret) {
 		pr_err("[TSP] chip config initialization failed\n");
 		return ret;
 	}
+	Tsp_sub_initialized = 1;
 /******************************************************/
 /*	  One TSP has to enter suspend mode					    */
 /******************************************************/
@@ -3884,6 +3670,11 @@ static int __devinit mxt_probe(struct i2c_client *client,
 				&dev_attr_tsp_firm_version_panel) < 0)
 		pr_err("Failed to create device file(%s)!\n",
 			dev_attr_tsp_firm_version_panel.attr.name);
+
+	if (device_create_file(sec_touchscreen,
+				&dev_attr_tsp_firm_version_config) < 0)
+		pr_err("Failed to create device file(%s)!\n",
+			dev_attr_tsp_firm_version_config.attr.name);
 
 	if (device_create_file(sec_touchscreen,
 				&dev_attr_mxt_touchtype) < 0)
@@ -3981,6 +3772,11 @@ static int __devinit mxt_probe(struct i2c_client *client,
 				&dev_attr_find_delta_channel) < 0)
 		pr_err("Failed to create device file(%s)!\n",
 			dev_attr_find_delta_channel.attr.name);
+
+	if (device_create_file(mxt_noise_test,
+				&dev_attr_set_tsp_name) < 0)
+		pr_err("Failed to create device file(%s)!\n",
+			dev_attr_set_tsp_name.attr.name);
 #endif
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	data->early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN + 1;
@@ -3989,7 +3785,7 @@ static int __devinit mxt_probe(struct i2c_client *client,
 	register_early_suspend(&data->early_suspend);
 #endif
 	mxt_enabled = 1;
-
+	Tsp_probe_passed  = 1;
 #if TOUCH_BOOSTER
 		INIT_DELAYED_WORK(&data->dvfs_dwork,
 			mxt_set_dvfs_off);
@@ -4000,13 +3796,6 @@ static int __devinit mxt_probe(struct i2c_client *client,
 
 err_irq:
 	pr_info("mxt err_irq \n");
-err_reset:
-	pr_info("mxt ierr_reset \n");
-err_backup:
-	pr_info("mxt err_reset \n");
-err_config:
-	kfree(data->objects);
-	pr_info("mxt err_config \n");
 err_init_drv:
 	gpio_free(data->gpio_read_done);
 	pr_info("mxt err_init_drv \n");
@@ -4023,7 +3812,7 @@ err_alloc_dev:
 }
 
 #ifdef CONFIG_READ_FROM_FILE
-
+#if DOWNLOAD_CONFIG
 static struct object_t *mxt_get_object(struct mxt_data *data, u8 type)
 {
 	struct object_t *object;
@@ -4071,7 +3860,7 @@ int mxt_download_config(struct mxt_data *data, const char *fn)
 	int offset;
 	loff_t pos;
 	int i;
-	unsigned long current_crc, info_crc, config_crc;
+	unsigned long info_crc, config_crc;
 	unsigned int type, instance, size, object_size, instance_size;
 	u8 val;
 	u16 reg;
@@ -4124,12 +3913,6 @@ int mxt_download_config(struct mxt_data *data, const char *fn)
 		dev_err(dev, "Failure to request config file %s\n", fn);
 		return 0;
 	}
-#endif	
-
-#if 0 // Disable Read Config CRC
-	ret = mxt_read_current_crc(data, &current_crc);
-	if (ret)
-		return ret;
 #endif		
 
 	if (strncmp(cfg->data, MXT_CFG_MAGIC, strlen(MXT_CFG_MAGIC))) {
@@ -4148,7 +3931,6 @@ int mxt_download_config(struct mxt_data *data, const char *fn)
 		if (ret != 1) {
 			dev_err(dev, "Bad format\n");
 			ret = -EINVAL;
-			//goto release;
 		}
 
 		pos += offset;
@@ -4157,13 +3939,11 @@ int mxt_download_config(struct mxt_data *data, const char *fn)
 	if (cfg_info.family_id != data->family_id) {
 		dev_err(dev, "Family ID mismatch! %x %x\n", cfg_info.family_id, data->family_id);
 		ret = -EINVAL;
-		//goto release;
 	}
 
 	if (cfg_info.variant_id != data->tsp_variant) {
 		dev_err(dev, "Variant ID mismatch! %x %x\n", cfg_info.variant_id, data->tsp_variant);
 		ret = -EINVAL;
-		//goto release;
 	}
 
 	if (cfg_info.version != data->tsp_version)
@@ -4176,7 +3956,6 @@ int mxt_download_config(struct mxt_data *data, const char *fn)
 	if (ret != 1) {
 		dev_err(dev, "Bad format\n");
 		ret = -EINVAL;
-		//goto release;
 	}
 	pos += offset;
 
@@ -4185,23 +3964,8 @@ int mxt_download_config(struct mxt_data *data, const char *fn)
 	if (ret != 1) {
 		dev_err(dev, "Bad format\n");
 		ret = -EINVAL;
-		//goto release;
 	}
 	pos += offset;
-
-#if 0 // Disable Compare Config CRC
-	if (current_crc == config_crc) {
-		dev_info(dev,
-		"Config CRC 0x%X: OK\n", (unsigned int) current_crc);
-		ret = 0;
-		goto release;
-	} else {
-		dev_info(dev, "Config CRC 0x%X: does not match 0x%X, "
-			"writing config\n",
-			(unsigned int) current_crc,
-			(unsigned int) config_crc);
-	}
-#endif	
 
 	while (pos < cfg->size) {
 		/* Read type, instance, length */
@@ -4286,7 +4050,8 @@ release:
 	return ret;
 }
 
-#endif // CONFIG_READ_FROM_FILE
+#endif
+#endif
 
 static int __devexit mxt_remove(struct i2c_client *client)
 {

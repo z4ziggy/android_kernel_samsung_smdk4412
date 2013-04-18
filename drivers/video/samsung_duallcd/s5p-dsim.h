@@ -66,6 +66,9 @@ struct dsim_global {
 	unsigned int irq;
 	unsigned int te_irq;
 	unsigned int reg_base;
+#if defined(CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD)
+	unsigned int panel_select;
+#endif /*CONFIG_S5P_DSIM_SWITCHABLE_DUAL_LCD*/
 	unsigned char state;
 	unsigned int data_lane;
 	enum dsim_byte_clk_src e_clk_src;

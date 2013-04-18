@@ -57,13 +57,18 @@ struct sched_log {
 		struct work_struct *work;
 		work_func_t f;
 	} work[NR_CPUS][SCHED_LOG_MAX];
+	struct hrtimer_log {
+		unsigned long long time;
+		struct hrtimer *timer;
+		enum hrtimer_restart (*fn)(struct hrtimer *);
+		int en;
+	} hrtimers[NR_CPUS][8];
 };
 #endif				/* CONFIG_SEC_DEBUG_SCHED_LOG */
 
 #ifdef CONFIG_SEC_DEBUG_AUXILIARY_LOG
 #define AUX_LOG_CPU_CLOCK_MAX 64
-#define AUX_LOG_LOGBUF_LOCK_MAX 64
-#define AUX_LOG_DVFS_LOCK_MAX 64
+#define AUX_LOG_CMA_RBTREE_MAX 64
 #define AUX_LOG_LENGTH 128
 
 struct auxiliary_info {
@@ -75,8 +80,7 @@ struct auxiliary_info {
 /* This structure will be modified if some other items added for log */
 struct auxiliary_log {
 	struct auxiliary_info CpuClockLog[AUX_LOG_CPU_CLOCK_MAX];
-	struct auxiliary_info LogBufLockLog[AUX_LOG_LOGBUF_LOCK_MAX];
-	struct auxiliary_info DVFSLockLog[AUX_LOG_DVFS_LOCK_MAX];
+	struct auxiliary_info CmaRbtreeLog[AUX_LOG_CMA_RBTREE_MAX];
 };
 
 #else
@@ -234,6 +238,7 @@ static struct sched_log sec_debug_log[NR_CPUS][SCHED_LOG_MAX]
 static atomic_t task_log_idx[NR_CPUS] = { ATOMIC_INIT(-1), ATOMIC_INIT(-1) };
 static atomic_t irq_log_idx[NR_CPUS] = { ATOMIC_INIT(-1), ATOMIC_INIT(-1) };
 static atomic_t work_log_idx[NR_CPUS] = { ATOMIC_INIT(-1), ATOMIC_INIT(-1) };
+static atomic_t hrtimer_log_idx[NR_CPUS] = { ATOMIC_INIT(-1), ATOMIC_INIT(-1) };
 static struct sched_log (*psec_debug_log) = (&sec_debug_log);
 /*
 static struct sched_log (*psec_debug_log)[NR_CPUS][SCHED_LOG_MAX]
@@ -247,8 +252,7 @@ static unsigned long long gExcpIrqExitTime[NR_CPUS];
 static struct auxiliary_log gExcpAuxLog	__cacheline_aligned;
 static struct auxiliary_log *gExcpAuxLogPtr;
 static atomic_t gExcpAuxCpuClockLogIdx = ATOMIC_INIT(-1);
-static atomic_t gExcpAuxLogBufLockLogIdx = ATOMIC_INIT(-1);
-static atomic_t gExcpAuxDVFSLockLogIdx = ATOMIC_INIT(-1);
+static atomic_t gExcpAuxCmaRbtreeLogIdx = ATOMIC_INIT(-1);
 #endif
 
 static int checksum_sched_log(void)
@@ -882,7 +886,8 @@ void __sec_debug_task_log(int cpu, struct task_struct *task)
 {
 	unsigned i;
 
-	i = atomic_inc_return(&task_log_idx[cpu]) & (SCHED_LOG_MAX - 1);
+	i = atomic_inc_return(&task_log_idx[cpu]) &
+	    (ARRAY_SIZE(psec_debug_log->task[0]) - 1);
 	psec_debug_log->task[cpu][i].time = cpu_clock(cpu);
 	strcpy(psec_debug_log->task[cpu][i].comm, task->comm);
 	psec_debug_log->task[cpu][i].pid = task->pid;
@@ -893,7 +898,8 @@ void __sec_debug_irq_log(unsigned int irq, void *fn, int en)
 	int cpu = raw_smp_processor_id();
 	unsigned i;
 
-	i = atomic_inc_return(&irq_log_idx[cpu]) & (SCHED_LOG_MAX - 1);
+	i = atomic_inc_return(&irq_log_idx[cpu]) &
+	    (ARRAY_SIZE(psec_debug_log->irq[0]) - 1);
 	psec_debug_log->irq[cpu][i].time = cpu_clock(cpu);
 	psec_debug_log->irq[cpu][i].irq = irq;
 	psec_debug_log->irq[cpu][i].fn = (void *)fn;
@@ -906,11 +912,26 @@ void __sec_debug_work_log(struct worker *worker,
 	int cpu = raw_smp_processor_id();
 	unsigned i;
 
-	i = atomic_inc_return(&work_log_idx[cpu]) & (SCHED_LOG_MAX - 1);
+	i = atomic_inc_return(&work_log_idx[cpu]) &
+	    (ARRAY_SIZE(psec_debug_log->work[0]) - 1);
 	psec_debug_log->work[cpu][i].time = cpu_clock(cpu);
 	psec_debug_log->work[cpu][i].worker = worker;
 	psec_debug_log->work[cpu][i].work = work;
 	psec_debug_log->work[cpu][i].f = f;
+}
+
+void __sec_debug_hrtimer_log(struct hrtimer *timer,
+		     enum hrtimer_restart (*fn) (struct hrtimer *), int en)
+{
+	int cpu = raw_smp_processor_id();
+	unsigned i;
+
+	i = atomic_inc_return(&hrtimer_log_idx[cpu]) &
+	    (ARRAY_SIZE(psec_debug_log->hrtimers[0]) - 1);
+	psec_debug_log->hrtimers[cpu][i].time = cpu_clock(cpu);
+	psec_debug_log->hrtimers[cpu][i].timer = timer;
+	psec_debug_log->hrtimers[cpu][i].fn = fn;
+	psec_debug_log->hrtimers[cpu][i].en = en;
 }
 
 #ifdef CONFIG_SEC_DEBUG_IRQ_EXIT_LOG
@@ -946,20 +967,12 @@ void sec_debug_aux_log(int idx, char *fmt, ...)
 		strncpy((*gExcpAuxLogPtr).CpuClockLog[i].log,
 			buf, AUX_LOG_LENGTH);
 		break;
-	case SEC_DEBUG_AUXLOG_LOGBUF_LOCK_CHANGE:
-		i = atomic_inc_return(&gExcpAuxLogBufLockLogIdx)
-			& (AUX_LOG_LOGBUF_LOCK_MAX - 1);
-		(*gExcpAuxLogPtr).LogBufLockLog[i].time = cpu_clock(cpu);
-		(*gExcpAuxLogPtr).LogBufLockLog[i].cpu = cpu;
-		strncpy((*gExcpAuxLogPtr).LogBufLockLog[i].log,
-			buf, AUX_LOG_LENGTH);
-		break;
-	case SEC_DEBUG_AUXLOG_DVFS_LOCK_CHANGE:
-		i = atomic_inc_return(&gExcpAuxDVFSLockLogIdx)
-			& (AUX_LOG_DVFS_LOCK_MAX - 1);
-		(*gExcpAuxLogPtr).DVFSLockLog[i].time = cpu_clock(cpu);
-		(*gExcpAuxLogPtr).DVFSLockLog[i].cpu = cpu;
-		strncpy((*gExcpAuxLogPtr).DVFSLockLog[i].log,
+	case SEC_DEBUG_AUXLOG_CMA_RBTREE_CHANGE:
+		i = atomic_inc_return(&gExcpAuxCmaRbtreeLogIdx)
+			& (AUX_LOG_CMA_RBTREE_MAX - 1);
+		(*gExcpAuxLogPtr).CmaRbtreeLog[i].time = cpu_clock(cpu);
+		(*gExcpAuxLogPtr).CmaRbtreeLog[i].cpu = cpu;
+		strncpy((*gExcpAuxLogPtr).CmaRbtreeLog[i].log,
 			buf, AUX_LOG_LENGTH);
 		break;
 	default:
@@ -1170,6 +1183,7 @@ int sec_debug_magic_init(void)
 	}
 
 	pr_info("%s: success reserving magic code area\n", __func__);
+
 	return 0;
 }
 

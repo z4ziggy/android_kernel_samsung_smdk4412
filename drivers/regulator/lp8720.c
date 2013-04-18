@@ -369,11 +369,36 @@ static int __devinit lp8720_i2c_probe(struct i2c_client *i2c,
 	lp8720->dev = &i2c->dev;
 
 	mutex_init(&lp8720->io_lock);
+	ret = lp8720_i2c_read(i2c, 0x00, 1, &readbyte);
+	if (ret == 0 &&
+		readbyte != 0x05) {
+		ret = -ENODEV;
+		dev_err(&i2c->dev, "chip reported: [00h]= 0x%x\n", readbyte);
+	}
+	if (ret < 0) {
+		dev_err(&i2c->dev, "failed to detect device. ret = %d\n", ret);
+		goto err_detect;
+	}
+
 	ret = setup_regulators(lp8720, pdata);
 	if (ret < 0)
 		goto err_detect;
 
 	i2c_set_clientdata(i2c, lp8720);
+	if (!strncmp(pdata->name,
+		"lp8720_folder_pmic",
+		strlen("lp8720_folder_pmic"))) {
+		printk(KERN_DEBUG "%s, folder_pmic\n", __func__);
+	} else if (!strncmp(pdata->name,
+		"lp8720_sub_pmic",
+		strlen("lp8720_sub_pmic"))) {
+		lp8720_i2c_read(i2c, LP8720_ENABLE_REG, 1, &readbyte);
+		enable = readbyte & 0xC0;
+		lp8720_i2c_write(i2c, LP8720_ENABLE_REG, 1, enable);
+		lp8720_i2c_read(i2c, LP8720_ENABLE_REG, 1, &readbyte);
+		printk(KERN_DEBUG "%s, [%s] - ENABLE_REG : 0x%2x\n",
+				__func__, pdata->name, readbyte);
+	}
 	ret = gpio_request(pdata->en_pin, pdata->name);
 	if (ret) {
 		printk(KERN_ERR "%s, ERROR [%s] - gpio_request(%d) failed\n",
@@ -390,20 +415,6 @@ static int __devinit lp8720_i2c_probe(struct i2c_client *i2c,
 				pdata->name,
 				pdata->en_pin,
 				gpio_get_value(pdata->en_pin) ? "HIGH" : "LOW");
-	}
-	if (!strncmp(pdata->name,
-		"lp8720_folder_pmic",
-		strlen("lp8720_folder_pmic"))) {
-		printk(KERN_DEBUG "%s, folder_pmic\n", __func__);
-	} else if (!strncmp(pdata->name,
-		"lp8720_sub_pmic",
-		strlen("lp8720_sub_pmic"))) {
-		lp8720_i2c_read(i2c, LP8720_ENABLE_REG, 1, &readbyte);
-		enable = readbyte & 0xC0;
-		lp8720_i2c_write(i2c, LP8720_ENABLE_REG, 1, enable);
-		lp8720_i2c_read(i2c, LP8720_ENABLE_REG, 1, &readbyte);
-		printk(KERN_DEBUG "%s, [%s] - ENABLE_REG : 0x%2x\n",
-				__func__, pdata->name, readbyte);
 	}
 
 	return 0;

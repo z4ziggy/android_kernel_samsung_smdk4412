@@ -121,90 +121,64 @@
 #define lcd_to_master(a)	(a->dsim_dev->master)
 #define lcd_to_master_ops(a)	((lcd_to_master(a))->master_ops)
 
-struct str_elvss {
-	u8 reference;
-	u8 limit;
-};
-
 struct panel_model {
 	int ver;
 	char *name;
 };
 
-enum {
-	DSIM_NONE_STATE = 0,
-	DSIM_RESUME_COMPLETE = 1,
-	DSIM_FRAME_DONE = 2,
-};
-
 struct s6e8aa0 {
 	struct device	*dev;
-	unsigned int			id;
-	unsigned int			aid;
-	unsigned int			ver;
-	unsigned int			power;
-	unsigned int			current_brightness;
-	unsigned int			updated;
-	unsigned int			brightness;
-	unsigned int			resume_complete;
-	unsigned int			acl_enable;
-	unsigned int			cur_acl;
-	unsigned int			cur_addr;
-
-	struct lcd_device		*ld;
-	struct backlight_device		*bd;
-
+	struct lcd_device	*ld;
+	struct backlight_device	*bd;
 	struct mipi_dsim_lcd_device	*dsim_dev;
 	struct lcd_platform_data	*ddi_pd;
 	struct lcd_property	*property;
 
-	struct mutex			lock;
-	struct regulator		*reg_vdd3;
-	struct regulator		*reg_vci;
-
-	const struct panel_model	*model;
-	unsigned int		model_count;
+	struct regulator	*reg_vdd3;
+	struct regulator	*reg_vci;
 
 #if defined(CONFIG_ARM_EXYNOS4_DISPLAY_DEVFREQ) || defined(CONFIG_DISPFREQ_OPP)
 	struct notifier_block	nb_disp;
 #endif
+	struct mutex	lock;
 
-	bool				enabled;
+	unsigned int	id;
+	unsigned int	aid;
+	unsigned int	ver;
+	unsigned int	power;
+	unsigned int	acl_enable;
+	unsigned int	cur_acl;
+	unsigned int	cur_addr;
+
+	const struct panel_model	*model;
+	unsigned int	model_count;
+
 #ifdef CONFIG_BACKLIGHT_SMART_DIMMING
-	unsigned int			support_elvss;
-	struct str_smart_dim		smart_dim;
-	struct str_elvss		elvss;
-	struct mutex			bl_lock;
+	unsigned int	support_elvss;
+	struct str_smart_dim	smart_dim;
 #endif
 };
 
-static void s6e8aa0_regulator_enable(struct s6e8aa0 *lcd)
+static void s6e8aa0_regulator_ctl(struct s6e8aa0 *lcd, bool enable)
 {
+	dev_dbg(lcd->dev, "%s:enable[%d]\n", __func__, enable);
+
 	mutex_lock(&lcd->lock);
-	if (!lcd->enabled) {
+
+	if (enable) {
 		if (lcd->reg_vdd3)
 			regulator_enable(lcd->reg_vdd3);
 
 		if (lcd->reg_vci)
 			regulator_enable(lcd->reg_vci);
-
-			lcd->enabled = true;
-	}
-	mutex_unlock(&lcd->lock);
-}
-
-static void s6e8aa0_regulator_disable(struct s6e8aa0 *lcd)
-{
-	mutex_lock(&lcd->lock);
-	if (lcd->enabled) {
+	} else {
 		if (lcd->reg_vci)
 			regulator_disable(lcd->reg_vci);
 
 		if (lcd->reg_vdd3)
 			regulator_disable(lcd->reg_vdd3);
-
-		lcd->enabled = false;
 	}
+
 	mutex_unlock(&lcd->lock);
 }
 
@@ -493,6 +467,8 @@ static void s6e8aa0_etc_elvss_control(struct s6e8aa0 *lcd)
 static void s6e8aa0_elvss_nvm_set(struct s6e8aa0 *lcd)
 {
 	struct mipi_dsim_master_ops *ops = lcd_to_master_ops(lcd);
+	struct backlight_device *bd = lcd->bd;
+	int brightness = bd->props.brightness;
 	unsigned char data_to_send[] = {
 		0xd9, 0x14, 0x40, 0x0c, 0xcb, 0xce, 0x6e, 0xc4, 0x0f,
 		0x40, 0x41, 0xd9, 0x00, 0x60, 0x19
@@ -510,7 +486,7 @@ static void s6e8aa0_elvss_nvm_set(struct s6e8aa0 *lcd)
 		data_to_send[8] = 0x07;
 		data_to_send[11] = 0xd0;
 	} else {
-		switch (lcd->brightness) {
+		switch (brightness) {
 		case 0 ... 6: /* 30cd ~ 100cd */
 			data_to_send[11] = 0xdf;
 			break;
@@ -589,6 +565,8 @@ static void s6e8aa0_acl_off(struct s6e8aa0 *lcd)
 static void s6e8aa0_acl_ctrl_set(struct s6e8aa0 *lcd)
 {
 	struct mipi_dsim_master_ops *ops = lcd_to_master_ops(lcd);
+	struct backlight_device *bd = lcd->bd;
+	int brightness = bd->props.brightness;
 	/* FIXME: !! must be review acl % value */
 	/* Full white 50% reducing setting */
 	const unsigned char cutoff_50[] = {
@@ -614,14 +592,14 @@ static void s6e8aa0_acl_ctrl_set(struct s6e8aa0 *lcd)
 
 	if (lcd->acl_enable) {
 		if (lcd->cur_acl == 0) {
-			if (lcd->brightness == 0 || lcd->brightness == 1) {
+			if (brightness == 0 || brightness == 1) {
 				s6e8aa0_acl_off(lcd);
 				dev_dbg(&lcd->ld->dev,
 					"cur_acl=%d\n", lcd->cur_acl);
 			} else
 				s6e8aa0_acl_on(lcd);
 		}
-		switch (lcd->brightness) {
+		switch (brightness) {
 		case 0 ... 1: /* 30cd */
 			s6e8aa0_acl_off(lcd);
 			lcd->cur_acl = 0;
@@ -718,7 +696,7 @@ unsigned int convert_brightness_to_gamma(int brightness)
 	return gamma_table[brightness] - 1;
 }
 
-static int s6e8aa0_update_gamma_ctrl(struct s6e8aa0 *lcd, int brightness)
+static int s6e8aa0_gamma_ctrl(struct s6e8aa0 *lcd, int brightness)
 {
 	struct mipi_dsim_master_ops *ops = lcd_to_master_ops(lcd);
 
@@ -745,22 +723,16 @@ static int s6e8aa0_update_gamma_ctrl(struct s6e8aa0 *lcd, int brightness)
 	ops->cmd_write(lcd_to_master(lcd), MIPI_DSI_DCS_SHORT_WRITE_PARAM,
 			0xf7, 0x03);
 
-	lcd->brightness = brightness;
-
 	s6e8aa0_acl_ctrl_set(lcd);
-
-	return 0;
-}
-
-static int s6e8aa0_gamma_ctrl(struct s6e8aa0 *lcd, int brightness)
-{
-	s6e8aa0_update_gamma_ctrl(lcd, brightness);
 
 	return 0;
 }
 
 static int s6e8aa0_panel_init(struct s6e8aa0 *lcd)
 {
+	struct backlight_device *bd = lcd->bd;
+	int brightness = bd->props.brightness;
+
 	s6e8aa0_apply_level_1_key(lcd);
 	if (system_rev == 3)
 		s6e8aa0_apply_level_2_key(lcd);
@@ -771,7 +743,7 @@ static int s6e8aa0_panel_init(struct s6e8aa0 *lcd)
 	s6e8aa0_panel_cond(lcd, 1);
 	s6e8aa0_display_condition_set(lcd);
 
-	s6e8aa0_gamma_ctrl(lcd, lcd->bd->props.brightness);
+	s6e8aa0_gamma_ctrl(lcd, brightness);
 
 	s6e8aa0_etc_source_control(lcd);
 	s6e8aa0_etc_pentile_control(lcd);
@@ -781,6 +753,7 @@ static int s6e8aa0_panel_init(struct s6e8aa0 *lcd)
 
 	/* if ID3 value is not 33h, branch private elvss mode */
 	mdelay(lcd->ddi_pd->power_on_delay);
+	dev_info(lcd->dev, "panel init sequence done.\n");
 
 	return 0;
 }
@@ -860,7 +833,7 @@ static int s6e8aa0_set_brightness(struct backlight_device *bd)
 	int ret = 0, brightness = bd->props.brightness;
 	struct s6e8aa0 *lcd = bl_get_data(bd);
 
-	if (!lcd->enabled) {
+	if (lcd->power == FB_BLANK_POWERDOWN) {
 		dev_err(lcd->dev,
 			"lcd off: brightness set failed.\n");
 		return -EINVAL;
@@ -950,9 +923,11 @@ static void s6e8aa0_power_on(struct mipi_dsim_lcd_device *dsim_dev,
 {
 	struct s6e8aa0 *lcd = dev_get_drvdata(&dsim_dev->dev);
 
+	dev_dbg(lcd->dev, "%s:enable[%d]\n", __func__, enable);
+
 	if (enable) {
 		/* lcd power on */
-		s6e8aa0_regulator_enable(lcd);
+		s6e8aa0_regulator_ctl(lcd, true);
 
 		mdelay(lcd->ddi_pd->reset_delay);
 
@@ -961,8 +936,10 @@ static void s6e8aa0_power_on(struct mipi_dsim_lcd_device *dsim_dev,
 			lcd->ddi_pd->reset(lcd->ld);
 
 		mdelay(5);
-	} else
-		s6e8aa0_regulator_disable(lcd);
+	} else {
+		/* lcd power off */
+		s6e8aa0_regulator_ctl(lcd, false);
+	}
 
 }
 
@@ -1251,20 +1228,22 @@ static int s6e8aa0_probe(struct mipi_dsim_lcd_device *dsim_dev)
 		goto err_unregister_lcd;
 	}
 
+	if (lcd->ddi_pd)
+		lcd->property = lcd->ddi_pd->pdata;
+
 #if defined(CONFIG_ARM_EXYNOS4_DISPLAY_DEVFREQ) || defined(CONFIG_DISPFREQ_OPP)
-	lcd->nb_disp.notifier_call = s6e8aa0_notifier_callback;
-	ret = exynos4_display_register_client(&lcd->nb_disp);
-	if (ret < 0)
-		dev_warn(&lcd->ld->dev, "failed to register exynos-display notifier\n");
+	if (lcd->property && lcd->property->dynamic_refresh) {
+		lcd->nb_disp.notifier_call = s6e8aa0_notifier_callback;
+		ret = exynos4_display_register_client(&lcd->nb_disp);
+		if (ret < 0)
+			dev_warn(&lcd->ld->dev, "failed to register exynos-display notifier\n");
+	}
 #endif
 
 	lcd->bd->props.max_brightness = MAX_BRIGHTNESS;
 	lcd->bd->props.brightness = MAX_BRIGHTNESS;
-
 	lcd->acl_enable = 1;
 	lcd->cur_acl = 0;
-	if (lcd->ddi_pd)
-		lcd->property = lcd->ddi_pd->pdata;
 	lcd->model = s6e8aa0_model;
 	lcd->model_count = ARRAY_SIZE(s6e8aa0_model);
 	for (i = 0; i < ARRAY_SIZE(device_attrs); i++) {
@@ -1278,7 +1257,7 @@ static int s6e8aa0_probe(struct mipi_dsim_lcd_device *dsim_dev)
 
 	dev_set_drvdata(&dsim_dev->dev, lcd);
 
-	s6e8aa0_regulator_enable(lcd);
+	s6e8aa0_regulator_ctl(lcd, true);
 	lcd->power = FB_BLANK_UNBLANK;
 
 	dev_info(lcd->dev, "probed s6e8aa0 panel driver(%s).\n",
@@ -1310,7 +1289,8 @@ static void s6e8aa0_remove(struct mipi_dsim_lcd_device *dsim_dev)
 	regulator_put(lcd->reg_vdd3);
 
 #if defined(CONFIG_ARM_EXYNOS4_DISPLAY_DEVFREQ) || defined(CONFIG_DISPFREQ_OPP)
-	exynos4_display_unregister_client(&lcd->nb_disp);
+	if (lcd->property && lcd->property->dynamic_refresh)
+		exynos4_display_unregister_client(&lcd->nb_disp);
 #endif
 
 	kfree(lcd);

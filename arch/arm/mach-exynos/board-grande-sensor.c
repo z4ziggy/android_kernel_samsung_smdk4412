@@ -22,12 +22,23 @@
 #include <mach/gpio.h>
 #include "midas.h"
 
-static int accel_get_position(void);
+#if defined(CONFIG_SENSORS_LSM330DLC) ||\
+	defined(CONFIG_SENSORS_K3DH)
+static int stm_get_position(void);
 
 static struct accel_platform_data accel_pdata = {
-	.accel_get_position = accel_get_position,
+	.accel_get_position = stm_get_position,
 	.axis_adjust = true,
 };
+#endif
+
+#ifdef CONFIG_SENSORS_LSM330DLC
+static struct gyro_platform_data gyro_pdata = {
+	.gyro_get_position = stm_get_position,
+	.axis_adjust = true,
+};
+#endif
+
 
 static struct i2c_board_info i2c_devs1[] __initdata = {
 #ifdef CONFIG_SENSORS_LSM330DLC
@@ -37,6 +48,7 @@ static struct i2c_board_info i2c_devs1[] __initdata = {
 	},
 	{
 		I2C_BOARD_INFO("lsm330dlc_gyro", (0xD6 >> 1)),
+		.platform_data = &gyro_pdata,
 	},
 #elif defined(CONFIG_SENSORS_K3DH)
 	{
@@ -46,7 +58,7 @@ static struct i2c_board_info i2c_devs1[] __initdata = {
 #endif
 };
 
-static int accel_get_position(void)
+static int stm_get_position(void)
 {
 	int position = 0;
 
@@ -74,11 +86,13 @@ static int accel_get_position(void)
 		position = 3; /* top/lower-left */
 #elif defined(CONFIG_MACH_P4NOTE)
 	position = 4; /* bottom/upper-left */
-#elif defined(CONFIG_MACH_M0_GRANDECTC) || defined(CONFIG_MACH_IRON)
-	if (system_rev == 14)
-		position = 5; /* bottom/upper-right */
-	else
+#elif defined(CONFIG_MACH_M0_GRANDECTC)
+	if (system_rev == 13)
 		position = 0; /* top/upper-left */
+	else
+		position = 4;
+#elif defined(CONFIG_MACH_IRON)
+	position = 7;  /* bottom/lower-left */
 #elif defined(CONFIG_MACH_M0)
 	if (system_rev == 3 || system_rev == 0)
 		position = 6; /* bottom/lower-right */

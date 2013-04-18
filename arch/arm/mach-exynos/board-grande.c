@@ -408,10 +408,8 @@ static void __init smdk4212_usbgadget_init(void)
 	struct android_usb_platform_data *android_pdata =
 		s3c_device_android_usb.dev.platform_data;
 	if (android_pdata) {
-#if defined(CONFIG_MACH_M0_CTC)
-		/*FOR CTC PC-MODEM START*/
-		unsigned int newluns = 3;
-		/*FOR CTC PC-MODEM END*/
+#if defined(CONFIG_USB_CDFS_SUPPORT)
+		unsigned int newluns = 1;
 #else
 		unsigned int newluns = 2;
 #endif
@@ -806,13 +804,8 @@ static struct samsung_battery_platform_data samsung_battery_pdata = {
 
 	.recharge_voltage = 4300000,	/* it will be cacaluated in probe */
 
-#if defined(CONFIG_MACH_M0_CTC)
-	.abstimer_charge_duration = 8 * 60 * 60,
-	.abstimer_recharge_duration = 2 * 60 * 60,
-#else
 	.abstimer_charge_duration = 6 * 60 * 60,
-	.abstimer_recharge_duration = 1.5 * 60 * 60,
-#endif
+	.abstimer_recharge_duration = 2 * 60 * 60,
 
 	.cb_det_src = CABLE_DET_CHARGER,
 
@@ -899,10 +892,15 @@ static struct platform_device midas_keypad = {
 static uint32_t smdk4x12_keymap[] __initdata = {
 /* KEY(row, col, keycode) */
 	KEY(2, 3, KEY_SEND), KEY(8, 3, KEY_BACKSPACE), KEY(12, 3, KEY_HOME), KEY(4, 3, KEY_NETWORK), KEY(11, 3, KEY_ENTER),
-	KEY(2, 4, KEY_1),	KEY(8, 4, KEY_2),	KEY(12, 4, KEY_3), KEY(4, 4, KEY_RIGHT), KEY(11, 4, KEY_DOWN),
-	KEY(2, 5, KEY_4),	KEY(8, 5, KEY_5), KEY(12, 5, KEY_6), KEY(4, 5, KEY_BACK), KEY(11, 5, KEY_LEFT),
+	KEY(2, 4, KEY_1),	KEY(8, 4, KEY_2),	KEY(12, 4, KEY_3), KEY(11, 4, KEY_DOWN),
+	KEY(2, 5, KEY_4),	KEY(8, 5, KEY_5), KEY(12, 5, KEY_6), KEY(4, 5, KEY_BACK),
 	KEY(2, 6, KEY_7),	KEY(8, 6, KEY_8),	KEY(12, 6, KEY_9), KEY(4, 6, KEY_UP),
 	KEY(2, 7, KEY_STAR), KEY(8, 7, KEY_0), KEY(12, 7, KEY_POUND), KEY(4, 7, KEY_MENU),
+	#if defined(CONFIG_MACH_IRON)
+	KEY(4, 4, KEY_LEFT), KEY(11, 5, KEY_RIGHT),
+	#else
+	KEY(4, 4, KEY_RIGHT), KEY(11, 5, KEY_LEFT),
+	#endif
 };
 
 static struct matrix_keymap_data smdk4x12_keymap_data __initdata = {

@@ -15,8 +15,8 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA
  */
-#ifndef AKM8975_H
-#define AKM8975_H
+#ifndef AKM8963_H
+#define AKM8963_H
 
 #include <linux/ioctl.h>
 

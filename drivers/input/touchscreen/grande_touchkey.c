@@ -31,6 +31,9 @@
 #include <mach/gpio.h>
 #include <mach/irqs.h>
 #include <mach/gpio-midas.h>
+#include <linux/regulator/consumer.h>
+#include <linux/regulator/driver.h>
+#include <linux/regulator/machine.h>
 
 #ifdef CONFIG_CPU_FREQ
 #include <mach/cpufreq.h>
@@ -41,7 +44,7 @@ Melfas touchkey register
 */
 #define KEYCODE_REG 0x00
 #define FIRMWARE_VERSION 0x01
-#define TOUCHKEY_MODULE_VERSION 0x02
+#define TOUCHKEY_MODULE_VERSION 0x03
 #define TOUCHKEY_ADDRESS	0x20
 
 #define UPDOWN_EVENT_BIT 0x08
@@ -53,8 +56,8 @@ Melfas touchkey register
 #define DEVICE_NAME "melfas-touchkey"
 #define INT_PEND_BASE	0xE0200A54
 
-#define MCS5080_CHIP		0x3
-#define MCS5080_last_ver	0x18
+#define MCS5080_CHIP		0x03
+#define MCS5080_last_ver	0x01  /*w999 v19*/
 
 // if you want to see log, set this definition to NULL or KERN_WARNING
 #define TCHKEY_KERN_DEBUG      KERN_DEBUG
@@ -110,6 +113,7 @@ MODULE_DEVICE_TABLE(i2c, melfas_touchkey_id);
 
 extern void get_touchkey_data(u8 *data, u8 length);
 static void init_hw(void);
+static int touchkey_pmic_control(int onoff);
 static int i2c_touchkey_probe(struct i2c_client *client, const struct i2c_device_id *id);
 static void melfas_touchkey_switch_early_suspend(int FILP_STATE);
 static void melfas_touchkey_switch_early_resume(int FILP_STATE);
@@ -264,10 +268,14 @@ void samsung_switching_tkey(int flip)
 	if (Flip_status != flip)
 	{
 		Flip_status=flip;
-		if(flip == FLIP_CLOSE) 
+		if (flip == FLIP_CLOSE) {
+			touchkey_enable = 1;
 			melfas_touchkey_switch_early_resume(flip);
-		else 
+			}
+		else {
+			touchkey_enable = 0;
 			melfas_touchkey_switch_early_suspend(flip);
+	}
 	}
 
 }
@@ -282,18 +290,20 @@ static void melfas_touchkey_switch_early_suspend(int FILP_STATE){
 
 	data = 0x02;
 	i2c_touchkey_write(&data, 1);	//Key LED force off
-	printk("melfas_touchkey_switch_early_suspend : touchkey_led_off\n");
 
-	touchkey_enable = 0;
 	printk(KERN_DEBUG "melfas_touchkey_switch_early_suspend, %d\n", FILP_STATE);
 	if (touchkey_enable < 0) {
 		printk("---%s---touchkey_enable: %d\n", __FUNCTION__,
 			   touchkey_enable);
 		return;
 	}
+	gpio_direction_output(_3_GPIO_TOUCH_EN, 0);
+	gpio_direction_output(_3_TOUCH_SDA_28V, 0);
+	gpio_direction_output(_3_TOUCH_SCL_28V, 0);
+	if (system_rev >= 14)
+		touchkey_pmic_control(0);
 
 	disable_irq(IRQ_TOUCH_INT);
-	printk( "melfas_touchkey_switch_early_suspend END, INT %d \n", gpio_get_value(GPIO_3_TOUCH_INT));
 
 #ifdef USE_IRQ_FREE
 	free_irq(IRQ_TOUCH_INT, NULL);
@@ -340,17 +350,13 @@ static void melfas_touchkey_switch_early_resume(int FILP_STATE){
 	}
 
 	enable_irq(IRQ_TOUCH_INT);
-
-	touchkey_enable = 1;
-	printk( "melfas_touchkey_switch_early_resume END, INT %d \n", gpio_get_value(GPIO_3_TOUCH_INT));
-
 }
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void melfas_touchkey_early_suspend(struct early_suspend *h)
 {
     pr_info("melfas_touchkey_early_suspend +++\n");
-
+	touchkey_enable = 0;
 	is_suspending = 1;
 	if(user_press_on==1)
 	{
@@ -374,23 +380,22 @@ static void melfas_touchkey_early_suspend(struct early_suspend *h)
 	gpio_direction_output(_3_GPIO_TOUCH_EN, 0);
 	gpio_direction_output(_3_TOUCH_SDA_28V, 0);
 	gpio_direction_output(_3_TOUCH_SCL_28V, 0);
-
+	if (system_rev >= 14)
+		touchkey_pmic_control(0);
     pr_info("melfas_touchkey_early_suspend ---\n");
 }
 
 static void melfas_touchkey_early_resume(struct early_suspend *h)
 {
     pr_info("melfas_touchkey_early_resume +++\n");
-
+	touchkey_enable = 1;
 	if(touchkey_dead)
 	{
 		printk(KERN_ERR "touchkey died after ESD");
 		return;
 	}
 
-	gpio_direction_output(_3_GPIO_TOUCH_EN, 1);
-	msleep(100);
-
+	init_hw();
 #if 0
 	//clear interrupt
 	if(readl(gpio_pend_mask_mem)&(0x1<<1))
@@ -463,7 +468,7 @@ static int i2c_touchkey_probe(struct i2c_client *client, const struct i2c_device
 	touchkey_driver->early_suspend.resume = melfas_touchkey_early_resume;
 	register_early_suspend(&touchkey_driver->early_suspend);
 #endif				/* CONFIG_HAS_EARLYSUSPEND */
-
+	touchkey_enable = 1;
 	if (request_irq(IRQ_TOUCH_INT, touchkey_interrupt, IRQF_DISABLED, DEVICE_NAME, touchkey_driver))
 	{
 		printk(KERN_ERR "%s Can't allocate irq ..\n", __FUNCTION__);
@@ -471,10 +476,28 @@ static int i2c_touchkey_probe(struct i2c_client *client, const struct i2c_device
 	}
 	return 0;
 }
+static int touchkey_pmic_control(int onoff)
+{
+	struct regulator *regulator;
+	regulator = regulator_get(NULL, "TOUCH_PULL_UP");
 
+	if (onoff) {
+		regulator_enable(regulator);
+		printk(KERN_INFO "[touchkey]touchkey_pmic_control on\n");
+		}
+	else {
+		regulator_disable(regulator);
+		printk(KERN_INFO "[touchkey]touchkey_pmic_control off\n");
+		}
+	regulator_put(regulator);
+	return 0;
+}
 static void init_hw(void)
 {
-	gpio_direction_output(_3_GPIO_TOUCH_EN, 1);
+	if (system_rev >= 14)
+		touchkey_pmic_control(1);
+
+	gpio_set_value(_3_GPIO_TOUCH_EN, 1);
 	msleep(100);
 	s3c_gpio_setpull(_3_GPIO_TOUCH_INT, S3C_GPIO_PULL_UP);
 	irq_set_irq_type(IRQ_TOUCH_INT, IRQF_TRIGGER_FALLING);
@@ -576,6 +599,8 @@ static ssize_t touchkey_back_show(struct device *dev,
 static ssize_t touch_led_control(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
 {
 	u8 data;
+	if (!touchkey_enable)
+		return -1;
 
 	sscanf(buf, "%hhu", &data);
 	i2c_touchkey_write(&data, 1);	// LED on(data=1) or off(data=2)
@@ -601,9 +626,10 @@ static ssize_t touchkey_enable_disable(struct device *dev, struct device_attribu
 }
 
 static DEVICE_ATTR(touchkey_activation, 0664, NULL, touchkey_activation_store);
-static DEVICE_ATTR(touchkey_version, S_IRUGO, touchkey_version_show, NULL);
-static DEVICE_ATTR(touchkey_recommend, S_IRUGO, touchkey_recommend_show, NULL);
-static DEVICE_ATTR(touchkey_firmup, S_IRUGO, touchkey_firmup_show, NULL);
+static DEVICE_ATTR(touchkey_firm_version_panel, S_IRUGO, touchkey_version_show, NULL);
+static DEVICE_ATTR(touchkey_firm_version_phone, S_IRUGO, touchkey_recommend_show, NULL);
+static DEVICE_ATTR(recommended_version, S_IRUGO, touchkey_recommend_show, NULL);
+static DEVICE_ATTR(touchkey_firm_update, S_IRUGO, touchkey_firmup_show, NULL);
 static DEVICE_ATTR(touchkey_init, S_IRUGO, touchkey_init_show, NULL);
 static DEVICE_ATTR(touchkey_menu, S_IRUGO, touchkey_menu_show, NULL);
 static DEVICE_ATTR(touchkey_back, S_IRUGO, touchkey_back_show, NULL);
@@ -613,9 +639,10 @@ static DEVICE_ATTR(enable_disable, 0664, NULL, touchkey_enable_disable);
 
 static struct attribute *touchkey_attributes[] = {
 	&dev_attr_touchkey_activation.attr,
-	&dev_attr_touchkey_version.attr,
-	&dev_attr_touchkey_recommend.attr,
-	&dev_attr_touchkey_firmup.attr,
+	&dev_attr_touchkey_firm_version_panel.attr,
+	&dev_attr_touchkey_firm_version_phone.attr,
+	&dev_attr_recommended_version.attr,
+	&dev_attr_touchkey_firm_update.attr,
 	&dev_attr_touchkey_init.attr,
 	&dev_attr_touchkey_menu.attr,
 	&dev_attr_touchkey_back.attr,
@@ -638,54 +665,37 @@ static int __init touchkey_init(void)
 	sec_touchkey=device_create(sec_class, NULL, 0, NULL, "sec_touchkey");
 
 	if (device_create_file(sec_touchkey, &dev_attr_touchkey_activation) < 0)
-	{
 		pr_err("Failed to create device file(%s)!\n", dev_attr_touchkey_activation.attr.name);
-	}
 
-	if (device_create_file(sec_touchkey, &dev_attr_touchkey_version) < 0)
-	{
-		pr_err("Failed to create device file(%s)!\n", dev_attr_touchkey_version.attr.name);
-	}
+	if (device_create_file(sec_touchkey, &dev_attr_touchkey_firm_version_panel) < 0)
+		pr_err("Failed to create device file(%s)!\n", dev_attr_touchkey_firm_version_panel.attr.name);
 
-	if (device_create_file(sec_touchkey, &dev_attr_touchkey_recommend) < 0)
-	{
-		pr_err("Failed to create device file(%s)!\n", dev_attr_touchkey_recommend.attr.name);
-	}
+	if (device_create_file(sec_touchkey, &dev_attr_touchkey_firm_version_phone) < 0)
+		pr_err("Failed to create device file(%s)!\n", dev_attr_touchkey_firm_version_phone.attr.name);
 
-	if (device_create_file(sec_touchkey, &dev_attr_touchkey_firmup) < 0)
-	{
-		pr_err("Failed to create device file(%s)!\n", dev_attr_touchkey_firmup.attr.name);
-	}
+	if (device_create_file(sec_touchkey, &dev_attr_recommended_version) < 0)
+		pr_err("Failed to create device file(%s)!\n", dev_attr_recommended_version.attr.name);
+
+	if (device_create_file(sec_touchkey, &dev_attr_touchkey_firm_update) < 0)
+		pr_err("Failed to create device file(%s)!\n", dev_attr_touchkey_firm_update.attr.name);
 
 	if (device_create_file(sec_touchkey, &dev_attr_touchkey_init) < 0)
-	{
 		pr_err("Failed to create device file(%s)!\n", dev_attr_touchkey_init.attr.name);
-	}
 
 	if (device_create_file(sec_touchkey, &dev_attr_touchkey_menu) < 0)
-	{
 		pr_err("Failed to create device file(%s)!\n", dev_attr_touchkey_menu.attr.name);
-	}
 
 	if (device_create_file(sec_touchkey, &dev_attr_touchkey_back) < 0)
-	{
 		pr_err("Failed to create device file(%s)!\n", dev_attr_touchkey_back.attr.name);
-	}
 
 	if (device_create_file(sec_touchkey, &dev_attr_touchkey_home) < 0)
-	{
 		pr_err("Failed to create device file(%s)!\n", dev_attr_touchkey_home.attr.name);
-	}
 
 	if (device_create_file(sec_touchkey, &dev_attr_brightness) < 0)
-	{
 		pr_err("Failed to create device file(%s)!\n", dev_attr_brightness.attr.name);
-	}
 
 	if (device_create_file(sec_touchkey, &dev_attr_enable_disable) < 0)
-	{
 		pr_err("Failed to create device file(%s)!\n", dev_attr_enable_disable.attr.name);
-	}
 
 	init_hw();
 
@@ -693,8 +703,6 @@ static int __init touchkey_init(void)
 	printk(TCHKEY_KERN_DEBUG "%s F/W version: 0x%x, Module version:0x%x\n",__FUNCTION__, version_info[1], version_info[2]);
 
 //-------------------   Auto Firmware Update Routine Start   -------------------//
-	if (HWREV >= 8)
-	{
 		if (version_info[1] == 0xff) {
 			mcsdl_download_binary_data(MCS5080_CHIP);
 			updated = 1;
@@ -716,7 +724,6 @@ static int __init touchkey_init(void)
 				printk(TCHKEY_KERN_DEBUG "Updated F/W version: 0x%x, Module version:0x%x\n", version_info[1], version_info[2]);
 			}
 		}
-	}
 //-------------------   Auto Firmware Update Routine End   -------------------//
 
 	ret = i2c_add_driver(&touchkey_i2c_driver);

@@ -85,7 +85,7 @@ static int exynos_drm_ump_add_buffer(void *obj,
 		 * physically continuous buffer so let a ump descriptor
 		 * have one buffer address.
 		 */
-		ump_mem_desc[0].addr = (unsigned long)buf->dma_addr;
+		ump_mem_desc[0].addr = (unsigned long)buf->paddr;
 		ump_mem_desc[0].size = buf->size;
 	}
 

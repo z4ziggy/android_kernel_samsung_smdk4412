@@ -278,7 +278,7 @@ cy_as_mail_box_process_data(cy_as_device *dev_p, uint16_t *data)
 	ctxt_p = dev_p->context[context];
 
 	if (cy_as_mbox_is_request(data[0])) {
-#ifdef CONFIG_MACH_U1_NA_SPR
+#if defined(CONFIG_MACH_U1_NA_SPR) || defined(CONFIG_MACH_U1_NA_USCC)
 		if (ctxt_p->req_p == 0) {
 			cy_as_hal_print_message(KERN_ERR
 			"mailbox process : request pointer NULL\n");
@@ -1025,7 +1025,7 @@ cy_as_ll_send_request_wait_reply(
 	uint8_t context;
 	/* Larger 8 sec time-out to handle the init
 	 * delay for slower storage devices in USB FS. */
-#ifdef CONFIG_MACH_U1_NA_SPR
+#if defined(CONFIG_MACH_U1_NA_SPR) || defined(CONFIG_MACH_U1_NA_USCC)
 	uint32_t loopcount = 400 ;
 #else
 	 uint32_t loopcount = 800;

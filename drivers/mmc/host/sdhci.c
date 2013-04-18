@@ -1407,8 +1407,7 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		if ((ios->timing == MMC_TIMING_UHS_SDR50) ||
 		    (ios->timing == MMC_TIMING_UHS_SDR104) ||
 		    (ios->timing == MMC_TIMING_UHS_DDR50) ||
-		    (ios->timing == MMC_TIMING_UHS_SDR25) ||
-		    (ios->timing == MMC_TIMING_UHS_SDR12))
+		    (ios->timing == MMC_TIMING_UHS_SDR25))
 			ctrl |= SDHCI_CTRL_HISPD;
 
 		ctrl_2 = sdhci_readw(host, SDHCI_HOST_CONTROL2);
@@ -2326,9 +2325,8 @@ int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state)
 	/* Disable tuning since we are suspending */
 	if (host->version >= SDHCI_SPEC_300 && host->tuning_count &&
 	    host->tuning_mode == SDHCI_TUNING_MODE_1) {
+		del_timer_sync(&host->tuning_timer);
 		host->flags &= ~SDHCI_NEEDS_RETUNING;
-		mod_timer(&host->tuning_timer, jiffies +
-			host->tuning_count * HZ);
 	}
 
 	if (host->mmc->pm_flags & MMC_PM_IGNORE_SUSPEND_RESUME) {
@@ -2358,10 +2356,12 @@ int sdhci_suspend_host(struct sdhci_host *host, pm_message_t state)
 
 EXPORT_SYMBOL_GPL(sdhci_suspend_host);
 
-#if defined(CONFIG_MACH_GC1) || defined(CONFIG_TARGET_LOCALE_KOR)
 void sdhci_shutdown_host(struct sdhci_host *host)
 {
-	sdhci_disable_card_detection(host);
+	u32 irqs = 0xFFFF;
+
+	/* all interrupt has to be masked */
+	sdhci_mask_irqs(host, irqs);
 
 	free_irq(host->irq, host);
 
@@ -2373,14 +2373,11 @@ void sdhci_shutdown_host(struct sdhci_host *host)
 #endif
 			regulator_disable(host->vmmc);
 			pr_info("%s : MMC Card OFF\n", __func__);
-#if defined(CONFIG_TARGET_LOCALE_KOR)
 			mdelay(5);
-#endif
 		}
 	}
 }
 EXPORT_SYMBOL_GPL(sdhci_shutdown_host);
-#endif
 
 int sdhci_resume_host(struct sdhci_host *host)
 {
@@ -2695,6 +2692,9 @@ int sdhci_add_host(struct sdhci_host *host)
 		mmc->caps |= MMC_CAP_DRIVER_TYPE_C;
 	if (caps[1] & SDHCI_DRIVER_TYPE_D)
 		mmc->caps |= MMC_CAP_DRIVER_TYPE_D;
+
+	if (mmc->pm_flags & MMC_PM_IGNORE_SUSPEND_RESUME)
+		mmc->pm_caps |= MMC_PM_KEEP_POWER;
 
 	/*
 	 * If Power Off Notify capability is enabled by the host,

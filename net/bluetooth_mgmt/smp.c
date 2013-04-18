@@ -294,11 +294,16 @@ static void smp_failure(struct l2cap_conn *conn, u8 reason, u8 send)
 * 3 - NoInputNoOutput
 * 4 - KeyboardDisplay
 */
+
+/* gen_method[3][4] is changed to JUST_WORKS.
+  *Although JUST_CFM works with pin 0000, when interacting with NoInputNoOutput,
+  * such a gesture might be confusing to user. Hence its changed to JUST_WORKS
+  */
 static const u8 gen_method[5][5] = {
 	{ JUST_WORKS,  JUST_CFM,    REQ_PASSKEY, JUST_WORKS, REQ_PASSKEY },
 	{ JUST_WORKS,  JUST_CFM,    REQ_PASSKEY, JUST_WORKS, REQ_PASSKEY },
 	{ CFM_PASSKEY, CFM_PASSKEY, REQ_PASSKEY, JUST_WORKS, CFM_PASSKEY },
-	{ JUST_WORKS,  JUST_CFM,    JUST_WORKS,  JUST_WORKS, JUST_CFM    },
+	{ JUST_WORKS,  JUST_CFM,    JUST_WORKS,  JUST_WORKS, JUST_WORKS  },
 	{ CFM_PASSKEY, CFM_PASSKEY, REQ_PASSKEY, JUST_WORKS, OVERLAP     },
 };
 

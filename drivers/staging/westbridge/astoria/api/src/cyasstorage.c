@@ -1384,14 +1384,14 @@ my_storage_query_unit(cy_as_device *dev_p,
 		return CY_AS_ERROR_OUT_OF_MEMORY;
 
 	if (device > 255) {
-#ifdef CONFIG_MACH_U1_NA_SPR
+#if defined(CONFIG_MACH_U1_NA_SPR) || defined(CONFIG_MACH_U1_NA_USCC)
 		cy_as_ll_destroy_request(dev_p, req_p) ;
 #endif
 		return CY_AS_ERROR_NO_SUCH_DEVICE;
 	}
 
 	if (unit > 255) {
-#ifdef CONFIG_MACH_U1_NA_SPR
+#if defined(CONFIG_MACH_U1_NA_SPR) || defined(CONFIG_MACH_U1_NA_USCC)
 		cy_as_ll_destroy_request(dev_p, req_p) ;
 #endif
 		return CY_AS_ERROR_NO_SUCH_UNIT;
