@@ -10,7 +10,7 @@ else
 	exit 1
 fi
 
-version=Devil-$TARGET-COMBO-0.9.88_$(date +%Y%m%d)
+version=Devil-$TARGET-COMBO-0.12.8_$(date +%Y%m%d)
 
 if [ "$TARGET" = "i9300" ] ; then
 CUSTOM_PATH=i9300
@@ -72,8 +72,12 @@ make $defconfig
 make -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$TOOLCHAIN || exit -1
 # Copying and stripping kernel modules
 mkdir -p $ROOTFS_PATH/lib/modules
+
+for i in $ROOTFS_PATH/lib/prop_modules/*; do cp $i $i.ko;done;\
 find -name '*.ko' -exec cp -av {} $ROOTFS_PATH/lib/modules/ \;
+        
         for i in $ROOTFS_PATH/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
+
 
 # Copy Kernel Image
 rm -f $KERNEL_PATH/releasetools/$CUSTOM_PATH/tar/$KBUILD_BUILD_VERSION.tar
