@@ -56,4 +56,8 @@ $BB mv -f /roms/sammy41/* /
 fi
 
 $BB umount /system
+####### cleaning ###########
+$BB rm -rf /roms
+$BB rm -rf /lib/prop_modules
+#############################
 exec /sbin/init.2
