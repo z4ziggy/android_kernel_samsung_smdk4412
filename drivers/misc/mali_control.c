@@ -110,28 +110,28 @@ static ssize_t gpu_clock_store(struct device *dev, struct device_attribute *attr
 }
 
 static ssize_t gpu_staycount_show(struct device *dev, struct device_attribute *attr, char *buf) {
-
-	int i, len = 0;
-
-	if(buf) {
-		for(i = 0; i < MALI_DVFS_STEPS; i++)
-			len += sprintf(buf + len, "Step%d: %d\n", i+1, gm_mali_dvfs_staycount[i].staycount);
-	}
-	return len;
+	return sprintf(buf, "%d %d %d %d %d\n", 
+	gm_mali_dvfs_staycount[0].staycount,
+	gm_mali_dvfs_staycount[1].staycount,
+	gm_mali_dvfs_staycount[2].staycount,
+	gm_mali_dvfs_staycount[3].staycount,
+	gm_mali_dvfs_staycount[4].staycount
+	);
 }
 
 static ssize_t gpu_staycount_store(struct device *dev, struct device_attribute *attr, const char *buf,
 									size_t count) {
 	unsigned int ret = -EINVAL;
-	int i[MALI_DVFS_STEPS],j = 0;
+	int i1, i2, i3, i4, i5;
 
-    if ((ret=sscanf(buf, "%d %d %d %d %d", &i[0], &i[1], &i[2], &i[3], &i[4])) != MALI_DVFS_STEPS)
+    if ( (ret=sscanf(buf, "%d %d %d %d %d", &i1, &i2, &i3, &i4, &i5))!=5 )
 		return -EINVAL;
-	else {
-		for(j = 0; j < MALI_DVFS_STEPS; j++)
-			gm_mali_dvfs_staycount[j].staycount = i[j];
-	}
-	return count;
+	gm_mali_dvfs_staycount[0].staycount = i1;
+	gm_mali_dvfs_staycount[1].staycount = i2;
+	gm_mali_dvfs_staycount[2].staycount = i3;
+	gm_mali_dvfs_staycount[3].staycount = i4;
+	gm_mali_dvfs_staycount[4].staycount = i5;
+	return count;	
 }
 
 static ssize_t gpu_voltage_show(struct device *dev, struct device_attribute *attr, char *buf) {
@@ -143,16 +143,16 @@ static ssize_t gpu_voltage_store(struct device *dev, struct device_attribute *at
 									size_t count) {
 	unsigned int ret = -EINVAL;
 	int i = 0;
-	unsigned int gv[MALI_DVFS_STEPS];
+	unsigned int gv[5];
 
 	ret = sscanf(buf, "%d %d %d %d %d", &gv[0], &gv[1], &gv[2], &gv[3], &gv[4]);
-	if(ret!=MALI_DVFS_STEPS) 
+	if(ret!=5) 
 	{
 		return -EINVAL;
 	}
 
     /* safety floor and ceiling - netarchy */
-    for( i = 0; i < MALI_DVFS_STEPS; i++ ) {
+    for( i = 0; i < 5; i++ ) {
         if (gv[i] < MIN_VOLTAGE_GPU) {
             gv[i] = MIN_VOLTAGE_GPU;
         }
