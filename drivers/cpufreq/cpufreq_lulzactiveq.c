@@ -442,9 +442,9 @@ static void cpufreq_lulzactive_timer(unsigned long data)
 	if (!pcpu->governor_enabled)
 		goto exit;
 
-    // do not let inc_cpu_load be less than dec_cpu_load.
-    if (dec_cpu_load > inc_cpu_load) {
-        dec_cpu_load = inc_cpu_load;
+    // do not let inc_cpu_load be less (or equal) than dec_cpu_load.
+    if (inc_cpu_load < dec_cpu_load) {
+        dec_cpu_load = inc_cpu_load -1;
     }
 
 	/*
@@ -1469,6 +1469,10 @@ static ssize_t store_cpu_up_rate(struct kobject *a, struct attribute *b,
 	ret = sscanf(buf, "%u", &input);
 	if (ret != 1)
 		return -EINVAL;
+
+	if (input < 1)
+		input = 1;
+
 	dbs_tuners_ins.cpu_up_rate = min(input, MAX_HOTPLUG_RATE);
 	return count;
 }
@@ -1481,6 +1485,10 @@ static ssize_t store_cpu_down_rate(struct kobject *a, struct attribute *b,
 	ret = sscanf(buf, "%u", &input);
 	if (ret != 1)
 		return -EINVAL;
+
+	if (input < 1)
+		input = 1;
+
 	dbs_tuners_ins.cpu_down_rate = min(input, MAX_HOTPLUG_RATE);
 	return count;
 }
