@@ -40,6 +40,8 @@ $BB mv -f /roms/cm101/* /
   	$BB rm -f init.smdk4x12.rc
    else
    	echo 7 > /proc/sys/kernel/rom_feature_set
+	$BB mkdir -p /system/lib/modules
+	$BB mv /lib/modules/* /system/lib/modules/
    fi
 else
 $BB mv -f /roms/sammy41/* /
