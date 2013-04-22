@@ -1842,7 +1842,7 @@ config CPU_FREQ_TETHERING
 
 config RQ_STATS
   	bool "Enable Run queue statistics"
-  	default y
+  	default n
   	help
     	  Select this to enable scheduler rune queue statistic
     	  collections
@@ -1853,3 +1853,7 @@ config INTELLI_PLUG
 	help
 	  Generic Intelli-plug cpu hotplug driver for ARM SOCs
 
+config ABB_CONTROL
+	bool "Adaptive body bias control"
+	depends on EXYNOS4_CPUFREQ && CPU_EXYNOS4412
+	default n
