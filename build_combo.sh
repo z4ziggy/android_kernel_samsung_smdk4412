@@ -11,7 +11,7 @@ else
 fi
 
 
-version=Devil-$TARGET-COMBO-0.14.7_$(date +%Y%m%d)
+version=Devil-$TARGET-COMBO-0.15.0_$(date +%Y%m%d)
 
 if [ "$TARGET" = "i9300" ] ; then
 CUSTOM_PATH=i9300
