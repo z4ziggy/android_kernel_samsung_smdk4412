@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 ARM Limited. All rights reserved.
+ * Copyright (C) 2010 ARM Limited. All rights reserved.
  * 
  * This program is free software and is provided to you under the terms of the GNU General Public License version 2
  * as published by the Free Software Foundation, and any use by you of this program is subject to the terms of such GNU licence.
@@ -8,12 +8,15 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#ifndef __MALI_MEM_VALIDATION_H__
-#define __MALI_MEM_VALIDATION_H__
+#ifndef __ARCH_CONFIG_UMP_H__
+#define __ARCH_CONFIG_UMP_H__
 
-#include "mali_osk.h"
+#define ARCH_UMP_BACKEND_DEFAULT          	USING_MEMORY
+#if (USING_MEMORY == 0) /* Dedicated Memory */
+#define ARCH_UMP_MEMORY_ADDRESS_DEFAULT   	0x2C000000
+#else
+#define ARCH_UMP_MEMORY_ADDRESS_DEFAULT   	0
+#endif
 
-_mali_osk_errcode_t mali_mem_validation_add_range(const _mali_osk_resource_t * resource);
-_mali_osk_errcode_t mali_mem_validation_check(u32 phys_addr, u32 size);
-
-#endif /* __MALI_MEM_VALIDATION_H__ */
+#define ARCH_UMP_MEMORY_SIZE_DEFAULT 		UMP_MEM_SIZE*1024*1024
+#endif /* __ARCH_CONFIG_UMP_H__ */

@@ -77,8 +77,6 @@ typedef struct ump_session_data
 	int api_version;
 	_mali_osk_lock_t * lock;
 	ump_descriptor_mapping * cookies_map; /**< Secure mapping of cookies from _ump_ukk_map_mem() */
-	int cache_operations_ongoing;
-	int has_pending_level1_cache_flush;
 } ump_session_data;
 
 
