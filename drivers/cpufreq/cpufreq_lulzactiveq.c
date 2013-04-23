@@ -162,6 +162,7 @@ static unsigned int early_suspended;
 #define SCREEN_OFF_LOWEST_STEP 		(0xffffffff)
 #define DEFAULT_SCREEN_OFF_MIN_STEP	(SCREEN_OFF_LOWEST_STEP)
 static unsigned long screen_off_min_step;
+static unsigned long screen_off_max_step = -1;
 
 
 /*
@@ -382,11 +383,17 @@ static unsigned int get_lulzfreq_table_size(struct cpufreq_lulzactive_cpuinfo *p
 	return size;
 }
 
-static inline void fix_screen_off_min_step(struct cpufreq_lulzactive_cpuinfo *pcpu) {
-	if (pcpu->lulzfreq_table_size <= 0) {
+static inline void fix_screen_off_max_step(struct cpufreq_lulzactive_cpuinfo *pcpu) {
+   	if (pcpu->lulzfreq_table_size <= 0) {
 		screen_off_min_step = 0;
 		return;
 	}
+
+   	if (screen_off_max_step > pcpu->lulzfreq_table_size || screen_off_max_step <= 0) {
+		screen_off_max_step = pcpu->lulzfreq_table_size;
+	}
+
+	screen_off_min_step = pcpu->lulzfreq_table_size - screen_off_max_step;
 
 	if (DEFAULT_SCREEN_OFF_MIN_STEP == screen_off_min_step) 
 		for(screen_off_min_step=0;
@@ -401,7 +408,7 @@ static inline void fix_screen_off_min_step(struct cpufreq_lulzactive_cpuinfo *pc
 
 static inline unsigned int adjust_screen_off_freq(
 	struct cpufreq_lulzactive_cpuinfo *pcpu, unsigned int freq) {
-
+	
 	if (early_suspended && freq > pcpu->lulzfreq_table[screen_off_min_step].frequency) {		
 		freq = pcpu->lulzfreq_table[screen_off_min_step].frequency;
 		pcpu->target_freq = pcpu->policy->cur;
@@ -442,9 +449,9 @@ static void cpufreq_lulzactive_timer(unsigned long data)
 	if (!pcpu->governor_enabled)
 		goto exit;
 
-    // do not let inc_cpu_load be less (or equal) than dec_cpu_load.
-    if (inc_cpu_load < dec_cpu_load) {
-        dec_cpu_load = inc_cpu_load -1;
+    // do not let inc_cpu_load be less than dec_cpu_load.
+    if (dec_cpu_load >= inc_cpu_load) {
+        dec_cpu_load = inc_cpu_load - 1;
     }
 
 	/*
@@ -1150,33 +1157,33 @@ static ssize_t store_pump_down_step(struct kobject *kobj,
 static struct global_attr pump_down_step_attr = __ATTR(pump_down_step, 0666,
 		show_pump_down_step, store_pump_down_step);
 
-// screen_off_min_step
-static ssize_t show_screen_off_min_step(struct kobject *kobj,
+// screen_off_max_step
+static ssize_t show_screen_off_max_step(struct kobject *kobj,
 				     struct attribute *attr, char *buf)
 {
 	struct cpufreq_lulzactive_cpuinfo *pcpu;
 
 	pcpu = &per_cpu(cpuinfo, 0);
-	fix_screen_off_min_step(pcpu);
+	fix_screen_off_max_step(pcpu);
 
-	return sprintf(buf, "%lu\n", screen_off_min_step);
+	return sprintf(buf, "%lu\n", screen_off_max_step);
 }
 
-static ssize_t store_screen_off_min_step(struct kobject *kobj,
+static ssize_t store_screen_off_max_step(struct kobject *kobj,
 			struct attribute *attr, const char *buf, size_t count)
 {
 	struct cpufreq_lulzactive_cpuinfo *pcpu;
 
-	if(strict_strtoul(buf, 0, &screen_off_min_step)==-EINVAL) return -EINVAL;
+	if(strict_strtoul(buf, 0, &screen_off_max_step)==-EINVAL) return -EINVAL;
 
 	pcpu = &per_cpu(cpuinfo, 0);
-	fix_screen_off_min_step(pcpu);
+	fix_screen_off_max_step(pcpu);
 
 	return count;
 }
 
-static struct global_attr screen_off_min_step_attr = __ATTR(screen_off_min_step, 0666,
-		show_screen_off_min_step, store_screen_off_min_step);
+static struct global_attr screen_off_max_step_attr = __ATTR(screen_off_max_step, 0666,
+		show_screen_off_max_step, store_screen_off_max_step);
 
 // author
 static ssize_t show_author(struct kobject *kobj,
@@ -1622,7 +1629,7 @@ static struct attribute *lulzactive_attributes[] = {
 	&down_sample_time_attr.attr,
 	&pump_up_step_attr.attr,
 	&pump_down_step_attr.attr,
-	&screen_off_min_step_attr.attr,
+	&screen_off_max_step_attr.attr,
 	&debug_mode_attr.attr,
 	&ignore_nice_load.attr,
 
@@ -1960,7 +1967,7 @@ static int cpufreq_governor_lulzactive(struct cpufreq_policy *policy,
 			pcpu->lulzfreq_table_size = get_lulzfreq_table_size(pcpu);
 
 			// fix invalid screen_off_min_step
-			fix_screen_off_min_step(pcpu);
+			fix_screen_off_max_step(pcpu);
 			if (dbs_tuners_ins.ignore_nice) {
 				pcpu->freq_change_prev_cpu_nice =
 					kstat_cpu(j).cpustat.nice;
