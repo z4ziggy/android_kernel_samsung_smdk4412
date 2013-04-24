@@ -66,8 +66,6 @@
 #include <linux/sched.h>
 #include <linux/earlysuspend.h>
 
-#include <mach/cpufreq.h>
-
 // smooth up/downscaling via lookup tables
 #define MN_SMOOTH 1
 
@@ -283,35 +281,14 @@ static int mn_freqs_power[19][3]={
 };
 
 static int mn_get_next_freq(unsigned int curfreq, unsigned int updown, unsigned int load) {
-    int i=0,max_level,next_freq,max_freq = exynos_cpufreq_get_maxfreq();
-
-  if(max_freq == 2000000)
-	max_level = 19;
-  else if(max_freq == 1920000)
-	max_level = 18;
-  else if(max_freq == 1800000)
-	max_level = 17;
-  else if(max_freq == 1704000)
-	max_level = 16;
-  else if(max_freq == 1600000)
-	max_level = 15;
-  else if(max_freq == 1500000)
-	max_level = 14;
-  else if(max_freq == 1400000)
-	max_level = 13;
-  else
-	max_level = 15;
+    int i=0,max_level = 19;
 
     if (load < dbs_tuners_ins.smooth_up)
     {
         for(i = 0; i < max_level; i++)
         {
             if(curfreq == mn_freqs[i][MN_FREQ]) {
-		next_freq = mn_freqs[i][updown];
-		if (next_freq > max_freq)
-		    next_freq = max_freq;
-
-		 return next_freq;
+		 return mn_freqs[i][updown];
 	    }
         }
     }
@@ -320,11 +297,7 @@ static int mn_get_next_freq(unsigned int curfreq, unsigned int updown, unsigned 
         for(i = 0; i < max_level; i++)
         {
             if(curfreq == mn_freqs_power[i][MN_FREQ]) {
-		next_freq = mn_freqs_power[i][updown]; // updown 1|2
-		if (next_freq > max_freq)
-		    next_freq = max_freq;
-
-		 return next_freq;
+		 return mn_freqs_power[i][updown]; // updown 1|2
 	    }
         }
     }
@@ -900,10 +873,13 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		this_dbs_info->down_skip = 0;
 
 		/* if we are already at full speed then break out early */
-		if (this_dbs_info->requested_freq == policy->max)
+		if (policy->cur == policy->max)
 			return;
 
         this_dbs_info->requested_freq = mn_get_next_freq(policy->cur, MN_UP, max_load);
+
+		if (this_dbs_info->requested_freq > policy->max)
+			this_dbs_info->requested_freq = policy->max;
 
 		__cpufreq_driver_target(policy, this_dbs_info->requested_freq,
 			CPUFREQ_RELATION_H);
