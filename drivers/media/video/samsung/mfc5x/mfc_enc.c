@@ -1038,7 +1038,8 @@ static int h264_pre_seq_start(struct mfc_inst_ctx *ctx)
 
 	if (h264->sps_pps_gen == 1) {
 		write_shm(ctx,
-			((h264->sps_pps_gen << 8) | read_shm(ctx, EXT_ENC_CONTROL)),
+			((h264->sps_pps_gen << 8) |
+				read_shm(ctx, EXT_ENC_CONTROL)),
 			EXT_ENC_CONTROL);
 	}
 
@@ -1561,8 +1562,10 @@ static int h264_set_codec_cfg(struct mfc_inst_ctx *ctx, int type, void *arg)
 	case MFC_ENC_SETCONF_SPS_PPS_GEN:
 		mfc_dbg("MFC_ENC_SETCONF_SPS_PPS_GEN : %d\n", ctx->state);
 
-		if ((ctx->state < INST_STATE_CREATE) || (ctx->state > INST_STATE_EXE)) {
-			mfc_err("MFC_ENC_SETCONF_SPS_PPS_GEN : state is invalid\n");
+		if ((ctx->state < INST_STATE_CREATE) ||
+					(ctx->state > INST_STATE_EXE)) {
+			mfc_err("MFC_ENC_SETCONF_SPS_PPS_GEN : "
+						" state is invalid\n");
 			return MFC_STATE_INVALID;
 		}
 
@@ -1572,7 +1575,6 @@ static int h264_set_codec_cfg(struct mfc_inst_ctx *ctx, int type, void *arg)
 			h264->sps_pps_gen = 0;
 
 		break;
-
 	default:
 		mfc_dbg("invalid set cfg type: 0x%08x\n", type);
 		ret = -2;
@@ -1948,6 +1950,10 @@ int mfc_init_encoding_cm(struct mfc_inst_ctx *ctx, void *args)
 		goto err_handling;
 	}
 
+#ifdef CONFIG_EXYNOS_MEDIA_MONITOR
+	mhs_set_status(MHS_ENCODING, true);
+#endif
+
 	ctx->width = init_arg->cmn.in_width;
 	ctx->height = init_arg->cmn.in_height;
 
@@ -2237,10 +2243,6 @@ int mfc_init_encoding_3sung(struct mfc_inst_ctx *ctx, void *args)
 		ret = MFC_ENC_INIT_FAIL;
 		goto err_handling;
 	}
-
-#ifdef CONFIG_EXYNOS_MEDIA_MONITOR
-	mhs_set_status(MHS_ENCODING, true);
-#endif
 
 	ctx->width = init_arg->cmn.in_width;
 	ctx->height = init_arg->cmn.in_height;
@@ -2707,7 +2709,6 @@ _SUPPORT_SLICE_ENCODING
 		exe_arg->out_encoded_size = read_reg(MFC_ENC_SI_STRM_SIZE);
 
 		/* FIXME: port must be checked */
-
 #ifdef CONFIG_SLP_DMABUF
 		if (exe_arg->memory_type == MEMORY_DMABUF) {
 			exe_arg->out_Y_addr =
