@@ -22,8 +22,8 @@ on init
     #mount /tmp /tmp tmpfs   
 
 on early-fs
-    mount ext4 /dev/block/mmcblk0p9 /system ro wait noatime
-    mount ext4 /dev/block/mmcblk0p12 /data wait nosuid nodev noatime discard,noauto_da_alloc,journal_async_commit
+    mount ext4 /dev/block/mmcblk0p13 /system ro wait noatime
+    mount ext4 /dev/block/mmcblk0p16 /data wait nosuid nodev noatime discard,noauto_da_alloc,journal_async_commit
 
 	mkdir /data/log 0777
 	chmod 0666 /dev/log/radio
