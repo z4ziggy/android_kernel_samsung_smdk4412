@@ -4,8 +4,7 @@
 build ()
 {
     local target=$1
-    ./build_aosp.sh $target
-    ./build_sammy.sh $target
+    ./build_combo.sh $target
 }
     
 targets=("$@")

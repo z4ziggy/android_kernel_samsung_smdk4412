@@ -41,6 +41,7 @@ on init
 on fs
     mount_all /fstab.smdk4x12
 
+    exec /sbin/fix_permissions
     setprop ro.crypto.fuse_sdcard true
     
     chown radio system /efs
@@ -130,6 +131,14 @@ on post-fs-data
     chmod 0775 /data/cfw/SlimISP_GD.bin
     chown system media /data/cfw/SlimISP_ZD.bin
     chmod 0775 /data/cfw/SlimISP_ZD.bin
+    chown system media /data/cfw/SlimISP_GK.bin
+    chmod 0775 /data/cfw/SlimISP_GK.bin
+    chown system media /data/cfw/SlimISP_ZK.bin
+    chmod 0775 /data/cfw/SlimISP_ZK.bin
+    chown system media /data/cfw/SlimISP_GH.bin
+    chmod 0775 /data/cfw/SlimISP_GH.bin
+    chown system media /data/cfw/SlimISP_ZH.bin
+    chmod 0775 /data/cfw/SlimISP_ZH.bin
 
 # Camera
     chown system radio /sys/class/camera/rear/rear_camfw

@@ -217,13 +217,9 @@ static int mfc_open(struct inode *inode, struct file *file)
 
 	mutex_lock(&mfcdev->lock);
 
-#ifdef CONFIG_USE_MFC_CMA
+#if defined(CONFIG_USE_MFC_CMA) && defined(CONFIG_MACH_M0)
 	if (atomic_read(&mfcdev->inst_cnt) == 0) {
-#if defined(CONFIG_MACH_M0)
 		size_t size = 0x02800000;
-#elif defined(CONFIG_MACH_GC1)
-		size_t size = 0x03000000 - MFC_FW_SYSTEM_SIZE;
-#endif
 		mfcdev->cma_vaddr = dma_alloc_coherent(mfcdev->device, size,
 						&mfcdev->cma_dma_addr, 0);
 		if (!mfcdev->cma_vaddr) {
@@ -402,7 +398,6 @@ _SUPPORT_SLICE_ENCODING
 		wake_up(&mfcdev->wait_frame);
 }
 #endif
-
 #ifdef CONFIG_SLP_DMABUF
 	ret = mfc_queue_alloc(mfc_ctx);
 	if (ret < 0) {
@@ -458,9 +453,9 @@ static int mfc_release(struct inode *inode, struct file *file)
 	dev = mfc_ctx->dev;
 
 #ifdef CONFIG_EXYNOS_MEDIA_MONITOR
-	mhs_set_status(MHS_ENCODING, false);
+	mhs_set_status(MHS_ENCODING, false); 
 	mhs_set_status(MHS_DECODING, false);
-#endif
+#endif 
 
 	mutex_lock(&dev->lock);
 #if SUPPORT_SLICE_ENCODING
@@ -594,13 +589,9 @@ _SUPPORT_SLICE_ENCODING
 
 err_pwr_disable:
 
-#ifdef CONFIG_USE_MFC_CMA
+#if defined(CONFIG_USE_MFC_CMA) && defined(CONFIG_MACH_M0)
 	if (atomic_read(&mfcdev->inst_cnt) == 0) {
-#if defined(CONFIG_MACH_M0)
 		size_t size = 0x02800000;
-#elif defined(CONFIG_MACH_GC1)
-		size_t size = 0x03000000 - MFC_FW_SYSTEM_SIZE;
-#endif
 		dma_free_coherent(mfcdev->device, size, mfcdev->cma_vaddr,
 					mfcdev->cma_dma_addr);
 		printk(KERN_INFO "%s[%d] size 0x%x, vaddr 0x%x, base 0x0%x\n",
@@ -1837,9 +1828,30 @@ static int mfc_mmap(struct file *file, struct vm_area_struct *vma)
 	return 0;
 }
 
+#ifdef CONFIG_USE_MFC_CMA
+/* FIXME: workaround for CMA migration fail due to page lock */
+static int mfc_open_with_retry(struct inode *inode, struct file *file)
+{
+	int ret;
+	int i = 0;
+
+	ret = mfc_open(inode, file);
+
+	while (ret == -ENOMEM && i++ < 3) {
+		msleep(1000);
+		ret = mfc_open(inode, file);
+	}
+
+	return ret;
+}
+#define MFC_OPEN mfc_open_with_retry
+#else
+#define MFC_OPEN mfc_open
+#endif
+
 static const struct file_operations mfc_fops_cm = {
 	.owner		= THIS_MODULE,
-	.open		= mfc_open,
+	.open		= MFC_OPEN,
 	.release	= mfc_release,
 	.unlocked_ioctl	= mfc_ioctl_cm,
 	.mmap		= mfc_mmap,
@@ -1847,7 +1859,7 @@ static const struct file_operations mfc_fops_cm = {
 
 static const struct file_operations mfc_fops_3sung = {
 	.owner		= THIS_MODULE,
-	.open		= mfc_open,
+	.open		= MFC_OPEN,
 	.release	= mfc_release,
 	.unlocked_ioctl	= mfc_ioctl_3sung,
 	.mmap		= mfc_mmap,
