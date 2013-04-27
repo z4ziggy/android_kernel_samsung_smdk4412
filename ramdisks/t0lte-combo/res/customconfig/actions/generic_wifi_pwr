@@ -1,0 +1,27 @@
+#!/sbin/busybox sh
+
+if [ "a$2" != "a" ]; then
+
+	filename=$(basename $2);
+
+	if [ "a$3" == "a" ]; then
+		evalcmd='eval "echo \$$filename"';
+		eval $evalcmd;
+	else
+		evalcmd='eval "$filename=$3"';
+		eval $evalcmd;
+		evalcmd='eval "echo \$$filename"';
+		eval $evalcmd;
+		if [ -f $2 ]; then
+			case "$3" in
+				off)
+					echo "0" > /sys/module/dhd/parameters/wifi_pm;
+				;;
+				on)
+					echo "1" > /sys/module/dhd/parameters/wifi_pm;
+				;;
+			esac;
+		fi;
+	fi;
+fi;
+

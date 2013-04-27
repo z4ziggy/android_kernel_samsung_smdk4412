@@ -1,0 +1,9 @@
+#!/sbin/busybox sh
+
+if [ -e /sbin/zram_stats_ex ]; then
+	/sbin/zram_stats_ex;
+else
+	free;
+	cat /proc/swaps;
+fi;
+

@@ -1,0 +1,19 @@
+#!/sbin/busybox sh
+
+if [ "a$3" == "a" ];then
+evalcmd='eval "echo \$MIFVOLT$2"'
+  eval $evalcmd
+else
+evalcmd='eval "MIFVOLT$2=$3"'
+  eval $evalcmd
+  evalcmd='eval "echo \$MIFVOLT$2"'
+  eval $evalcmd
+  if [ -f /sys/devices/system/cpu/busfreq/mif_volt_table ];then
+		echo "100100 ${MIFVOLT1}" > /sys/devices/system/cpu/busfreq/mif_volt_table;
+        echo "133133 ${MIFVOLT2}" > /sys/devices/system/cpu/busfreq/mif_volt_table;
+        echo "160160 ${MIFVOLT3}" > /sys/devices/system/cpu/busfreq/mif_volt_table;
+        echo "267160 ${MIFVOLT4}" > /sys/devices/system/cpu/busfreq/mif_volt_table;
+        echo "267200 ${MIFVOLT5}" > /sys/devices/system/cpu/busfreq/mif_volt_table;
+        echo "400200 ${MIFVOLT6}" > /sys/devices/system/cpu/busfreq/mif_volt_table;
+  fi
+fi

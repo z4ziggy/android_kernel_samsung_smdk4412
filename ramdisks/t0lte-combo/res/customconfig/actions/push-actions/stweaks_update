@@ -1,0 +1,21 @@
+#!/sbin/busybox sh
+
+(
+	if [ -e /res/misc/STweaks.apk ]; then
+		rm -f /system/app/STweaks.apk > /dev/null 2>&1;
+		rm -f /data/app/com.gokhanmoral.*weak*.apk > /dev/null 2>&1;
+		rm -f /system/app/com.gokhanmoral.*weak*.apk > /dev/null 2>&1;
+		rm -rf /data/data/com.gokhanmoral.*weak* > /dev/null 2>&1;
+		rm -f /data/dalvik-cache/*gokhanmoral.*weak*.apk* > /dev/null 2>&1;
+		rm -f /cache/dalvik-cache/*gokhanmoral.*weak*.apk* > /dev/null 2>&1;
+		cp -a /res/misc/STweaks.apk /system/app/STweaks.apk;
+		chown 0.0 /system/app/STweaks.apk;
+		chmod 644 /system/app/STweaks.apk;
+		pkill -f "com.gokhanmoral.stweaks.app";
+		sleep 2
+		am start -a android.intent.action.MAIN -n com.gokhanmoral.stweaks.app/.MainActivity;
+	else
+		echo "STweaks is missing or code error!";
+	fi;
+)&
+

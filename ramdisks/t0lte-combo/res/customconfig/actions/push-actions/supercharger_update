@@ -1,0 +1,31 @@
+#!/sbin/busybox sh
+
+mount -o remount,rw /;
+mount -o remount,rw /system;
+
+TMPFILE=$(mktemp -t);
+CONTROL_SCRIPT_DATA="/data/V6_SuperCharger/";
+CONTROL_SCRIPT="/system/etc/init.d/S99SuperCharger";
+
+DNS1=`getprop net.rmnet0.dns1`;
+DNS2=`getprop net.rmnet0.dns2`;
+
+echo "nameserver 8.8.8.8" > /system/etc/resolv.conf;
+echo "nameserver $DNS1" >> /system/etc/resolv.conf;
+echo "nameserver $DNS2" >> /system/etc/resolv.conf;
+
+TESTCONNECTION=`wget http://www.google.com -O $TMPFILE > /dev/null 2>&1`;
+if [ $? != 0 ]; then
+	echo "Problem: no internet connection! connect and try again";
+else
+	wget http://68.233.243.9/megosztasok/V6_SuperCharger.zip -O $TMPFILE > /dev/null 2>&1;
+	rm -rf $CONTROL_SCRIPT_DATA;
+	mkdir $CONTROL_SCRIPT_DATA;
+	unzip $TMPFILE -d $CONTROL_SCRIPT_DATA;
+	chmod -R 777 $CONTROL_SCRIPT_DATA;
+	mv /data/V6_SuperCharger/S99SuperCharger $CONTROL_SCRIPT;
+	chmod 777 $CONTROL_SCRIPT;
+	echo "V6_SuperCharger: installed to data: $CONTROL_SCRIPT_DATA, script: $CONTROL_SCRIPT, reboot to use.";
+fi;
+
+rm -f $TMPFILE;

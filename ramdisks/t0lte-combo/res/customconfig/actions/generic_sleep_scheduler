@@ -1,0 +1,46 @@
+#!/sbin/busybox sh
+
+if [ "a$2" != "a" ]; then
+
+	filename=$(basename $2);
+
+	if [ "a$3" == "a" ]; then
+		evalcmd='eval "echo \$$filename"';
+		eval $evalcmd;
+	else
+		evalcmd='eval "$filename=$3"';
+		eval $evalcmd;
+		evalcmd='eval "echo \$$filename"';
+		eval $evalcmd;
+		if [ -f $2 ]; then
+			case "$3" in
+		noop)
+		# tweak is in cortex script, will be shut on screen off and loaded on screen on
+		;;
+		zen)
+		# tweak is in cortex script, will be loaded and not be unloaded anymore
+		;;
+		bfq)
+		# tweak is in cortex script, will be unloaded all the time
+		;;
+		deadline)
+		# tweak is in cortex script, will be unloaded all the time
+		;;
+		sio)
+		# tweak is in cortex script, will be unloaded all the time
+		;;
+		cfq)
+		# tweak is in cortex script, will be unloaded all the time
+		;;
+		vr)
+		# tweak is in cortex script, will be unloaded all the time
+		;;
+		*)
+		sleep_scheduler=noop;
+		;;
+		esac;
+		
+		fi;
+	fi;
+fi;
+

@@ -1,0 +1,24 @@
+#!/sbin/busybox sh
+
+if [ "a$2" != "a" ];then
+
+filename=$(basename $2)
+
+if [ "a$3" == "a" ];then
+  evalcmd='eval "echo \$$filename"'
+  eval $evalcmd
+  exit
+else
+  evalcmd='eval "$filename=$3"'
+  eval $evalcmd
+  evalcmd='eval "echo \$$filename"'
+  eval $evalcmd
+fi
+        echo $busfreq_sampling_rate > /sys/devices/system/cpu/busfreq/sampling_rate;
+		echo $load_history_size > /sys/devices/system/cpu/busfreq/load_history_size;
+		echo $dmc_max_threshold > /sys/devices/system/cpu/busfreq/dmc_max_threshold;
+		echo $idle_threshold > /sys/devices/system/cpu/busfreq/idle_threshold;
+		echo $max_cpu_threshold > /sys/devices/system/cpu/busfreq/max_cpu_threshold;
+		echo $up_cpu_threshold > /sys/devices/system/cpu/busfreq/up_cpu_threshold;
+		echo $cpu_slope_size > /sys/devices/system/cpu/busfreq/cpu_slope_size;
+fi

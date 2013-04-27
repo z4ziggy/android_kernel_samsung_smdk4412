@@ -1,0 +1,44 @@
+#!/sbin/busybox sh
+
+PROFILE=`cat /data/.siyah/.active.profile`;
+. /data/.siyah/$PROFILE.profile;
+
+# $1 - "oom_config_sleep"
+# $2 - value=
+
+if [ "a$2" != "a" ]; then
+	oom_config_sleep=$2;
+if [ $cortexbrain_lmkiller == on ]; then 
+	case "${oom_config_sleep}" in
+	very_light)
+		echo "512,1024,1280,2048,3072,4096" > /sys/module/lowmemorykiller/parameters/minfree;
+		echo "128" > /sys/module/lowmemorykiller/parameters/cost;
+		echo "4096" > /proc/sys/vm/mmap_min_addr;
+	;;
+	light)
+		echo "1024,2048,2560,4096,6144,8192" > /sys/module/lowmemorykiller/parameters/minfree;
+		echo "64" > /sys/module/lowmemorykiller/parameters/cost;
+		echo "4096" > /proc/sys/vm/mmap_min_addr;
+	;;
+	medium)
+		echo "8192,10240,12288,14336,16384,18432" > /sys/module/lowmemorykiller/parameters/minfree;
+		echo "32" > /sys/module/lowmemorykiller/parameters/cost;
+		echo "8192" > /proc/sys/vm/mmap_min_addr;
+	;;
+	aggressive)
+		echo "2048,4096,8192,16384,24576,32768" > /sys/module/lowmemorykiller/parameters/minfree;
+		echo "16" > /sys/module/lowmemorykiller/parameters/cost;
+		echo "16384" > /proc/sys/vm/mmap_min_addr;
+	;;
+	exterminate)
+		echo "4096,8192,16384,32768,49152,65536" > /sys/module/lowmemorykiller/parameters/minfree;
+		echo "8" > /sys/module/lowmemorykiller/parameters/cost;
+		echo "32768" > /proc/sys/vm/mmap_min_addr;
+	;;
+	*)
+		oom_config_sleep=medium;
+	;;
+	esac;
+fi;
+fi;
+echo ${oom_config_sleep};
