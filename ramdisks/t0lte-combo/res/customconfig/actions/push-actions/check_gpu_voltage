@@ -1,7 +1,0 @@
-#!/sbin/busybox sh
-
-(
-GPU_VOLT=`cat /sys/class/misc/mali_control/voltage_control`;
-echo "Current GPU Voltages: ";
-echo "$GPU_VOLT";
-)&

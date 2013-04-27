@@ -1,6 +1,0 @@
-#!/sbin/busybox sh
-
-(
-MIF_VOLT=`cat /sys/devices/system/cpu/busfreq/mif_volt_table`;
-echo "$MIF_VOLT";
-)&
