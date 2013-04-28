@@ -49,6 +49,7 @@
 #define MIN_FREQUENCY_UP_THRESHOLD		(11)
 #define MAX_FREQUENCY_UP_THRESHOLD		(100)
 #define DEF_GRAD_UP_THRESHOLD      		(50)
+#define DEF_FAST_DOWN_THRESHOLD      		(40)
 #define DEF_SAMPLING_RATE			(30000)
 #define MIN_SAMPLING_RATE			(10000)
 #define MAX_HOTPLUG_RATE			(40u)
@@ -163,6 +164,7 @@ static struct dbs_tuners {
 	unsigned int max_freq;
 	unsigned int min_freq;
 	unsigned int grad_up_threshold;
+	unsigned int fast_down_threshold;
 	unsigned int early_demand;
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	int early_suspend;
@@ -183,6 +185,7 @@ static struct dbs_tuners {
 	.hotplug_lock = ATOMIC_INIT(0),
 	.dvfs_debug = 0,
 	.grad_up_threshold = DEF_GRAD_UP_THRESHOLD,
+	.fast_down_threshold = DEF_FAST_DOWN_THRESHOLD,
 	.early_demand = 0,
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	.early_suspend = -1,
@@ -383,6 +386,7 @@ show_one(max_cpu_lock, max_cpu_lock);
 show_one(min_cpu_lock, min_cpu_lock);
 show_one(dvfs_debug, dvfs_debug);
 show_one(grad_up_threshold, grad_up_threshold);
+show_one(fast_down_threshold, fast_down_threshold);
 show_one(early_demand, early_demand);
 
 static ssize_t show_hotplug_lock(struct kobject *kobj,
@@ -721,6 +725,22 @@ static ssize_t store_grad_up_threshold(struct kobject *a,
   return count;
 }
 
+static ssize_t store_fast_down_threshold(struct kobject *a,
+      struct attribute *b, const char *buf, size_t count)
+{
+  unsigned int input;
+  int ret;
+  ret = sscanf(buf, "%u", &input);
+
+  if (ret != 1 || input > MAX_FREQUENCY_UP_THRESHOLD ||
+      input < MIN_FREQUENCY_UP_THRESHOLD) {
+    return -EINVAL;
+  }
+
+  dbs_tuners_ins.fast_down_threshold = input;
+  return count;
+}
+
 static ssize_t store_early_demand(struct kobject *a, struct attribute *b,
           const char *buf, size_t count)
 {
@@ -751,6 +771,7 @@ define_one_global_rw(min_cpu_lock);
 define_one_global_rw(hotplug_lock);
 define_one_global_rw(dvfs_debug);
 define_one_global_rw(grad_up_threshold);
+define_one_global_rw(fast_down_threshold);
 define_one_global_rw(early_demand);
 
 static struct attribute *dbs_attributes[] = {
@@ -786,6 +807,7 @@ static struct attribute *dbs_attributes[] = {
 	&hotplug_rq_3_1.attr,
 	&hotplug_rq_4_0.attr,
 	&grad_up_threshold.attr,
+	&fast_down_threshold.attr,
 	&early_demand.attr,
 	NULL
 };
@@ -1002,6 +1024,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 				   dbs_tuners_ins.cpu_down_rate);
 	int up_threshold = dbs_tuners_ins.up_threshold;
 	int boost_freq = 0;
+	int fast_down = 0;
 
 	policy = this_dbs_info->cur_policy;
 
@@ -1098,6 +1121,11 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
            dbs_tuners_ins.grad_up_threshold * policy->cur))
      		 boost_freq = 1;
 
+    	   if (max_load_freq < this_dbs_info->prev_load_freq &&
+       	   (this_dbs_info->prev_load_freq - max_load_freq >
+           dbs_tuners_ins.fast_down_threshold * policy->cur))
+     		 fast_down = 1;
+
     	this_dbs_info->prev_load_freq = max_load_freq;
   	}
 
@@ -1106,7 +1134,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		up_threshold = UP_THRESHOLD_AT_MIN_FREQ;
 	}
 
-	if (max_load_freq > up_threshold * policy->cur || boost_freq) {
+	if ((max_load_freq > up_threshold * policy->cur && !fast_down) || boost_freq) {
 		int inc = (policy->max * dbs_tuners_ins.freq_step) / 100;
 		int target = min(policy->max, policy->cur + inc);
 
@@ -1133,7 +1161,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 */
 	if (max_load_freq <
 	    (dbs_tuners_ins.up_threshold - dbs_tuners_ins.down_differential) *
-	    policy->cur) {
+	    policy->cur || fast_down) {
 		unsigned int freq_next;
 		unsigned int down_thres;
 
