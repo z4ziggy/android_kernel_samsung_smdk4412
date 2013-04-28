@@ -135,6 +135,8 @@ static unsigned int smooth_up_asleep; // ZZ: smooth scaling on early suspend
 
 #define DEF_HOTPLUG_SLEEP			(0)  // ZZ: default for tuneable hotplug_sleep
 
+#define DEF_GRAD_UP_THRESHOLD          (50)
+
 static void do_dbs_timer(struct work_struct *work);
 
 struct cpu_dbs_info_s {
@@ -147,6 +149,7 @@ struct cpu_dbs_info_s {
 	unsigned int requested_freq;
 	int cpu;
 	unsigned int enable:1;
+	unsigned int prev_load_freq;
 	/*
 	 * percpu mutex that serializes governor limit change with
 	 * do_dbs_timer invocation. We do not want do_dbs_timer to run
@@ -182,6 +185,8 @@ static struct dbs_tuners {
 	unsigned int smooth_up;
 	unsigned int smooth_up_sleep; // ZZ: added tuneable smooth_up_sleep for early suspend
 	unsigned int hotplug_sleep; // ZZ: added tuneable hotplug_sleep for early suspend
+  	unsigned int grad_up_threshold;
+  	unsigned int early_demand;
 
 } dbs_tuners_ins = {
 	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
@@ -201,6 +206,8 @@ static struct dbs_tuners {
 	.smooth_up = DEF_SMOOTH_UP,
 	.smooth_up_sleep = DEF_SMOOTH_UP_SLEEP, // ZZ: set default value for new tuneable
 	.hotplug_sleep = DEF_HOTPLUG_SLEEP, // ZZ: set default value for new tuneable
+  	.grad_up_threshold = DEF_GRAD_UP_THRESHOLD,
+  	.early_demand = 0,
 };
 
 /**
@@ -280,14 +287,18 @@ static int mn_freqs_power[19][3]={
     { 200000, 400000, 200000}
 };
 
-static int mn_get_next_freq(unsigned int curfreq, unsigned int updown, unsigned int load) {
+static int mn_get_next_freq(unsigned int curfreq, unsigned int updown, unsigned int load, bool boost_freq) {
     int i=0,max_level = 19;
 
     if (load < dbs_tuners_ins.smooth_up)
     {
         for(i = 0; i < max_level; i++)
         {
-            if(curfreq == mn_freqs[i][MN_FREQ]) {
+            if(curfreq == mn_freqs[i][MN_FREQ] && boost_freq) { // scale up, if boostfreq
+		 return mn_freqs[i][1];
+	    }
+
+            else if(curfreq == mn_freqs[i][MN_FREQ]) {
 		 return mn_freqs[i][updown];
 	    }
         }
@@ -296,7 +307,11 @@ static int mn_get_next_freq(unsigned int curfreq, unsigned int updown, unsigned 
     {
         for(i = 0; i < max_level; i++)
         {
-            if(curfreq == mn_freqs_power[i][MN_FREQ]) {
+            if(curfreq == mn_freqs[i][MN_FREQ] && boost_freq) { // scale up, if boostfreq
+		 return mn_freqs[i][1];
+	    }
+
+            else if(curfreq == mn_freqs_power[i][MN_FREQ]) {
 		 return mn_freqs_power[i][updown]; // updown 1|2
 	    }
         }
@@ -403,6 +418,8 @@ show_one(freq_step, freq_step);
 show_one(smooth_up, smooth_up);
 show_one(smooth_up_sleep, smooth_up_sleep); // ZZ: added smooth_up_sleep tuneable for early suspend
 show_one(hotplug_sleep, hotplug_sleep); // ZZ: added hotplug_sleep tuneable for early suspend
+show_one(grad_up_threshold, grad_up_threshold);
+show_one(early_demand, early_demand);
 
 static ssize_t store_sampling_down_factor(struct kobject *a,
 					  struct attribute *b,
@@ -709,6 +726,35 @@ static ssize_t store_hotplug_sleep(struct kobject *a,
 	return count;
 }
 
+static ssize_t store_grad_up_threshold(struct kobject *a,
+      struct attribute *b, const char *buf, size_t count)
+{
+  unsigned int input;
+  int ret;
+  ret = sscanf(buf, "%u", &input);
+
+  if (ret != 1 || input > 100 ||
+      input < 11) {
+    return -EINVAL;
+  }
+
+  dbs_tuners_ins.grad_up_threshold = input;
+  return count;
+}
+
+static ssize_t store_early_demand(struct kobject *a, struct attribute *b,
+          const char *buf, size_t count)
+{
+  unsigned int input;
+  int ret;
+
+  ret = sscanf(buf, "%u", &input);
+  if (ret != 1)
+    return -EINVAL;
+  dbs_tuners_ins.early_demand = !!input;
+  return count;
+}
+
 define_one_global_rw(sampling_rate);
 define_one_global_rw(sampling_rate_sleep_multiplier); // ZZ: added tuneable
 define_one_global_rw(sampling_down_factor);
@@ -727,6 +773,8 @@ define_one_global_rw(freq_step);
 define_one_global_rw(smooth_up);
 define_one_global_rw(smooth_up_sleep); // ZZ: added tuneable
 define_one_global_rw(hotplug_sleep); // ZZ: added tuneable
+define_one_global_rw(grad_up_threshold);
+define_one_global_rw(early_demand);
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate_min.attr,
@@ -748,6 +796,8 @@ static struct attribute *dbs_attributes[] = {
 	&up_threshold.attr,
 	&up_threshold_sleep.attr, // ZZ: added tuneable
 	&hotplug_sleep.attr, // ZZ: added tuneable
+  	&grad_up_threshold.attr,
+  	&early_demand.attr,
 	NULL
 };
 
@@ -762,6 +812,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 {
 	unsigned int load = 0;
 	unsigned int max_load = 0;
+	int boost_freq = 0;
 
 	struct cpufreq_policy *policy;
 	unsigned int j;
@@ -817,10 +868,22 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		if (unlikely(!wall_time || wall_time < idle_time))
 			continue;
 
-		load = 100 * (wall_time - idle_time) / wall_time;
+		max_load = 100 * (wall_time - idle_time) / wall_time;
 
-		if (load > max_load)
-			max_load = load;
+    	/*
+     	* Calculate the gradient of load_freq. If it is too steep we assume
+     	* that the load will go over up_threshold in next iteration(s) and
+     	* we increase the frequency immediately
+     	*/
+    	    if (dbs_tuners_ins.early_demand) {
+            	if (max_load > this_dbs_info->prev_load_freq &&
+            	(max_load - this_dbs_info->prev_load_freq >
+            	dbs_tuners_ins.grad_up_threshold * policy->cur))
+          	   boost_freq = 1;
+
+      	    this_dbs_info->prev_load_freq = max_load;
+    	    }
+
 	}
 
 	/*
@@ -842,7 +905,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	if (num_online_cpus() < 2) {
 			if (dbs_tuners_ins.up_threshold_hotplug1 != 0 || dbs_tuners_ins.up_threshold_hotplug2 != 0 || dbs_tuners_ins.up_threshold_hotplug3 != 0) // don't mutex if no core is enabled
 			mutex_unlock(&this_dbs_info->timer_mutex); // this seems to be a very good idea, without it lockups are possible!
-			if (dbs_tuners_ins.up_threshold_hotplug1 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug1)
+			if (dbs_tuners_ins.up_threshold_hotplug1 != 0 && (max_load > dbs_tuners_ins.up_threshold_hotplug1 || boost_freq))
 			cpu_up(1);
 			if (dbs_tuners_ins.up_threshold_hotplug2 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug2)
 			cpu_up(2);
@@ -853,7 +916,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	} else if (num_online_cpus() < 3) {
 			if (dbs_tuners_ins.up_threshold_hotplug2 != 0 || dbs_tuners_ins.up_threshold_hotplug3 != 0) // don't mutex if no core is enabled
 			mutex_unlock(&this_dbs_info->timer_mutex); // this seems to be a very good idea, without it lockups are possible!
-			if (dbs_tuners_ins.up_threshold_hotplug2 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug2)
+			if (dbs_tuners_ins.up_threshold_hotplug2 != 0 && (max_load > dbs_tuners_ins.up_threshold_hotplug2 || boost_freq))
 			cpu_up(2);
 			if (dbs_tuners_ins.up_threshold_hotplug3 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug3)
 			cpu_up(3);
@@ -862,21 +925,21 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	} else if (num_online_cpus() < 4) {
 			if (dbs_tuners_ins.up_threshold_hotplug3 != 0) // don't mutex if no cores are enabled
 			mutex_unlock(&this_dbs_info->timer_mutex); // this seems to be a very good idea, without it lockups are possible!
-			if (dbs_tuners_ins.up_threshold_hotplug3 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug3)
+			if (dbs_tuners_ins.up_threshold_hotplug3 != 0 && (max_load > dbs_tuners_ins.up_threshold_hotplug3 || boost_freq))
 			cpu_up(3);
 			if (dbs_tuners_ins.up_threshold_hotplug3 != 0) // don't mutex if no cores are enabled
 			mutex_lock(&this_dbs_info->timer_mutex); // this seems to be a very good idea, without it lockups are possible!
 	}
 
 	/* Check for frequency increase */
-	if (max_load > dbs_tuners_ins.up_threshold) {
+	if (max_load > dbs_tuners_ins.up_threshold || boost_freq) {
 		this_dbs_info->down_skip = 0;
 
 		/* if we are already at full speed then break out early */
 		if (policy->cur == policy->max)
 			return;
 
-        this_dbs_info->requested_freq = mn_get_next_freq(policy->cur, MN_UP, max_load);
+        this_dbs_info->requested_freq = mn_get_next_freq(policy->cur, MN_UP, max_load, boost_freq);
 
 		if (this_dbs_info->requested_freq > policy->max)
 			this_dbs_info->requested_freq = policy->max;
@@ -930,7 +993,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		if (policy->cur == policy->min)
 			return;
 
-        this_dbs_info->requested_freq = mn_get_next_freq(policy->cur, MN_DOWN, max_load);
+        this_dbs_info->requested_freq = mn_get_next_freq(policy->cur, MN_DOWN, max_load, boost_freq);
 
 		__cpufreq_driver_target(policy, this_dbs_info->requested_freq,
 				CPUFREQ_RELATION_H);
