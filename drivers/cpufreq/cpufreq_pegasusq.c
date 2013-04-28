@@ -889,6 +889,7 @@ static struct attribute *dbs_attributes[] = {
 	&hotplug_rq_4_0.attr,
 	&grad_up_threshold.attr,
 	&early_demand.attr,
+	NULL
 };
 
 static struct attribute_group dbs_attr_group = {
