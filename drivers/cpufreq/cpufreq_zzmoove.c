@@ -287,18 +287,14 @@ static int mn_freqs_power[19][3]={
     { 200000, 400000, 200000}
 };
 
-static int mn_get_next_freq(unsigned int curfreq, unsigned int updown, unsigned int load, bool boost_freq) {
+static int mn_get_next_freq(unsigned int curfreq, unsigned int updown, unsigned int load) {
     int i=0,max_level = 19;
 
     if (load < dbs_tuners_ins.smooth_up)
     {
         for(i = 0; i < max_level; i++)
         {
-            if(curfreq == mn_freqs[i][MN_FREQ] && boost_freq) { // scale up, if boostfreq
-		 return mn_freqs[i][1];
-	    }
-
-            else if(curfreq == mn_freqs[i][MN_FREQ]) {
+ 	    if(curfreq == mn_freqs[i][MN_FREQ]) {
 		 return mn_freqs[i][updown];
 	    }
         }
@@ -307,11 +303,7 @@ static int mn_get_next_freq(unsigned int curfreq, unsigned int updown, unsigned 
     {
         for(i = 0; i < max_level; i++)
         {
-            if(curfreq == mn_freqs[i][MN_FREQ] && boost_freq) { // scale up, if boostfreq
-		 return mn_freqs[i][1];
-	    }
-
-            else if(curfreq == mn_freqs_power[i][MN_FREQ]) {
+            if(curfreq == mn_freqs_power[i][MN_FREQ]) {
 		 return mn_freqs_power[i][updown]; // updown 1|2
 	    }
         }
@@ -810,7 +802,6 @@ static struct attribute_group dbs_attr_group = {
 
 static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 {
-	unsigned int load = 0;
 	unsigned int max_load = 0;
 	int boost_freq = 0;
 
@@ -905,7 +896,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	if (num_online_cpus() < 2) {
 			if (dbs_tuners_ins.up_threshold_hotplug1 != 0 || dbs_tuners_ins.up_threshold_hotplug2 != 0 || dbs_tuners_ins.up_threshold_hotplug3 != 0) // don't mutex if no core is enabled
 			mutex_unlock(&this_dbs_info->timer_mutex); // this seems to be a very good idea, without it lockups are possible!
-			if (dbs_tuners_ins.up_threshold_hotplug1 != 0 && (max_load > dbs_tuners_ins.up_threshold_hotplug1 || boost_freq))
+			if (dbs_tuners_ins.up_threshold_hotplug1 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug1)
 			cpu_up(1);
 			if (dbs_tuners_ins.up_threshold_hotplug2 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug2)
 			cpu_up(2);
@@ -916,7 +907,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	} else if (num_online_cpus() < 3) {
 			if (dbs_tuners_ins.up_threshold_hotplug2 != 0 || dbs_tuners_ins.up_threshold_hotplug3 != 0) // don't mutex if no core is enabled
 			mutex_unlock(&this_dbs_info->timer_mutex); // this seems to be a very good idea, without it lockups are possible!
-			if (dbs_tuners_ins.up_threshold_hotplug2 != 0 && (max_load > dbs_tuners_ins.up_threshold_hotplug2 || boost_freq))
+			if (dbs_tuners_ins.up_threshold_hotplug2 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug2)
 			cpu_up(2);
 			if (dbs_tuners_ins.up_threshold_hotplug3 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug3)
 			cpu_up(3);
@@ -925,7 +916,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	} else if (num_online_cpus() < 4) {
 			if (dbs_tuners_ins.up_threshold_hotplug3 != 0) // don't mutex if no cores are enabled
 			mutex_unlock(&this_dbs_info->timer_mutex); // this seems to be a very good idea, without it lockups are possible!
-			if (dbs_tuners_ins.up_threshold_hotplug3 != 0 && (max_load > dbs_tuners_ins.up_threshold_hotplug3 || boost_freq))
+			if (dbs_tuners_ins.up_threshold_hotplug3 != 0 && max_load > dbs_tuners_ins.up_threshold_hotplug3)
 			cpu_up(3);
 			if (dbs_tuners_ins.up_threshold_hotplug3 != 0) // don't mutex if no cores are enabled
 			mutex_lock(&this_dbs_info->timer_mutex); // this seems to be a very good idea, without it lockups are possible!
@@ -939,7 +930,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		if (policy->cur == policy->max)
 			return;
 
-        this_dbs_info->requested_freq = mn_get_next_freq(policy->cur, MN_UP, max_load, boost_freq);
+        this_dbs_info->requested_freq = mn_get_next_freq(policy->cur, MN_UP, max_load);
 
 		if (this_dbs_info->requested_freq > policy->max)
 			this_dbs_info->requested_freq = policy->max;
@@ -956,7 +947,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 *
 	 * zzmoove v0.2 - changed logic to be able to tune down threshold per core via sysfs
 	 */
-
+   if (!boost_freq) {
 	if (num_online_cpus() > 3) {
 			mutex_unlock(&this_dbs_info->timer_mutex); // this seems to be a very good idea, without it lockups are possible!
 			if (max_load < dbs_tuners_ins.down_threshold_hotplug3)
@@ -979,13 +970,14 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 			cpu_down(1);
 			mutex_lock(&this_dbs_info->timer_mutex); // this seems to be a very good idea, without it lockups are possible!
 	}
+   }
 
 	/*
 	 * The optimal frequency is the frequency that is the lowest that
 	 * can support the current CPU usage without triggering the up
 	 * policy. To be safe, we focus 10 points under the threshold.
 	 */
-	if (max_load < (dbs_tuners_ins.down_threshold - 10)) {
+	if (max_load < (dbs_tuners_ins.down_threshold - 10) && !boost_freq) {
 
 		/*
 		 * if we cannot reduce the frequency anymore, break out early
@@ -993,7 +985,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		if (policy->cur == policy->min)
 			return;
 
-        this_dbs_info->requested_freq = mn_get_next_freq(policy->cur, MN_DOWN, max_load, boost_freq);
+        this_dbs_info->requested_freq = mn_get_next_freq(policy->cur, MN_DOWN, max_load);
 
 		__cpufreq_driver_target(policy, this_dbs_info->requested_freq,
 				CPUFREQ_RELATION_H);
