@@ -348,10 +348,10 @@ static inline cputime64_t get_cpu_idle_time_jiffy(unsigned int cpu,
 	busy_time = cputime64_add(kstat_cpu(cpu).cpustat.user,
 				  kstat_cpu(cpu).cpustat.system);
 
-	busy_time = cputime64_add(busy_time, kstat_cpu(cpu).cpustat.irq);
-	busy_time = cputime64_add(busy_time, kstat_cpu(cpu).cpustat.softirq);
-	busy_time = cputime64_add(busy_time, kstat_cpu(cpu).cpustat.steal);
-	busy_time = cputime64_add(busy_time, kstat_cpu(cpu).cpustat.nice);
+	busy_time += cputime64_add(busy_time, kstat_cpu(cpu).cpustat.irq);
+	busy_time += cputime64_add(busy_time, kstat_cpu(cpu).cpustat.softirq);
+	busy_time += cputime64_add(busy_time, kstat_cpu(cpu).cpustat.steal);
+	busy_time += cputime64_add(busy_time, kstat_cpu(cpu).cpustat.nice);
 
 	idle_time = cputime64_sub(cur_wall_time, busy_time);
 	if (wall)
