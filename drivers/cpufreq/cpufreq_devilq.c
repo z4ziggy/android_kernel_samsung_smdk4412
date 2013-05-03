@@ -284,6 +284,10 @@ static unsigned int get_nr_run_avg(void)
 #define DEF_GRAD_DOWN_THRESHOLD 		(40)
 #define DEF_UP_THRESHOLD_DIFF			(10)
 
+static unsigned int inc_cpu_load_awake;
+static unsigned int dec_cpu_load_awake;
+
+
 #ifdef CONFIG_MACH_MIDAS
 static int hotplug_rq[4][2] = {
 	{0, 200}, {200, 300}, {300, 400}, {400, 0}
@@ -1880,6 +1884,8 @@ static int cpufreq_governor_devil(struct cpufreq_policy *policy,
         /* init works and timer of each cpu */
 
         hotplug_history->num_hist = 0;
+  	inc_cpu_load_awake = inc_cpu_load;
+  	dec_cpu_load_awake = dec_cpu_load;
         start_rq_work();
 		freq_table =
 			cpufreq_frequency_get_table(policy->cpu);
@@ -1990,10 +1996,16 @@ static struct notifier_block cpufreq_devil_idle_nb = {
 
 static void devil_early_suspend(struct early_suspend *handler) {
 	early_suspended = 1;
+  	inc_cpu_load_awake = inc_cpu_load;
+  	dec_cpu_load_awake = dec_cpu_load;
+	inc_cpu_load = 90;
+	dec_cpu_load = 75;
 }
 
 static void devil_late_resume(struct early_suspend *handler) {
 	early_suspended = 0;
+	inc_cpu_load = inc_cpu_load_awake;
+	dec_cpu_load = dec_cpu_load_awake;
 }
 
 static struct early_suspend devil_power_suspend = {
