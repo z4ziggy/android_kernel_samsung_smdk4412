@@ -802,6 +802,7 @@ static struct attribute_group dbs_attr_group = {
 
 static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 {
+	unsigned int load = 0;
 	unsigned int max_load = 0;
 	int boost_freq = 0;
 
@@ -859,7 +860,9 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		if (unlikely(!wall_time || wall_time < idle_time))
 			continue;
 
-		max_load = 100 * (wall_time - idle_time) / wall_time;
+		load = 100 * (wall_time - idle_time) / wall_time;
+		if (load > max_load)
+			max_load = load;
 
     	/*
      	* Calculate the gradient of load_freq. If it is too steep we assume
