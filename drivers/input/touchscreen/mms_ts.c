@@ -160,6 +160,11 @@ static struct device *bus_dev;
 unsigned int boost_freq = 700000;
 
 int touch_is_pressed;
+static unsigned int wake_start = -1;
+static unsigned int wake_start_y = -100;
+static unsigned int x_lo;
+static unsigned int x_hi;
+static unsigned int y_tolerance = 132;
 
 #define ISC_DL_MODE	1
 
@@ -749,8 +754,27 @@ AOSPROM {
 #if defined(SEC_TSP_DEBUG) || defined(SEC_TSP_VERBOSE_DEBUG)
 			info->finger_state[id] = 0;
 #endif
+#ifdef CONFIG_TOUCH_WAKE
+			// slide2wake trigger
+			if (wake_start == i && x > x_hi
+			&& 	abs(wake_start_y - y) < y_tolerance
+			&& get_touchoff_delay() == 0 ) {
+				printk(KERN_ERR "[TSP] slide2wake up at: %4d\n",
+					x);
+				touch_press();
+			}
+			wake_start = -1;
+#endif
 			continue;
 		}
+#ifdef CONFIG_TOUCH_WAKE
+		// slide2wake gesture start
+		if (x < x_lo) {
+			printk(KERN_ERR "[TSP] slide2wake down at: %4d\n", x);
+			wake_start = i;
+			wake_start_y = y;
+		}
+#endif
 
 		input_mt_slot(info->input_dev, id);
 		input_mt_report_slot_state(info->input_dev,
@@ -805,6 +829,7 @@ AOSPROM {
 			touch_is_pressed++;
 	}
 #ifdef CONFIG_TOUCH_WAKE
+if (get_touchoff_delay() != 0)
   touch_press();
 #endif
 
@@ -3322,6 +3347,9 @@ static int __devinit mms_ts_probe(struct i2c_client *client,
   touchwake_data = info;
   	if (touchwake_data == NULL)
 		pr_err("[TOUCHWAKE] Failed to set touchwake_data\n");
+  x_lo = info->max_x / 10 * 1;  /* 10% display width */
+  x_hi = info->max_x / 10 * 9;  /* 90% display width */
+  y_tolerance = info->max_y / 10 * 3 / 2;
 #endif  
 
 	sec_touchscreen = device_create(sec_class,
