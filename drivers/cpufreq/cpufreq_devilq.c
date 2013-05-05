@@ -315,10 +315,10 @@ static int hotplug_freq[4][2] = {
 static int cpufreq_governor_devil(struct cpufreq_policy *policy,
 		unsigned int event);
 
-#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_devil
+#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_DEVILQ
 static
 #endif
-struct cpufreq_governor cpufreq_gov_devil = {
+struct cpufreq_governor cpufreq_gov_devilq = {
     .name = "devilq",
 	.governor = cpufreq_governor_devil,
 	.max_transition_latency = 10000000,
@@ -2096,7 +2096,7 @@ static int __init cpufreq_devil_init(void)
 	spin_lock_init(&down_cpumask_lock);
 	mutex_init(&set_speed_lock);
 
-	return cpufreq_register_governor(&cpufreq_gov_devil);
+	return cpufreq_register_governor(&cpufreq_gov_devilq);
 
 err_freeuptask:
 	kfree(hotplug_history);
@@ -2114,7 +2114,7 @@ module_init(cpufreq_devil_init);
 
 static void __exit cpufreq_devil_exit(void)
 {
-	cpufreq_unregister_governor(&cpufreq_gov_devil);
+	cpufreq_unregister_governor(&cpufreq_gov_devilq);
 	kthread_stop(up_task);
 	put_task_struct(up_task);
 	destroy_workqueue(dvfs_workqueue);
