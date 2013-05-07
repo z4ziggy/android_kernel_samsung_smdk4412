@@ -12,7 +12,7 @@
 #include <linux/miscdevice.h>
 #include <linux/kallsyms.h>
 
-#define GPU_MAX_CLOCK 700
+#define GPU_MAX_CLOCK 800
 #define GPU_MIN_CLOCK 10
 
 #define MIN_VOLTAGE_GPU  600000
@@ -101,8 +101,12 @@ static ssize_t gpu_staycount_store(struct device *dev, struct device_attribute *
 }
 
 static ssize_t gpu_voltage_show(struct device *dev, struct device_attribute *attr, char *buf) {
-	return sprintf(buf, "Step1: %d\nStep2: %d\nStep3: %d\nStep4: %d\nStep5: %d\n",
-			gm_mali_dvfs[0].vol, gm_mali_dvfs[1].vol,gm_mali_dvfs[2].vol,gm_mali_dvfs[3].vol,gm_mali_dvfs[4].vol);
+	int i, j = 0;
+   	for (i = 0; i < 5; i++)
+	{
+	    j += sprintf(&buf[j], "Step%d: %d mV\n", i, gm_mali_dvfs[i].vol / 1000);
+	}
+   return j;
 }
 
 static ssize_t gpu_voltage_store(struct device *dev, struct device_attribute *attr, const char *buf,
@@ -119,6 +123,7 @@ static ssize_t gpu_voltage_store(struct device *dev, struct device_attribute *at
 
     /* safety floor and ceiling - netarchy */
     for( i = 0; i < 5; i++ ) {
+	gv[i] *= 1000;
         if (gv[i] < MIN_VOLTAGE_GPU) {
             gv[i] = MIN_VOLTAGE_GPU;
         }
