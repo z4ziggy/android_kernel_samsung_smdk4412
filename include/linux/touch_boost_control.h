@@ -11,5 +11,5 @@
 #define _LINUX_TOUCH_BOOST_H
 
 void update_boost_freq(unsigned int input_boost_freq);
-
+void update_boost_enabled(bool input_boost_enabled);
 #endif

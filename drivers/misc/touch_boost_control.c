@@ -14,8 +14,10 @@
 #define TOUCH_BOOST_CONTROL_VERSION 1
 
 static unsigned int input_boost_freq = 700000;
+static bool input_boost_enabled = true;
 
 extern void update_boost_freq(unsigned int input_boost_freq);
+extern void update_boost_enabled(bool input_boost_enabled);
 
 static ssize_t touch_boost_status_read(struct device * dev, struct device_attribute * attr, char * buf) {
     return sprintf(buf, "%u\n", input_boost_freq);
@@ -37,15 +39,47 @@ static ssize_t touch_boost_status_write(struct device * dev, struct device_attri
     return size;
 }
 
+static ssize_t touch_boost_enabled_read(struct device * dev, struct device_attribute * attr, char * buf)
+{
+	return sprintf(buf, "%u\n", (input_boost_enabled ? 1 : 0));
+}
+
+static ssize_t touch_boost_enabled_write(struct device * dev, struct device_attribute * attr, const char * buf, size_t size)
+{
+	unsigned int data;
+
+	if(sscanf(buf, "%u\n", &data) == 1) {
+		pr_devel("%s: %u \n", __FUNCTION__, data);
+
+		if (data == 1) {
+			pr_info("%s: touch_boost function enabled\n", __FUNCTION__);
+			input_boost_enabled = true;
+			update_boost_enabled(input_boost_enabled);
+		} else if (data == 0) {
+			pr_info("%s: touch_boost function disabled\n", __FUNCTION__);
+			input_boost_enabled = false;
+			update_boost_enabled(input_boost_enabled);
+		} else {
+			pr_info("%s: invalid input range %u\n", __FUNCTION__, data);
+		}
+	} else 	{
+		pr_info("%s: invalid input\n", __FUNCTION__);
+	}
+
+	return size;
+}
+
 static ssize_t touch_boost_version(struct device * dev, struct device_attribute * attr, char * buf) {
     return sprintf(buf, "%u\n", TOUCH_BOOST_CONTROL_VERSION);
 }
 
 static DEVICE_ATTR(input_boost_freq, S_IRUGO | S_IWUGO, touch_boost_status_read, touch_boost_status_write);
+static DEVICE_ATTR(input_boost_enabled, S_IRUGO | S_IWUGO, touch_boost_enabled_read, touch_boost_enabled_write);
 static DEVICE_ATTR(version, S_IRUGO , touch_boost_version, NULL);
 
 static struct attribute *touch_boost_attributes[] = {
 	&dev_attr_input_boost_freq.attr,
+	&dev_attr_input_boost_enabled.attr,
 	&dev_attr_version.attr,
 	NULL
 };

@@ -158,6 +158,7 @@ struct device *sec_touchscreen;
 static struct device *bus_dev;
 
 unsigned int boost_freq = 700000;
+bool touch_boost_enabled = true;
 
 int touch_is_pressed;
 static unsigned int wake_start = -1;
@@ -471,7 +472,7 @@ static void set_dvfs_lock(struct mms_ts_info *info, uint32_t on)
 				msecs_to_jiffies(TOUCH_BOOSTER_OFF_TIME));
 		}
 
-	} else if (on == 1) {
+	} else if (on == 1 && touch_boost_enabled) {
 		cancel_delayed_work(&info->work_dvfs_off);
 		if (!info->dvfs_lock_status) {
 			ret = dev_lock(bus_dev, sec_touchscreen, 400200);
@@ -3440,6 +3441,10 @@ static struct i2c_driver mms_ts_driver = {
 #ifdef CONFIG_TOUCHBOOST_CONTROL
 void update_boost_freq (unsigned int input_boost_freq) {
 	boost_freq = input_boost_freq;
+}
+
+void update_boost_enabled (bool input_boost_enabled) {
+	touch_boost_enabled = input_boost_enabled;
 }
 #endif
 
