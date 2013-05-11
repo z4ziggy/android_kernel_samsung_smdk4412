@@ -283,6 +283,7 @@ static unsigned int get_nr_run_avg(void)
 #define DEF_GRAD_UP_THRESHOLD 			(50)
 #define DEF_GRAD_DOWN_THRESHOLD 		(40)
 #define DEF_UP_THRESHOLD_DIFF			(10)
+#define DEF_SUSPEND_MAX_CPU			(0)
 
 static unsigned int inc_cpu_load_awake;
 static unsigned int dec_cpu_load_awake;
@@ -342,6 +343,7 @@ static struct dbs_tuners {
 	unsigned int grad_up_threshold;
 	unsigned int grad_down_threshold;
 	unsigned int up_threshold_diff;
+	unsigned int suspend_max_cpu;
 	bool early_demand;
 
 } dbs_tuners_ins = {
@@ -359,6 +361,7 @@ static struct dbs_tuners {
 	.grad_up_threshold = DEF_GRAD_UP_THRESHOLD,
 	.grad_down_threshold = DEF_GRAD_DOWN_THRESHOLD,
 	.up_threshold_diff = DEF_UP_THRESHOLD_DIFF,
+	.suspend_max_cpu = DEF_SUSPEND_MAX_CPU,
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #endif
 };
@@ -1260,6 +1263,7 @@ show_one(ignore_nice_load, ignore_nice);
 show_one(grad_up_threshold, grad_up_threshold);
 show_one(grad_down_threshold, grad_down_threshold);
 show_one(early_demand, early_demand);
+show_one(suspend_max_cpu, suspend_max_cpu);
 
 static ssize_t show_hotplug_lock(struct kobject *kobj,
 				struct attribute *attr, char *buf)
@@ -1540,6 +1544,18 @@ static ssize_t store_early_demand(struct kobject *a, struct attribute *b,
   return count;
 }
 
+static ssize_t store_suspend_max_cpu(struct kobject *a, struct attribute *b,
+				  const char *buf, size_t count)
+{
+	unsigned int input;
+	int ret;
+	ret = sscanf(buf, "%u", &input);
+	if (ret != 1)
+		return -EINVAL;
+	dbs_tuners_ins.suspend_max_cpu = min(input, num_possible_cpus());
+	return count;
+}
+
 
 define_one_global_rw(hotplug_sampling_rate);
 #ifndef CONFIG_CPU_EXYNOS4210
@@ -1555,7 +1571,7 @@ define_one_global_rw(ignore_nice_load);
 define_one_global_rw(grad_up_threshold);
 define_one_global_rw(grad_down_threshold);
 define_one_global_rw(early_demand);
-
+define_one_global_rw(suspend_max_cpu);
 
 static struct attribute *devil_attributes[] = {
 	&inc_cpu_load_attr.attr,
@@ -1584,6 +1600,7 @@ static struct attribute *devil_attributes[] = {
 	&dvfs_debug.attr,
 	&hotplug_freq_1_1.attr,
 	&hotplug_freq_2_0.attr,
+	&suspend_max_cpu.attr,
 #ifndef CONFIG_CPU_EXYNOS4210
 	&hotplug_freq_2_1.attr,
 	&hotplug_freq_3_0.attr,
@@ -1623,7 +1640,9 @@ static void cpu_up_work(struct work_struct *work)
 	int min_cpu_lock = dbs_tuners_ins.min_cpu_lock;
 	int hotplug_lock = atomic_read(&g_hotplug_lock);
 
-	if (hotplug_lock && min_cpu_lock)
+	if(early_suspended && dbs_tuners_ins.suspend_max_cpu != 0)
+		nr_up = dbs_tuners_ins.suspend_max_cpu;
+	else if (hotplug_lock && min_cpu_lock)
 		nr_up = max(hotplug_lock, min_cpu_lock) - online;
 	else if (hotplug_lock)
 		nr_up = hotplug_lock - online;
@@ -1703,6 +1722,9 @@ static int check_up(void)
 	up_freq = hotplug_freq[online - 1][HOTPLUG_UP_INDEX];
 	up_rq = hotplug_rq[online - 1][HOTPLUG_UP_INDEX];
 
+	if(early_suspended && online >= dbs_tuners_ins.suspend_max_cpu && 			dbs_tuners_ins.suspend_max_cpu != 0)
+		return 0;
+
 	if (online == num_possible_cpus())
 		return 0;
 
@@ -1767,6 +1789,9 @@ static int check_down(void)
 
 	if (online == 1)
 		return 0;
+
+	if(early_suspended && online > dbs_tuners_ins.suspend_max_cpu && 			dbs_tuners_ins.suspend_max_cpu != 0)
+		return 1;
 
 	if (dbs_tuners_ins.max_cpu_lock != 0
 		&& online > dbs_tuners_ins.max_cpu_lock)
