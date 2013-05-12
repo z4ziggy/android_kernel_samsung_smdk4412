@@ -1641,7 +1641,7 @@ static void cpu_up_work(struct work_struct *work)
 	int hotplug_lock = atomic_read(&g_hotplug_lock);
 
 	if(early_suspended && dbs_tuners_ins.suspend_max_cpu != 0)
-		nr_up = dbs_tuners_ins.suspend_max_cpu;
+		nr_up = dbs_tuners_ins.suspend_max_cpu - online;
 	else if (hotplug_lock && min_cpu_lock)
 		nr_up = max(hotplug_lock, min_cpu_lock) - online;
 	else if (hotplug_lock)
