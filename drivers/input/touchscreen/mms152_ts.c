@@ -53,6 +53,11 @@
 #include <mach/midas-tsp.h>
 #endif
 
+#ifdef CONFIG_CPU_FREQ_GOV_DEVILQ
+bool touch_state_val = false;
+EXPORT_SYMBOL(touch_state_val);
+#endif
+
 #include "../keyboard/cypress/cypress-touchkey.h"
 
 #ifdef CONFIG_TOUCHBOOST_CONTROL
@@ -1209,6 +1214,14 @@ if (get_touchoff_delay() != 0)
 #ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_FLEXRATE
 	if(!!touch_is_pressed){
 		midas_tsp_request_qos();
+	}
+#endif
+
+#ifdef CONFIG_CPU_FREQ_GOV_DEVILQ
+	if(!!touch_is_pressed){
+		touch_state_val = true;
+	} else {
+		touch_state_val = false;
 	}
 #endif
 

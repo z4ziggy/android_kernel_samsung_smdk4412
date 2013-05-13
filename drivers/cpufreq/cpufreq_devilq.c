@@ -107,7 +107,7 @@ static cpumask_t down_cpumask;
 static spinlock_t down_cpumask_lock;
 static struct mutex set_speed_lock;
 
-
+extern bool touch_state_val;
 /*
  * The minimum amount of time to spend at a frequency before we can step up.
  */
@@ -1642,6 +1642,7 @@ static void cpu_up_work(struct work_struct *work)
 
 	if(early_suspended && dbs_tuners_ins.suspend_max_cpu != 0)
 		nr_up = dbs_tuners_ins.suspend_max_cpu - online;
+
 	else if (hotplug_lock && min_cpu_lock)
 		nr_up = max(hotplug_lock, min_cpu_lock) - online;
 	else if (hotplug_lock)
@@ -1728,6 +1729,9 @@ static int check_up(void)
 	if (online == num_possible_cpus())
 		return 0;
 
+	if (online == 1 && touch_state_val)
+		return 1;
+
 	if (dbs_tuners_ins.max_cpu_lock != 0
 		&& online >= dbs_tuners_ins.max_cpu_lock)
 		return 0;
@@ -1792,6 +1796,9 @@ static int check_down(void)
 
 	if(early_suspended && online > dbs_tuners_ins.suspend_max_cpu && 			dbs_tuners_ins.suspend_max_cpu != 0)
 		return 1;
+	
+	if (online < 3 && touch_state_val)
+		return 0;
 
 	if (dbs_tuners_ins.max_cpu_lock != 0
 		&& online > dbs_tuners_ins.max_cpu_lock)
