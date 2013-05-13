@@ -104,7 +104,7 @@ static ssize_t gpu_voltage_show(struct device *dev, struct device_attribute *att
 	int i, j = 0;
    	for (i = 0; i < 5; i++)
 	{
-	    j += sprintf(&buf[j], "Step%d: %d mV\n", i, gm_mali_dvfs[i].vol / 1000);
+	    j += sprintf(&buf[j], "Step%d: %d\n", i, gm_mali_dvfs[i].vol);
 	}
    return j;
 }
@@ -123,7 +123,6 @@ static ssize_t gpu_voltage_store(struct device *dev, struct device_attribute *at
 
     /* safety floor and ceiling - netarchy */
     for( i = 0; i < 5; i++ ) {
-	gv[i] *= 1000;
         if (gv[i] < MIN_VOLTAGE_GPU) {
             gv[i] = MIN_VOLTAGE_GPU;
         }
