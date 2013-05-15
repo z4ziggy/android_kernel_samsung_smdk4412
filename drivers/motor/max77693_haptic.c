@@ -377,9 +377,7 @@ static int max77693_haptic_probe(struct platform_device *pdev)
 	hap_data->tout_dev.get_time = haptic_get_time;
 	hap_data->tout_dev.enable = haptic_enable;
 
-AOSPROM{
     create_vibrator_sysfs();
-}
 
 #ifdef CONFIG_ANDROID_TIMED_OUTPUT
 	error = timed_output_dev_register(&hap_data->tout_dev);
