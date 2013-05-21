@@ -33,6 +33,10 @@
 #include <linux/sensor/cm36651.h>
 #include <linux/sensor/sensors_core.h>
 
+#ifdef CONFIG_TOUCH_WAKE
+#include <linux/touch_wake.h>
+#endif
+
 /* For debugging */
 #undef	CM36651_DEBUG
 
@@ -509,6 +513,12 @@ static ssize_t proximity_enable_store(struct device *dev,
 			ABS_DISTANCE, val);
 		input_sync(cm36651->proximity_input_dev);
 
+#ifdef CONFIG_TOUCH_WAKE
+    		if (!val) // 0 is close = proximity detected
+       		proximity_detected();
+		else
+	      	proximity_off();
+#endif
 		enable_irq(cm36651->irq);
 		enable_irq_wake(cm36651->irq);
 	} else if (!new_value && (cm36651->power_state & PROXIMITY_ENABLED)) {
