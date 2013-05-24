@@ -39,11 +39,12 @@ on init
     mkdir /dev/pipes 0771 shell shell
 
 on fs
+    exec /sbin/mount_system.sh
     mount_all /fstab.smdk4x12
-    exec /sbin/mount_data.sh
-    mount ext4 loop@/.secondrom/media/.secondrom/system.img /system rw noatime wait
-
+    exec /sbin/mount.sh
     setprop ro.crypto.fuse_sdcard true
+
+    start adbd
     
     chown radio system /efs
     chmod 0771 /efs
@@ -493,7 +494,7 @@ on property:sys.boot_completed=1
 # create virtual SD card at /mnt/sdcard, based on the /data/media directory
 # daemon will drop to user/group system/media_rw after initializing
 # underlying files in /data/media wil be created with user and group media_rw (1023)
-service sdcard /system/bin/sdcard /.secondrom/media /mnt/shell/emulated 1023 1023
+service sdcard /system/bin/sdcard /data/media /mnt/shell/emulated 1023 1023
     class late_start
 
 # AT Distributor for factory test
