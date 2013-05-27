@@ -4,5 +4,5 @@
 # specify MF_CHECK, and must come before any filesystems that do specify MF_CHECK
 # data partition must be located at the bottom for supporting device encryption
 
-/dev/block/mmcblk0p3    /efs              ext4      noatime,nosuid,nodev,journal_async_commit,errors=panic    wait,check
-/dev/block/mmcblk0p11    /tombstones              ext4      noatime,nosuid,nodev,journal_async_commit,errors=panic    wait,check
+/dev/block/mmcblk0p3     /efs              ext4      noatime,nosuid,nodev,journal_async_commit,errors=panic    wait,check
+/dev/block/mmcblk0p11    /tombstones       ext4      noatime,nosuid,nodev,journal_async_commit,errors=panic    wait,check

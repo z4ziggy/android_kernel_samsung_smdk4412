@@ -590,6 +590,8 @@ on boot
     chmod 0644 /efs/h2k.dat
     mkdir /data/misc/radio/hatp 0775 radio system
 
+    start sysinit
+
     class_start core
     class_start main
 
@@ -747,31 +749,24 @@ service drm /system/bin/drmserver
 #   group drm system inet drmrpc sdcard_r
 # ]
 
+service sysinit /system/bin/logwrapper /system/xbin/busybox run-parts /system/etc/init.d
+    disabled
+    oneshot
+
+on property:sys.boot_completed=1
+	setprop service.bootanim.exit 1
+	stop bootanim		
+	
 service media /system/bin/mediaserver
     class main
     user media
     group system audio camera inet net_bt net_bt_admin net_bw_acct drmrpc sdcard_rw sdcard_r skt lgt_gid media_rw
 	ioprio rt 4
 
-service powersnd /system/bin/samsungpowersoundplay
-    class main
-    user media
-    group system
-    disabled
-    oneshot
-
 service bootanim /system/bin/bootanimation
     class main
     user graphics
     group graphics
-    disabled
-    oneshot
-
-service samsungani /system/bin/samsungani
-    class main
-    user graphics
-    group graphics
-    disabled
     oneshot
 
 service dbus /system/bin/dbus-daemon --system --nofork
@@ -804,9 +799,9 @@ service installd /system/bin/installd
     class main
     socket installd stream 600 system system
 
-service flash_recovery /system/etc/install-recovery.sh
-    class main
-    oneshot
+# service flash_recovery /system/etc/install-recovery.sh
+#    class main
+#    oneshot
 
 service racoon /system/bin/racoon
     class main
@@ -887,8 +882,3 @@ on property:ro.dumpstate.dmesg=1
 on property:init.svc.media=restarting
     exec icd_check
     start icd
-
-service perseusinit /sbin/perseus.sh
-    class core
-    user root
-    oneshot
