@@ -23,13 +23,20 @@ $BB echo "generating device nodes..."
 $BB mknod /dev/block/mmcblk0 b 179 0
 $BB mknod /dev/block/mmcblk0p13 b 179 13 	# system
 $BB mknod /dev/block/mmcblk0p16 b 259 0		# data and .secondrom
+$BB mknod /dev/block/mmcblk0p17 b 259 1		# data and .secondrom for sprint
 $BB mknod /dev/block/loop0 b 7 0
 
 $BB echo "mounting devices..."
 $BB mount -t proc proc /proc
 $BB mount -t sysfs sysfs /sys
 
-$BB mount -t ext4 /dev/block/mmcblk0p16 /.secondrom
+if $BB [ -d /sys/dev/block/259:1 ] ; then
+   BLOCKDEVICE=mmcblk0p17
+else
+   BLOCKDEVICE=mmcblk0p16
+fi
+
+$BB mount -t ext4 /dev/block/$BLOCKDEVICE /.secondrom
 
 SECONDARYBOOT=0
 if $BB [ -f /.secondrom/.secondaryboot ] && $BB [ -f /.secondrom/media/.secondrom/system.img ] ; then
