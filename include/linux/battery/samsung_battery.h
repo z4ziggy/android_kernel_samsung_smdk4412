@@ -280,7 +280,11 @@ enum status_full_type {
 
 /* WORKAROUND: define audio dock current */
 #define DOCK_TYPE_AUDIO_CURR		1000
+#if defined(CONFIG_MACH_T0)
 #define DOCK_TYPE_SMART_NOTG_CURR	1700
+#else
+#define DOCK_TYPE_SMART_NOTG_CURR	1000
+#endif
 #define DOCK_TYPE_SMART_OTG_CURR	1000
 #define DOCK_TYPE_LOW_CURR		475
 

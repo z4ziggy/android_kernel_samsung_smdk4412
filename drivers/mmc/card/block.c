@@ -328,6 +328,47 @@ out:
 	return ERR_PTR(err);
 }
 
+struct scatterlist *mmc_blk_get_sg(struct mmc_card *card,
+		unsigned char *buf, int *sg_len, int size)
+{
+	struct scatterlist *sg;
+	struct scatterlist *sl;
+	int total_sec_cnt, sec_cnt;
+	int max_seg_size, len;
+
+	sl = kmalloc(sizeof(struct scatterlist) * card->host->max_segs, GFP_KERNEL);
+	if (!sl) {
+		return NULL;
+	}
+
+	sg = (struct scatterlist *)sl;
+	sg_init_table(sg, card->host->max_segs);
+
+	total_sec_cnt = size;
+	max_seg_size = card->host->max_seg_size;
+
+	len = 0;
+	while (total_sec_cnt) {
+		if (total_sec_cnt < max_seg_size)
+			sec_cnt = total_sec_cnt;
+		else
+			sec_cnt = max_seg_size;
+		sg_set_page(sg, virt_to_page(buf), sec_cnt, offset_in_page(buf));
+		buf = buf + sec_cnt;
+		total_sec_cnt = total_sec_cnt - sec_cnt;
+		len++;
+		if (total_sec_cnt == 0)
+			break;
+		sg = sg_next(sg);
+	}
+
+	if (sg)
+		sg_mark_end(sg);
+
+	*sg_len = len;
+
+	return sl;
+}
 static int mmc_blk_ioctl_cmd(struct block_device *bdev,
 	struct mmc_ioc_cmd __user *ic_ptr)
 {
@@ -337,7 +378,7 @@ static int mmc_blk_ioctl_cmd(struct block_device *bdev,
 	struct mmc_command cmd = {0};
 	struct mmc_data data = {0};
 	struct mmc_request mrq = {0};
-	struct scatterlist sg;
+	struct scatterlist *sg = 0;
 	int err = 0;
 
 	/*
@@ -368,13 +409,22 @@ static int mmc_blk_ioctl_cmd(struct block_device *bdev,
 	cmd.arg = idata->ic.arg;
 	cmd.flags = idata->ic.flags;
 
+	if( cmd.opcode == MMC_IOC_CLOCK )
+	{
+		mmc_set_clock(card->host, cmd.arg);
+		err = 0;
+		goto cmd_done;
+	}
+
 	if (idata->buf_bytes) {
-		data.sg = &sg;
-		data.sg_len = 1;
+		int len;
 		data.blksz = idata->ic.blksz;
 		data.blocks = idata->ic.blocks;
 
-		sg_init_one(data.sg, idata->buf, idata->buf_bytes);
+		sg = mmc_blk_get_sg(card, idata->buf, &len, idata->buf_bytes);
+
+		data.sg = sg;
+		data.sg_len = len;
 
 		if (idata->ic.write_flag)
 			data.flags = MMC_DATA_WRITE;
@@ -455,6 +505,9 @@ cmd_rel_host:
 cmd_done:
 	if (md)
 		mmc_blk_put(md);
+	if (sg)
+		kfree(sg);
+
 	kfree(idata->buf);
 	kfree(idata);
 	return err;
@@ -466,7 +519,6 @@ static int mmc_blk_ioctl(struct block_device *bdev, fmode_t mode,
 #if defined(CONFIG_MMC_CPRM)
 	struct mmc_blk_data *md = bdev->bd_disk->private_data;
 	struct mmc_card *card = md->queue.card;
-
 	static int i;
 	static unsigned long temp_arg[16] = {0};
 #endif
@@ -482,7 +534,6 @@ static int mmc_blk_ioctl(struct block_device *bdev, fmode_t mode,
 		cprm_ake_retry_flag = 1;
 		ret = 0;
 		break;
-
 	case MMC_IOCTL_GET_SECTOR_COUNT: {
 		int size = 0;
 
@@ -505,45 +556,49 @@ static int mmc_blk_ioctl(struct block_device *bdev, fmode_t mode,
 	case ACMD48: {
 		struct cprm_request *req = (struct cprm_request *)arg;
 
-		printk(KERN_DEBUG "%s:cmd [%x]\n",
-			__func__, cmd);
-
-		if (cmd == ACMD43) {
-			printk(KERN_DEBUG"storing acmd43 arg[%d] = %ul\n",
-				i, (unsigned int)req->arg);
-			temp_arg[i] = req->arg;
-			i++;
-			if (i >= 16) {
-				printk(KERN_DEBUG"reset acmd43 i = %d\n", i);
+		printk(KERN_DEBUG "[%s]: cmd [%x]\n", __func__, cmd);
+			if (cmd == ACMD43) {
+				printk(KERN_DEBUG"storing acmd43 arg[%d] = %ul\n"
+									, i, (unsigned int)req->arg);
+				temp_arg[i] = req->arg;
+				i++;
+				if(i >= 16){
+					printk(KERN_DEBUG"reset acmd43 i = %d\n",
+						i);
 					i = 0;
-			}
-		}
-
-		if (cmd == ACMD45 && cprm_ake_retry_flag == 1) {
-			cprm_ake_retry_flag = 0;
-			printk(KERN_DEBUG"ACMD45.. I'll call ACMD43 and ACMD44 first\n");
-
-			for (i = 0; i < 16; i++) {
-				printk(KERN_DEBUG"calling ACMD43 with arg[%d] = %ul\n",
-					i, (unsigned int)temp_arg[i]);
-				if (stub_sendcmd(card, ACMD43, temp_arg[i],
-					512, NULL) < 0) {
-					printk(KERN_DEBUG"error ACMD43 %d\n",
-						 i);
-					return -EINVAL;
 				}
 			}
 
-			printk(KERN_DEBUG"calling ACMD44\n");
-			if (stub_sendcmd(card, ACMD44, 0, 8, NULL) < 0) {
+			
+			if (cmd == ACMD45 && cprm_ake_retry_flag == 1) {
+				cprm_ake_retry_flag = 0;
+				printk(KERN_DEBUG"ACMD45.. I'll call ACMD43 and ACMD44 first\n");
 
-				printk(KERN_DEBUG"error in ACMD44 %d\n",
-					i);
-				return -EINVAL;
+				for (i = 0; i < 16; i++) {
+					printk(KERN_DEBUG"calling ACMD43 with arg[%d] = %ul\n",
+										i, (unsigned int)temp_arg[i]);
+					if (stub_sendcmd(card,
+						ACMD43, temp_arg[i],
+						 512, NULL) < 0) {
+
+						printk(KERN_DEBUG"error ACMD43 %d\n", i);
+						return -EINVAL;
+					}
+				}
+
+
+				printk(KERN_DEBUG"calling ACMD44\n");
+				if (stub_sendcmd(card, ACMD44, 0, 8, NULL) < 0)
+				{
+
+					printk(KERN_DEBUG"error in ACMD44 %d\n",
+						i);
+					return -EINVAL;
+				}
+				
 			}
-		}
-		return stub_sendcmd(card, req->cmd,
-					req->arg, req->len, req->buff);
+		return stub_sendcmd(card, req->cmd, req->arg, \
+				req->len, req->buff);
 		}
 		break;
 
@@ -2426,9 +2481,6 @@ static int mmc_blk_probe(struct mmc_card *card)
 	printk(KERN_INFO "%s: %s %s %s %s\n",
 		md->disk->disk_name, mmc_card_id(card), mmc_card_name(card),
 		cap_str, md->read_only ? "(ro)" : "");
-
-	if (mmc_blk_alloc_parts(card, md))
-		goto out;
 
 	mmc_set_drvdata(card, md);
 	mmc_fixup_device(card, blk_fixups);

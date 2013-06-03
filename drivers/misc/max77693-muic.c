@@ -1152,83 +1152,6 @@ static ssize_t max77693_muic_set_otg_block(struct device *dev,
 #endif /* CONFIG_MACH_GC1 */
 
 #if !defined(CONFIG_MUIC_MAX77693_SUPPORT_CAR_DOCK)
-static bool max77693_muic_is_factory_mode(void)
-{
-	struct file *fp;
-	mm_segment_t old_fs;
-	long fsize;
-	int err = 0;
-	int nread = 0;
-	const char *fname = "/efs/FactoryApp/factorymode";
-	char buf[32];
-	bool ret = true;
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	fp = filp_open(fname, O_RDONLY, S_IRUSR);
-	if (IS_ERR(fp)) {
-		err = PTR_ERR(fp);
-		if (err == -ENOENT)
-			pr_err("%s:%s There is no file=%s\n", DEV_NAME,
-					__func__, fname);
-		else
-			pr_err("%s:%s File=%s open error(%d)\n", DEV_NAME,
-					__func__, fname, err);
-
-		ret = true;
-		goto out;
-	}
-
-	fsize = fp->f_path.dentry->d_inode->i_size;
-	if (!fsize) {
-		pr_err("%s:%s File=%s size is zero\n", DEV_NAME, __func__,
-				fname);
-		ret = true;
-		goto err_filesize;
-	}
-
-#if 0
-	buf = kzalloc(fsize, GFP_KERNEL);
-	if (!buf) {
-		pr_err("%s:%s Memory allocate failed\n");
-		ret = true;
-		goto err_filesize;
-	}
-#endif
-
-	nread = vfs_read(fp, (char __user *)buf, fsize, &fp->f_pos);
-	if (nread != fsize) {
-		pr_err("%s:%s File size[%ld] != read size[%d]\n", DEV_NAME,
-				__func__, fsize, nread);
-		ret = true;
-		goto err_readfail;
-	}
-
-	buf[31] = 0;
-
-	/*
-	* if the factory mode is disable,
-	* do not set is_factory_start
-	*	factory mode : ON -> user(false)
-	*	factory mode : else -> eng(true)
-	*/
-	if (!strncmp("ON", buf, 2))
-		ret = false;
-
-	pr_info("%s:%s Factorymode is ret=%c\n", DEV_NAME, __func__,
-			(ret ? 'T' : 'F'));
-
-err_readfail:
-#if 0
-	kfree(buf);
-#endif
-err_filesize:
-	filp_close(fp, current->files);
-out:
-	set_fs(old_fs);
-	return ret;
-}
 
 static ssize_t max77693_muic_show_apo_factory(struct device *dev,
 					   struct device_attribute *attr,
@@ -1237,7 +1160,7 @@ static ssize_t max77693_muic_show_apo_factory(struct device *dev,
 	struct max77693_muic_info *info = dev_get_drvdata(dev);
 	const char *mode;
 
-	/* true: factory_bin, false: user_bin */
+	/* true: Factory mode, false: not Factory mode */
 	if (info->is_factory_start)
 		mode = "FACTORY_MODE";
 	else
@@ -1257,13 +1180,10 @@ static ssize_t max77693_muic_set_apo_factory(struct device *dev,
 
 	pr_info("%s:%s buf:%s\n", DEV_NAME, __func__, buf);
 
-	/* "FACTORY_START": factory mode check */
+	/* "FACTORY_START": factory mode */
 	if (!strncmp(buf, "FACTORY_START", 13)) {
-		info->is_factory_start = max77693_muic_is_factory_mode();
-		if (info->is_factory_start)
-			mode = "FACTORY_MODE";
-		else
-			mode = "NOT_FACTORY_MODE";
+		info->is_factory_start = true;
+		mode = "FACTORY_MODE";
 	} else {
 		pr_warn("%s:%s Wrong command\n", DEV_NAME, __func__);
 		return count;
@@ -2461,8 +2381,7 @@ static int max77693_muic_handle_attach(struct max77693_muic_info *info,
 				max77693_muic_handle_jig_uart(info, vbvolt);
 
 #if !defined(CONFIG_MUIC_MAX77693_SUPPORT_CAR_DOCK)
-			if (info->is_factory_start &&
-					(adc == ADC_JIG_UART_ON)) {
+			if (info->is_factory_start) {
 				pr_info("%s:%s factory start, keep attach\n",
 						DEV_NAME, __func__);
 				break;
@@ -2555,6 +2474,10 @@ static int max77693_muic_handle_attach(struct max77693_muic_info *info,
 				 "%s: Ignore irq:%d at MHL detection\n",
 				 __func__, irq);
 			if (vbvolt) {
+				if (info->cable_type == CABLE_TYPE_MHL_MUIC
+						&& chgtyp == CHGTYP_USB)
+					info->cable_type = CABLE_TYPE_MHL_VB_MUIC;
+
 				dev_info(info->dev, "%s: call charger_cb(%d)"
 					, __func__, vbvolt);
 				max77693_muic_set_charging_type(info, false);
@@ -2657,7 +2580,9 @@ static int max77693_muic_handle_attach(struct max77693_muic_info *info,
 #else
 		/* because of change FACTORY CPOriented to APOriented,
 		 * at manufacture need AP wake-up method. write apo_factory
-		 * FACTORY_START is set is_factory_start true.
+		 * "FACTORY_START" is set is_factory_start true
+		 * and write apo_factory "FACTORY_END" is set
+		 * is_factory_start false.
 		 */
 		if (info->is_factory_start) {
 			if (info->cable_type == CABLE_TYPE_JIG_UART_ON_MUIC) {

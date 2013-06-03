@@ -482,7 +482,8 @@ void max77693_set_input_current(struct max77693_charger_data *chg_data,
 		max77693_set_buck(chg_data, ENABLE);
 #else
 	if (set_current == OFF_CURR) {
-		max77693_write_reg(i2c, MAX77693_CHG_REG_CHG_CNFG_09, set_current);
+		max77693_write_reg(i2c, MAX77693_CHG_REG_CHG_CNFG_09,
+							set_current);
 
 		if (chg_data->soft_reg_state == true) {
 			pr_info("%s: exit soft regulation loop\n", __func__);
@@ -697,8 +698,11 @@ static int max77693_get_cable_type(struct max77693_charger_data *chg_data)
 	int state;
 	u8 reg_data, mu_adc, mu_adc1k, otg;
 	u8 dtls_00, chgin_dtls;
+	u8 dtls_01, chg_dtls;
 	u8 mu_st2, chgdetrun, vbvolt, chgtyp, dxovp;
+#ifdef CONFIG_BATTERY_WPC_CHARGER
 	bool wc_state;
+#endif
 	bool retry_det, chg_det_erred;
 	bool otg_detected = false;
 	int retry_cnt = 0;
@@ -761,10 +765,14 @@ static int max77693_get_cable_type(struct max77693_charger_data *chg_data)
 
 		max77693_read_reg(chg_data->max77693->i2c,
 					MAX77693_CHG_REG_CHG_DTLS_00, &dtls_00);
+		max77693_read_reg(chg_data->max77693->i2c,
+					MAX77693_CHG_REG_CHG_DTLS_01, &dtls_01);
 		max77693_read_reg(chg_data->max77693->muic,
 				  MAX77693_MUIC_REG_STATUS2, &mu_st2);
 		chgin_dtls = ((dtls_00 & MAX77693_CHGIN_DTLS) >>
 					MAX77693_CHGIN_DTLS_SHIFT);
+		chg_dtls = ((dtls_01 & MAX77693_CHG_DTLS) >>
+					MAX77693_CHG_DTLS_SHIFT);
 		chgdetrun = ((mu_st2 & MAX77693_CHGDETRUN) >>
 					MAX77693_CHGDETRUN_SHIFT);
 		vbvolt = ((mu_st2 & MAX77693_VBVOLT) >>
@@ -772,9 +780,9 @@ static int max77693_get_cable_type(struct max77693_charger_data *chg_data)
 		chgtyp = ((mu_st2 & MAX77693_CHGTYPE) >>
 					MAX77693_CHGTYPE_SHIFT);
 		if (chg_det_erred)
-			pr_err("%s: CHGIN(0x%x). MU_ST2(0x%x), "
+			pr_err("%s: CHGIN(0x%x). CHG(0x%x), MU_ST2(0x%x), "
 				"CDR(0x%x), VB(0x%x), CHGTYP(0x%x)\n", __func__,
-						chgin_dtls, mu_st2,
+						chgin_dtls, chg_dtls, mu_st2,
 						chgdetrun, vbvolt, chgtyp);
 
 		/* input power state */
@@ -791,9 +799,7 @@ static int max77693_get_cable_type(struct max77693_charger_data *chg_data)
 			chg_det_erred = true;
 
 			/* check chargable input power */
-			if ((chgin_dtls == 0x0) &&
-				(chg_data->cable_type ==
-					POWER_SUPPLY_TYPE_BATTERY)) {
+			if ((chgin_dtls == 0x0) && (chg_dtls == 0x8)) {
 				pr_err("%s: unchargable power\n", __func__);
 				state = POWER_SUPPLY_TYPE_BATTERY;
 				goto chg_det_finish;
