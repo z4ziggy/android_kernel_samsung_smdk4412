@@ -9,7 +9,7 @@ build ()
     
 targets=("$@")
 if [ 0 = "${#targets[@]}" ] ; then
-    targets=(t0lte n7100 i9300)
+    targets=(t0lte t0ltecdma n7100 i9300)
 fi
 
 START=$(date +%s)
