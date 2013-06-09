@@ -9,29 +9,14 @@
  */
 
 /**
- * @file ump_kernel_interface_vcm.h
+ * @file ump_kernel_memory_backend_vcm.h
  */
 
-#ifndef __UMP_KERNEL_INTERFACE_VCM_H__
-#define __UMP_KERNEL_INTERFACE_VCM_H__
+#ifndef __UMP_KERNEL_MEMORY_BACKEND_VCM_H__
+#define __UMP_KERNEL_MEMORY_BACKEND_VCM_H__
 
-#include <linux/vcm-drv.h>
-#include <plat/s5p-vcm.h>
+#include "ump_kernel_memory_backend.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+ump_memory_backend * ump_vcm_memory_backend_create(const int max_allocation);
 
-/** Turn specified physical memory into UMP memory. */
-struct ump_vcm {
-	struct vcm *vcm;
-	struct vcm_res  *vcm_res;
-	unsigned int dev_id;
-};
-
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif  /* __UMP_KERNEL_INTERFACE_VCM_H__ */
+#endif /* __UMP_KERNEL_MEMORY_BACKEND_VCM_H__ */
