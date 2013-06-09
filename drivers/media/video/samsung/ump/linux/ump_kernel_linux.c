@@ -92,7 +92,7 @@ static int ump_file_ioctl(struct inode *inode, struct file *filp, unsigned int c
 #endif
 static int ump_file_mmap(struct file * filp, struct vm_area_struct * vma);
 
-#if defined(CONFIG_VIDEO_UMP)
+#if defined(CONFIG_VIDEO_MALI400MP)
 extern int map_errcode( _mali_osk_errcode_t err );
 #endif
 
@@ -400,7 +400,7 @@ static int ump_file_ioctl(struct inode *inode, struct file *filp, unsigned int c
 	return err;
 }
 
-#ifndef CONFIG_VIDEO_UMP
+#ifndef CONFIG_VIDEO_MALI400MP
 int map_errcode( _mali_osk_errcode_t err )
 {
     switch(err)
@@ -429,7 +429,7 @@ static int ump_file_mmap(struct file * filp, struct vm_area_struct * vma)
 
 	/* Validate the session data */
 	session_data = (struct ump_session_data *)filp->private_data;
-	if (NULL == session_data || NULL == session_data->cookies_map->table->mappings)
+	if (NULL == session_data)
 	{
 		MSG_ERR(("mmap() called without any session data available\n"));
 		return -EFAULT;
@@ -474,9 +474,6 @@ EXPORT_SYMBOL(ump_dd_phys_blocks_get);
 EXPORT_SYMBOL(ump_dd_size_get);
 EXPORT_SYMBOL(ump_dd_reference_add);
 EXPORT_SYMBOL(ump_dd_reference_release);
-EXPORT_SYMBOL(ump_dd_meminfo_get);
-EXPORT_SYMBOL(ump_dd_meminfo_set);
-EXPORT_SYMBOL(ump_dd_handle_get_from_vaddr);
 
 /* Export our own extended kernel space allocator */
 EXPORT_SYMBOL(ump_dd_handle_create_from_phys_blocks);
