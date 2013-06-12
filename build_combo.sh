@@ -18,7 +18,7 @@ CUSTOM_PATH=note
 MODE=DUAL	
 fi
 
-version=Devil-$TARGET-$MODE-0.21.6_$(date +%Y%m%d)
+version=Devil-$TARGET-$MODE-0.22.1_$(date +%Y%m%d)
 
 if [ -e boot.img ]; then
 	rm boot.img

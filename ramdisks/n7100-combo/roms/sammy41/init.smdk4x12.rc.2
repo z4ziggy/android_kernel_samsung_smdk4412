@@ -39,7 +39,7 @@ mkdir /dev/pipes 0771 shell shell
 
 on post-fs-data
     # we will remap this as /storage/sdcard with the sdcard fuse tool
-    mkdir /data/media 0770 media_rw media_rw
+    mkdir /.secondrom/media 0770 media_rw media_rw
     chown media_rw media_rw /data/media
     setprop vold.post_fs_data_done 1
 
@@ -300,7 +300,7 @@ service ril-daemon /system/bin/rild
 # create virtual SD card at /storage/sdcard, based on the /data/media directory
 # daemon will drop to user/group system/media_rw after initializing
 # underlying files in /data/media will be created with user and group media_rw (1023)
-service sdcard /system/bin/sdcard /data/media 1023 1023
+service sdcard /system/bin/sdcard /.secondrom/media 1023 1023
     class late_start
 
 
