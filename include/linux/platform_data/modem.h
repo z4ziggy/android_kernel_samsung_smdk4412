@@ -214,6 +214,7 @@ struct modemlink_dpram_control {
 	enum dpram_type dp_type;	/* DPRAM type */
 	int aligned;			/* Aligned access is required */
 	bool disabled;			/* Disabled during phone booting */
+
 	u8 __iomem *dp_base;
 	u32 dp_size;
 
