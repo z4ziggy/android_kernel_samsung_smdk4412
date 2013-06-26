@@ -88,6 +88,10 @@ $BB mv -f /roms/cm101/* /
 	  echo "secondary boot"
   	  $BB mv /init.smdk4x12.rc.2 /init.smdk4x12.rc
   	  $BB mv /fstab.smdk4x12.2 /fstab.smdk4x12
+
+	  $BB echo "#!/system/bin/sh" > /system/etc/init.d/10sd_mount
+	  $BB echo "service sdcard /system/bin/sdcard /.secondrom/media /mnt/shell/emulated 1023 1023" >> /system/etc/init.d/10sd_mount
+	  $BB chmod a+x /system/etc/init.d/10sd_mount
 	fi
    fi
 else
