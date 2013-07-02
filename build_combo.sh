@@ -18,7 +18,7 @@ CUSTOM_PATH=note
 MODE=DUAL	
 fi
 
-version=Devil-$TARGET-$MODE-0.23.1_$(date +%Y%m%d)
+version=Devil-$TARGET-$MODE-0.24.1_$(date +%Y%m%d)
 
 if [ -e boot.img ]; then
 	rm boot.img
@@ -45,6 +45,7 @@ elif [ "$(whoami)" == "rollus" ]; then
 fi
 TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
 ROOTFS_PATH="$KERNEL_PATH/ramdisks/$TARGET-combo"
+MODULES="$KERNEL_PATH/ramdisks/modules"
 
 defconfig=combo_"$TARGET"_defconfig
 
@@ -73,9 +74,9 @@ make $defconfig
 
 make -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$TOOLCHAIN || exit -1
 # Copying and stripping kernel modules
-mkdir -p $ROOTFS_PATH/lib/modules
-find -name '*.ko' -exec cp -av {} $ROOTFS_PATH/lib/modules/ \;
-        for i in $ROOTFS_PATH/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
+mkdir -p $MODULES/lib/modules
+find -name '*.ko' -exec cp -av {} $MODULES/lib/modules/ \;
+        for i in $MODULES/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
 
 # Copy Kernel Image
 rm -f $KERNEL_PATH/releasetools/$CUSTOM_PATH/tar/$KBUILD_BUILD_VERSION.tar
@@ -84,7 +85,7 @@ cp -f $KERNEL_PATH/arch/arm/boot/zImage .
 
 
 # Create ramdisk.cpio archive
-cd $ROOTFS_PATH
+cd $MODULES
 find . | cpio -o -H newc > $KERNEL_PATH/ramdisk.cpio
 cd $KERNEL_PATH
 
