@@ -68,8 +68,8 @@ on fs
 
 on post-fs-data
      # we will remap this as /mnt/sdcard with the sdcard fuse tool
-     mkdir /.secondrom/media 0775 media_rw media_rw
-     chown media_rw media_rw /.secondrom/media
+     mkdir /data/media 0775 media_rw media_rw
+     chown media_rw media_rw /data/media
 
 #QCRIL
 
@@ -494,7 +494,7 @@ on property:sys.boot_completed=1
 # create virtual SD card at /mnt/sdcard, based on the /data/media directory
 # daemon will drop to user/group system/media_rw after initializing
 # underlying files in /data/media wil be created with user and group media_rw (1023)
-service sdcard /system/bin/sdcard /.secondrom/media /mnt/shell/emulated 1023 1023
+service sdcard /system/bin/sdcard /data/media /mnt/shell/emulated 1023 1023
     class late_start
 
 # AT Distributor for factory test
