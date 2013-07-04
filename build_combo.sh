@@ -18,7 +18,7 @@ CUSTOM_PATH=note
 MODE=DUAL	
 fi
 
-version=Devil-$TARGET-$MODE-0.24.1_$(date +%Y%m%d)
+version=Devil-$TARGET-$MODE-0.25.0_$(date +%Y%m%d)
 
 if [ -e boot.img ]; then
 	rm boot.img
@@ -47,7 +47,7 @@ TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
 ROOTFS_PATH="$KERNEL_PATH/ramdisks/$TARGET-combo"
 MODULES="$KERNEL_PATH/ramdisks/modules"
 
-defconfig=combo_"$TARGET"_defconfig
+defconfig=cyanogenmod_"$TARGET"_defconfig
 
 export KBUILD_BUILD_VERSION="$version"
 export KERNELDIR=$KERNEL_PATH
