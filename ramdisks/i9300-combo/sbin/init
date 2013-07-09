@@ -43,6 +43,16 @@ $BB mv -f /roms/cm101/* /
   	$BB mkdir -p /system/lib/modules
   	$BB mv /lib/modules/* /system/lib/modules/
    fi
+elif [ "$SAMMY42" == 1 ]; then
+$BB mv -f /roms/sammy42/* /
+   if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
+  	# low power mode
+ 	echo 0 > /proc/sys/kernel/rom_feature_set
+ 	$BB cp -f lpm.rc init.rc
+  	$BB rm -f init.smdk4x12.rc
+   else
+      echo 6 > /proc/sys/kernel/rom_feature_set
+   fi
 else
 $BB mv -f /roms/sammy41/* /
    if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
