@@ -12,13 +12,13 @@ fi
 
 if [ "$TARGET" = "i9300" ] ; then
 CUSTOM_PATH=i9300
-MODE=COMBO
+MODE=DUAL
 else
 CUSTOM_PATH=note
 MODE=DUAL	
 fi
 
-version=Devil-$TARGET-$MODE-0.26.0_$(date +%Y%m%d)
+version=Devil-$TARGET-$MODE-0.26.1_$(date +%Y%m%d)
 
 if [ -e boot.img ]; then
 	rm boot.img
