@@ -29,6 +29,16 @@ $BB echo "mounting devices..."
 $BB mount -t proc proc /proc
 $BB mount -t sysfs sysfs /sys
 
+
+$BB echo "starting bootmode detection..."
+if $BB grep -q bootmode=2 /proc/cmdline ; then
+  echo 0 > /proc/sys/kernel/rom_feature_set
+  $BB mv -f /roms/cm101/* /
+  $BB mv -f /recovery/* /
+  exec /sbin/init.2
+fi
+
+
 $BB mount -t ext4 /dev/block/mmcblk0p16 /.secondrom
 
 SECONDARYBOOT=0
