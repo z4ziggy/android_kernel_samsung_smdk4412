@@ -223,7 +223,6 @@ struct netlink_callback {
 					struct netlink_callback *cb);
 	int			(*done)(struct netlink_callback *cb);
 	int			family;
-  	u16      	min_dump_alloc;
 	long			args[6];
 };
 
