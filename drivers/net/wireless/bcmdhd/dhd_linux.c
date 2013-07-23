@@ -747,9 +747,6 @@ void dhd_enable_packet_filter(int value, dhd_pub_t *dhd)
 #endif /* PKT_FILTER_SUPPORT */
 }
 
-bool wifi_pm = false;
-module_param(wifi_pm, bool, 0755);
-
 static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 {
 #ifndef SUPPORT_PM2_ONLY
@@ -835,10 +832,7 @@ static int dhd_set_suspend(int value, dhd_pub_t *dhd)
 				DHD_ERROR(("%s: Remove extra suspend setting \n", __FUNCTION__));
 
 #ifndef SUPPORT_PM2_ONLY
-				if (wifi_pm)
-					power_mode = PM_FAST;
-				else
-					power_mode = PM_OFF;
+				power_mode = PM_FAST;
 				dhd_wl_ioctl_cmd(dhd, WLC_SET_PM, (char *)&power_mode,
 				                 sizeof(power_mode), TRUE, 0);
 #endif /* SUPPORT_PM2_ONLY */
@@ -3919,7 +3913,6 @@ int
 dhd_preinit_ioctls(dhd_pub_t *dhd)
 {
 	int ret = 0;
-	uint power_mode;
 	char eventmask[WL_EVENTING_MASK_LEN];
 	char iovbuf[WL_EVENTING_MASK_LEN + 12];	/*  Room for "event_msgs" + '\0' + bitvec  */
 	uint32 buf_key_b4_m4 = 1;
@@ -3930,6 +3923,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	uint32 ampdu_ba_wsize = CUSTOM_AMPDU_BA_WSIZE;
 #endif /* CUSTOM_AMPDU_BA_WSIZE */
 	uint32 lpc = 1;
+	uint power_mode = PM_FAST;
 	uint32 dongle_align = DHD_SDALIGN;
 	uint32 glom = CUSTOM_GLOM_SETTING;
 #if (defined(CUSTOMER_HW4) || defined(BOARD_PANDA)) && (defined(VSDB) || \
@@ -4035,10 +4029,6 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	dhd->suspend_bcn_li_dtim = CUSTOM_SUSPEND_BCN_LI_DTIM;
 	DHD_TRACE(("Enter %s\n", __FUNCTION__));
 	dhd->op_mode = 0;
-	if (wifi_pm)
-		power_mode = PM_FAST;
-	else
-		power_mode = PM_OFF;
 #ifdef GET_CUSTOM_MAC_ENABLE
 	ret = dhd_custom_get_mac_address(ea_addr.octet);
 	if (!ret) {
@@ -5780,7 +5770,7 @@ int net_os_set_suspend_bcn_li_dtim(struct net_device *dev, int val)
 #ifdef PKT_FILTER_SUPPORT
 int net_os_rxfilter_add_remove(struct net_device *dev, int add_remove, int num)
 {
-#if !defined(GAN_LITE_NAT_KEEPALIVE_FILTER) && 0
+#ifndef GAN_LITE_NAT_KEEPALIVE_FILTER
 	dhd_info_t *dhd = *(dhd_info_t **)netdev_priv(dev);
 	char *filterp = NULL;
 	int ret = 0;

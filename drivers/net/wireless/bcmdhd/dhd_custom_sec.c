@@ -378,8 +378,6 @@ start_readmac:
 		* when mac address is displayed on the screen.
 		*/
 		buf[17] = '\0';
-		DHD_ERROR(("Read MAC : [%s] [%d] \r\n",
-			buf, strncmp(buf, "00:00:00:00:00:00", 17)));
 		if (strncmp(buf, "00:00:00:00:00:00", 17) < 1) {
 			DHD_ERROR(("goto start_readmac \r\n"));
 			filp_close(fp, NULL);

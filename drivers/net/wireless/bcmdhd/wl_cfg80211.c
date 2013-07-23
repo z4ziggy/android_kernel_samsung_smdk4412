@@ -6244,11 +6244,6 @@ wl_cfg80211_add_set_beacon(struct wiphy *wiphy, struct net_device *dev,
 		goto fail;
 	}
 
-	if (wl_cfg80211_bcn_bringup_ap(dev, &ies, dev_role, bssidx) < 0) {
-		WL_ERR(("Beacon bring up AP/GO failed \n"));
-		goto fail;
-	}
-
 	/* Set BI and DTIM period */
 	if (info->interval) {
 		if ((err = wldev_ioctl(dev, WLC_SET_BCNPRD,
@@ -6263,6 +6258,11 @@ wl_cfg80211_add_set_beacon(struct wiphy *wiphy, struct net_device *dev,
 			WL_ERR(("DTIM Interval Set Error, %d\n", err));
 			return err;
 		}
+	}
+
+	if (wl_cfg80211_bcn_bringup_ap(dev, &ies, dev_role, bssidx) < 0) {
+		WL_ERR(("Beacon bring up AP/GO failed \n"));
+		goto fail;
 	}
 
 	if (wl_get_drv_status(wl, AP_CREATED, dev)) {
@@ -7294,6 +7294,7 @@ static s32 wl_update_bss_info(struct wl_priv *wl, struct net_device *ndev, u8 is
 			err = -EIO;
 			goto update_bss_info_out;
 		}
+
 		ie = ((u8 *)bi) + bi->ie_offset;
 		ie_len = bi->ie_length;
 		ssidie = (u8 *)cfg80211_find_ie(WLAN_EID_SSID, ie, ie_len);
