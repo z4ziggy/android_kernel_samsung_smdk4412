@@ -41,8 +41,7 @@ choice ZRAM_COMPRESS
 	help
 	  Select the compression method used by zram.
 	  LZO is the default. Snappy compresses a bit worse (around ~2%) but
-	  much (~2x) faster, at least on x86-64, LZ4 is said to be the fasted
-	  for now.
+	  much (~2x) faster, at least on x86-64.
 config ZRAM_LZO
 	bool "LZO compression"
 	select LZO_COMPRESS
@@ -51,8 +50,4 @@ config ZRAM_SNAPPY
 	bool "Snappy compression"
 	depends on SNAPPY_COMPRESS
 	depends on SNAPPY_DECOMPRESS
-config ZRAM_LZ4
-	bool "LZ4 compression"
-	depends on LZ4_COMPRESS
-	depends on LZ4_DECOMPRESS
 endchoice
