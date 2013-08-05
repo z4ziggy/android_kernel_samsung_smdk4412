@@ -31,11 +31,6 @@
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/vmalloc.h>
-#ifdef CONFIG_ZRAM_FOR_ANDROID
-#include <linux/swap.h>
-#endif /* CONFIG_ZRAM_FOR_ANDROID */
-
-
 #include "zram_drv.h"
 
 #if defined(CONFIG_ZRAM_LZO)
@@ -102,7 +97,6 @@ static int lz4_decompress_(
 #error either CONFIG_ZRAM_LZO, CONFIG_ZRAM_SNAPPY or CONFIG_ZRAM_LZ4 must be defined
 #endif
 
-
 /* Globals */
 static int zram_major;
 struct zram *zram_devices;
@@ -161,22 +155,6 @@ static int page_zero_filled(void *ptr)
 
 	return 1;
 }
-
-#ifdef CONFIG_ZRAM_FOR_ANDROID
-/*
- * Swap header (1st page of swap device) contains information
- * about a swap file/partition. Prepare such a header for the
- * given ramzswap device so that swapon can identify it as a
- * swap partition.
- */
-static void setup_swap_header(struct zram *zram, union swap_header *s)
-{
-	s->info.version = 1;
-	s->info.last_page = (zram->disksize >> PAGE_SHIFT) - 1;
-	s->info.nr_badpages = 0;
-	memcpy(s->magic.magic, "SWAPSPACE2", 10);
-}
-#endif /* CONFIG_ZRAM_FOR_ANDROID */
 
 static void zram_free_page(struct zram *zram, size_t index)
 {
@@ -292,8 +270,6 @@ static int zram_bvec_read(struct zram *zram, struct bio_vec *bvec,
 	ret = zram_decompress_page(zram, uncmem, index);
 	/* Should NEVER happen. Return bio error if it does. */
 	if (unlikely(ret)) {
-		pr_err("Decompression failed! err=%d, page=%u\n", ret, index);
-		zram_stat64_inc(zram, &zram->stats.failed_reads);
 		goto out_cleanup;
 	}
 
@@ -330,7 +306,6 @@ static int zram_bvec_write(struct zram *zram, struct bio_vec *bvec, u32 index,
 		 */
 		uncmem = kmalloc(PAGE_SIZE, GFP_NOIO);
 		if (!uncmem) {
-			pr_info("Error allocating temp memory!\n");
 			ret = -ENOMEM;
 			goto out;
 		}
@@ -598,10 +573,7 @@ struct zram_meta *zram_meta_alloc(u64 disksize)
 {
 	size_t num_pages;
 
-#ifdef CONFIG_ZRAM_FOR_ANDROID
-	struct page *page;
-	union swap_header *swap_header;
-#endif /* CONFIG_ZRAM_FOR_ANDROID */
+
 
 	struct zram_meta *meta = kmalloc(sizeof(*meta), GFP_KERNEL);
 	if (!meta)
@@ -609,7 +581,6 @@ struct zram_meta *zram_meta_alloc(u64 disksize)
 
 	meta->compress_workmem = kzalloc(WMSIZE, GFP_KERNEL);
 	if (!meta->compress_workmem) {
-		pr_err("Error allocating compressor working memory!\n");
 		goto free_meta;
 	}
 
@@ -663,20 +634,6 @@ void zram_init_device(struct zram *zram, struct zram_meta *meta)
 		(totalram_pages << PAGE_SHIFT) >> 10, zram->disksize >> 10
 		);
 	}
-
-#ifdef CONFIG_ZRAM_FOR_ANDROID
-	page = alloc_page(__GFP_ZERO);
-	if (!page) {
-		pr_err("Error allocating swap header page\n");
-		ret = -ENOMEM;
-		goto fail;
-	}
-	zram->table[0].page = page;
-	zram_set_flag(zram, 0, ZRAM_UNCOMPRESSED);
-	swap_header = kmap(page);
-	setup_swap_header(zram, swap_header);
-	kunmap(page);
-#endif /* CONFIG_ZRAM_FOR_ANDROID */
 
 	/* zram devices sort of resembles non-rotational disks */
 	queue_flag_set_unlocked(QUEUE_FLAG_NONROT, zram->disk->queue);
