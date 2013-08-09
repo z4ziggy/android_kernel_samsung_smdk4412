@@ -732,10 +732,102 @@ static ssize_t store_an30259a_led_speed(struct device *dev,
 	}
 }
 
+static ssize_t show_an30259a_led_slope_up_1(struct device *dev,
+                    struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "Slope up 1: (%d)\n", led_slope_up_1);
+}
+
+static ssize_t show_an30259a_led_slope_up_2(struct device *dev,
+                    struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "Slope up 2: (%d)\n", led_slope_up_2);
+}
+
+static ssize_t show_an30259a_led_slope_down_1(struct device *dev,
+                    struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "Slope down 1: (%d)\n", led_slope_down_1);
+}
+
+static ssize_t show_an30259a_led_slope_down_2(struct device *dev,
+                    struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "Slope down 2: (%d)\n", led_slope_down_2);
+}
+
 static ssize_t show_an30259a_led_slope(struct device *dev,
                     struct device_attribute *attr, char *buf)
 {
 	return sprintf(buf, "Slope up : (%d,%d) - Slope down (%d,%d)\n", led_slope_up_1, led_slope_up_2, led_slope_down_1, led_slope_down_2);
+}
+
+static ssize_t store_an30259a_led_slope_up_1(struct device *dev,
+					struct device_attribute *devattr,
+					const char *buf, size_t count)
+{
+	int new_led_slope_up_1;
+	int retval;
+
+	retval = sscanf(buf, "%d", &new_led_slope_up_1);
+
+	if (retval) {
+		/* allow only values between 0 and 5 (steps of 4ms) */
+		led_slope_up_1   = min(max(new_led_slope_up_1  , 0), 5);
+	}
+
+	return count;
+}
+
+static ssize_t store_an30259a_led_slope_up_2(struct device *dev,
+					struct device_attribute *devattr,
+					const char *buf, size_t count)
+{
+	int new_led_slope_up_2;
+	int retval;
+
+	retval = sscanf(buf, "%d", &new_led_slope_up_2);
+
+	if (retval) {
+		/* allow only values between 0 and 5 (steps of 4ms) */
+		led_slope_up_2   = min(max(new_led_slope_up_2  , 0), 5);
+	}
+
+	return count;
+}
+
+static ssize_t store_an30259a_led_slope_down_1(struct device *dev,
+					struct device_attribute *devattr,
+					const char *buf, size_t count)
+{
+	int new_led_slope_down_1;
+	int retval;
+
+	retval = sscanf(buf, "%d", &new_led_slope_down_1);
+
+	if (retval) {
+		/* allow only values between 0 and 5 (steps of 4ms) */
+		led_slope_down_1   = min(max(new_led_slope_down_1  , 0), 5);
+	}
+
+	return count;
+}
+
+static ssize_t store_an30259a_led_slope_down_2(struct device *dev,
+					struct device_attribute *devattr,
+					const char *buf, size_t count)
+{
+	int new_led_slope_down_2;
+	int retval;
+
+	retval = sscanf(buf, "%d", &new_led_slope_down_2);
+
+	if (retval) {
+		/* allow only values between 0 and 5 (steps of 4ms) */
+		led_slope_down_2   = min(max(new_led_slope_down_2  , 0), 5);
+	}
+
+	return count;
 }
 
 static ssize_t store_an30259a_led_slope(struct device *dev,
@@ -760,6 +852,7 @@ static ssize_t store_an30259a_led_slope(struct device *dev,
 
 	return count;
 }
+
 
 static ssize_t store_led_r(struct device *dev,
 	struct device_attribute *devattr, const char *buf, size_t count)
@@ -949,6 +1042,14 @@ static DEVICE_ATTR(led_speed, 0664, show_an30259a_led_speed, \
 					store_an30259a_led_speed);
 static DEVICE_ATTR(led_slope, 0664, show_an30259a_led_slope, \
 					store_an30259a_led_slope);
+static DEVICE_ATTR(led_slope_up_1, 0664, show_an30259a_led_slope_up_1, \
+					store_an30259a_led_slope_up_1);
+static DEVICE_ATTR(led_slope_up_2, 0664, show_an30259a_led_slope_up_2, \
+					store_an30259a_led_slope_up_2);
+static DEVICE_ATTR(led_slope_down_1, 0664, show_an30259a_led_slope_down_1, \
+					store_an30259a_led_slope_down_1);
+static DEVICE_ATTR(led_slope_down_2, 0664, show_an30259a_led_slope_down_2, \
+					store_an30259a_led_slope_down_2);
 static DEVICE_ATTR(led_br_lev, 0664, NULL, \
 					store_an30259a_led_br_lev);
 static DEVICE_ATTR(led_lowpower, 0664, NULL, \
@@ -978,6 +1079,10 @@ static struct attribute *sec_led_attributes[] = {
 	&dev_attr_led_intensity.attr,
 	&dev_attr_led_speed.attr,
 	&dev_attr_led_slope.attr,
+	&dev_attr_led_slope_up_1.attr,
+	&dev_attr_led_slope_up_2.attr,
+	&dev_attr_led_slope_down_1.attr,
+	&dev_attr_led_slope_down_2.attr,
 	&dev_attr_led_br_lev.attr,
 	&dev_attr_led_lowpower.attr,
 	NULL,
