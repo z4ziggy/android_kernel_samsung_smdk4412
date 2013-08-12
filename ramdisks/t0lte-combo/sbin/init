@@ -57,10 +57,37 @@ fi
 CM101=0
 SAMMY42=0
 
+if $BB grep -q ro.build.version.release=4.3 /system/build.prop; then
+   CM102=1
+else
 $BB [ -f /system/framework/framework2.jar ] || CM101=1
 $BB [ -f /system/framework/telephony-common.jar ] && SAMMY42=1
+fi
 
-if [ "$CM101" == 1 ]; then
+if [ "$CM102" == 1 ]; then
+echo "using cm-10.2 initramfs"
+$BB mv -f /roms/cm102/* /
+   if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
+  	# low power mode
+ 	echo 0 > /proc/sys/kernel/rom_feature_set
+ 	$BB cp -f lpm.rc init.rc
+  	$BB rm -f init.smdk4x12.rc
+   else
+   	echo 7 > /proc/sys/kernel/rom_feature_set
+	$BB mkdir -p /system/lib/modules
+	$BB mv /lib/modules/* /system/lib/modules/
+
+	if [ "$SECONDARYBOOT" == "1" ];then
+	  echo "secondary boot"
+  	  $BB mv /init.smdk4x12.rc.2 /init.smdk4x12.rc
+  	  $BB mv /fstab.smdk4x12.2 /fstab.smdk4x12
+
+	  $BB echo "#!/system/bin/sh" > /system/etc/init.d/10sd_mount
+	  $BB echo "/system/bin/sdcard /.secondrom/media /mnt/shell/emulated 1023 1023" >> /system/etc/init.d/10sd_mount
+	  $BB chmod a+x /system/etc/init.d/10sd_mount
+	fi
+   fi
+elif [ "$CM101" == 1 ]; then
 echo "using cm-10.1 initramfs"
 $BB mv -f /roms/cm101/* /
    if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
