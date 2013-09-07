@@ -156,8 +156,10 @@ static int exynos_frequency_lock(struct device *dev)
 			goto exit;
 		}
 
+#ifdef CPU_FREQ_GOV_PEGASUSQ
 		/* lock minimum number of cpu cores */
 		cpufreq_pegasusq_min_cpu_lock(2);
+#endif
 
 		atomic_set(&mdm_hsic_pm_pdata.freqlock, 1);
 		pr_debug("level=%d, cpufreq=%d MHz, busfreq=%06d\n",
@@ -182,9 +184,10 @@ static int exynos_frequency_unlock(struct device *dev)
 			pr_err("ERR: dev_unlock error: %d\n", ret);
 			goto exit;
 		}
-
+#ifdef CPU_FREQ_GOV_PEGASUSQ
 		/* unlock minimum number of cpu cores */
 		cpufreq_pegasusq_min_cpu_unlock();
+#endif
 
 		atomic_set(&mdm_hsic_pm_pdata.freqlock, 0);
 		pr_debug("success\n");
