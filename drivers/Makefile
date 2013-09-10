@@ -153,3 +153,4 @@ obj-$(CONFIG_AUTHENTEC_VPNCLIENT_INTERCEPTOR) += interceptor/
 #obj-y	+= exfat/
 #endif
 
+obj-y += exfat/
