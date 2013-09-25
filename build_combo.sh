@@ -18,7 +18,7 @@ CUSTOM_PATH=note
 MODE=DUAL	
 fi
 
-version=Devil-$TARGET-$MODE-0.35.0_$(date +%Y%m%d)
+version=Devil-$TARGET-$MODE-0.36.0_$(date +%Y%m%d)
 
 if [ -e boot.img ]; then
 	rm boot.img
@@ -38,8 +38,8 @@ KERNEL_PATH=$PWD
 # Set toolchain and root filesystem path
 if [ "$(whoami)" == "dominik" ]; then
 	#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin"
-	#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-linaro-toolchain-4.8/bin"
-	TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.7.2/bin"
+	TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-toolchain-eabi/bin"
+	#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.7.2/bin"
 elif [ "$(whoami)" == "rollus" ]; then
 	TOOLCHAIN_PATH="/home/rollus/android-toolchain-eabi/bin/"
 fi
