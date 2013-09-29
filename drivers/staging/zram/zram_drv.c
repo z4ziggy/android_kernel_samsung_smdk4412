@@ -357,7 +357,7 @@ static int zram_bvec_read(struct zram *zram, struct bio_vec *bvec,
 	/* Should NEVER happen. Return bio error if it does. */
 	if (unlikely(ret != 0)) {
 		pr_err("Decompression failed! err=%d, page=%u\n", ret, index);
-		zram_stat64_inc(zram, &zram->stats.failed_reads);
+		atomic64_inc(&zram->stats.failed_reads);
 		goto out_cleanup;
 	}
 
