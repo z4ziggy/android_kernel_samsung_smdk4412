@@ -64,6 +64,16 @@ $BB [ -f /system/framework/framework2.jar ] || CM101=1
 $BB [ -f /system/framework/telephony-common.jar ] && SAMMY42=1
 fi
 
+if $BB [ ! -f /system/etc/init.d/11setprop ]; then
+$BB echo "#!/system/bin/sh" > /system/etc/init.d/11setprop
+$BB echo "setprop ro.adb.secure 1" >> /system/etc/init.d/11setprop
+$BB echo "setprop ro.secure 1" >> /system/etc/init.d/11setprop
+$BB echo "setprop ro.allow.mock.location 0" >> /system/etc/init.d/11setprop
+$BB echo "setprop ro.debuggable 1" >> /system/etc/init.d/11setprop
+$BB echo "setprop persist.sys.usb.config mtp,adb" >> /system/etc/init.d/11setprop
+$BB chmod a+x /system/etc/init.d/11setprop
+fi
+
 if [ "$CM102" == 1 ]; then
 echo "using cm-10.2 initramfs"
 $BB mv -f /roms/cm102/* /
