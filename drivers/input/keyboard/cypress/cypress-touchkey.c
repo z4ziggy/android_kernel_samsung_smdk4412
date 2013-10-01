@@ -1529,12 +1529,7 @@ static ssize_t touchkey_back_show(struct device *dev,
 static ssize_t touch_led_on_screen_touch_show(struct device *dev,
 					      struct device_attribute *attr, char *buf)
 {
-	switch (touch_led_on_screen_touch) {
-	  case TOUCHKEY_LED_DISABLED:	return sprintf(buf, "%d : H/W key won't light up on touchscreen touch\n", touch_led_on_screen_touch);
-	  case TOUCHKEY_LED_ENABLED:	return sprintf(buf, "%d : H/W key will light up on touchscreen touch\n", touch_led_on_screen_touch);
-	  default:			return sprintf(buf, "%d : value out of range\n", touch_led_on_screen_touch);
-	}
-
+	  return sprintf(buf, "%d\n", touch_led_on_screen_touch);
 }
 
 static ssize_t touch_led_on_screen_touch_store(struct device *dev,
@@ -1557,12 +1552,7 @@ static ssize_t touch_led_on_screen_touch_store(struct device *dev,
 static ssize_t touch_led_handling_show(struct device *dev,
 					      struct device_attribute *attr, char *buf)
 {
-	switch (touch_led_handling) {
-	  case TOUCHKEY_LED_ROM:	return sprintf(buf, "%d : H/W key handled by ROM (newer CM10.2)\n", touch_led_handling);
-	  case TOUCHKEY_LED_KERNEL:	return sprintf(buf, "%d : H/W key handled by kernel (older CM10.2)\n", touch_led_handling);
-	  default:			return sprintf(buf, "%d : value out of range\n", touch_led_handling);
-	}
-
+	  return sprintf(buf, "%d\n", touch_led_handling);
 }
 
 static ssize_t touch_led_handling_store(struct device *dev,
