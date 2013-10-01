@@ -955,7 +955,7 @@ static void __exit zram_exit(void)
 	pr_debug("Cleanup done!\n");
 }
 
-module_param(num_devices, uint, 0);
+module_param(num_devices, uint, S_IRUGO);
 MODULE_PARM_DESC(num_devices, "Number of zram devices");
 
 module_init(zram_init);
