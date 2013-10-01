@@ -51,8 +51,8 @@
 #define TOUCHKEY_LED_ENABLED	1
 
 // Yank555.lu : Add cleartext status settings for kernel / ROM handling h/w key LED
-#define TOUCHKEY_LED_ROM	0
-#define TOUCHKEY_LED_KERNEL	1
+#define TOUCHKEY_LED_ROM	1
+#define TOUCHKEY_LED_KERNEL	0
 
 // Yank555.lu : Add cleartext status settings for h/w key pressed
 #define TOUCHKEY_HW_TIMEDOUT	0
