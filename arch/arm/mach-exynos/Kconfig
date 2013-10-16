@@ -1840,16 +1840,9 @@ config CPU_FREQ_TETHERING
 	depends on QC_MODEM
 	default n
 
-config RQ_STATS
-  	bool "Enable Run queue statistics"
-  	default n
-  	help
-    	  Select this to enable scheduler rune queue statistic
-    	  collections
-
 config INTELLI_PLUG
 	bool "Enable intelli-plug cpu hotplug driver"
-	default y
+	default n
 	help
 	  Generic Intelli-plug cpu hotplug driver for ARM SOCs
 
