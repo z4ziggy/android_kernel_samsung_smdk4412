@@ -10,13 +10,17 @@ else
 	exit 1
 fi
 
-version=Devil-$TARGET-SAMSUNG-0.8.6_$(date +%Y%m%d)
+version=Devil-$TARGET-SAMSUNG4.3-0.41.0_$(date +%Y%m%d)
 
 if [ "$TARGET" = "i9300" ] ; then
 CUSTOM_PATH=i9300
+
 else
 CUSTOM_PATH=note
+
 fi
+
+
 
 if [ -e boot.img ]; then
 	rm boot.img
@@ -37,18 +41,16 @@ KERNEL_PATH=$PWD
 if [ "$(whoami)" == "dominik" ]; then
 	#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin"
 	#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-linaro-toolchain-4.8/bin"
-	TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.7.2/bin"
+	TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-toolchain-eabi-4.8-2013.09/bin"
+
 elif [ "$(whoami)" == "rollus" ]; then
         TOOLCHAIN_PATH="/home/rollus/android-toolchain-eabi/bin/"
 fi
 TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
+ROOTFS_PATH="$KERNEL_PATH/ramdisks/$TARGET-combo"
+MODULES="$KERNEL_PATH/ramdisks/modules"
 
 defconfig=samsung_"$TARGET"_defconfig
-
-if [ "$TARGET" = "i317" ] || [ "$TARGET" = "att" ] || [ "$TARGET" = "t889" ] || [ "$TARGET" = "tmo" ]; then
-TARGET=t0lte
-fi
-ROOTFS_PATH="$KERNEL_PATH/ramdisks/ramdisk-samsung-$TARGET"
 
 export KBUILD_BUILD_VERSION="$version"
 export KERNELDIR=$KERNEL_PATH
@@ -56,9 +58,11 @@ export KERNELDIR=$KERNEL_PATH
 export USE_SEC_FIPS_MODE=true
 
 # Set ramdisk files permissions
-chmod 750 $ROOTFS_PATH/init*
-chmod 644 $ROOTFS_PATH/ueventd*
-chmod 644 $ROOTFS_PATH/lpm.rc
+#chmod 750 $ROOTFS_PATH/init*
+#chmod 644 $ROOTFS_PATH/ueventd*
+#chmod 644 $ROOTFS_PATH/lpm.rc
+chmod 750 $ROOTFS_PATH/sbin/init*
+
 
 if [ "$2" = "clean" ]; then
 echo "Cleaning latest build"
@@ -73,9 +77,9 @@ make $defconfig
 
 make -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$TOOLCHAIN || exit -1
 # Copying and stripping kernel modules
-mkdir -p $ROOTFS_PATH/lib/modules
-find -name '*.ko' -exec cp -av {} $ROOTFS_PATH/lib/modules/ \;
-        for i in $ROOTFS_PATH/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
+mkdir -p $MODULES/lib/modules
+find -name '*.ko' -exec cp -av {} $MODULES/lib/modules/ \;
+        for i in $MODULES/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
 
 
 # Copy Kernel Image
@@ -83,8 +87,9 @@ rm -f $KERNEL_PATH/releasetools/$CUSTOM_PATH/tar/$KBUILD_BUILD_VERSION.tar
 rm -f $KERNEL_PATH/releasetools/$CUSTOM_PATH/zip/$KBUILD_BUILD_VERSION.zip
 cp -f $KERNEL_PATH/arch/arm/boot/zImage .
 
+
 # Create ramdisk.cpio archive
-cd $ROOTFS_PATH
+cd $MODULES
 find . | cpio -o -H newc > $KERNEL_PATH/ramdisk.cpio
 cd $KERNEL_PATH
 
@@ -93,8 +98,8 @@ cd $KERNEL_PATH
 
 # Copy boot.img
 cp boot.img $KERNEL_PATH/releasetools/$CUSTOM_PATH/zip
-cp boot.img $KERNEL_PATH/releasetools/$CUSTOM_PATH/tar
 
+cp boot.img $KERNEL_PATH/releasetools/$CUSTOM_PATH/tar
 
 # Creating flashable zip and tar
 cd $KERNEL_PATH
