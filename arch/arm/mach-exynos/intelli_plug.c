@@ -256,6 +256,7 @@ static int intelli_plug_cpufreq_policy_notifier_call(struct notifier_block *this
 			(!strnicmp(policy->governor->name, "hotplug", CPUFREQ_NAME_LEN)) ||
 			(!strnicmp(policy->governor->name, "zzmoove", CPUFREQ_NAME_LEN)) ||
 			(!strnicmp(policy->governor->name, "devilq", CPUFREQ_NAME_LEN)) ||
+			(!strnicmp(policy->governor->name, "performance", CPUFREQ_NAME_LEN)) ||
 			(!strnicmp(policy->governor->name, "lulzactiveq", CPUFREQ_NAME_LEN))
 			) 
 		{
