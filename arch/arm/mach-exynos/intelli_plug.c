@@ -166,6 +166,7 @@ static void __cpuinit intelli_plug_work_fn(struct work_struct *work)
 
 	if (intelli_plug_active == 1 && !own_hotplug) {
 		nr_run_stat = calculate_thread_stats();
+		pr_info("intelli_plug_active\n");
 		//pr_info("nr_run_stat: %u\n", nr_run_stat);
 		rq_stat = rq_info.rq_avg;
 
@@ -236,8 +237,8 @@ static void __cpuinit intelli_plug_work_fn(struct work_struct *work)
 					pr_err("Run Stat Error: Bad value %u\n", nr_run_stat);
 					break;
 			}
-		} //else
-			//pr_info("intelli_plug is suspened!\n");
+		} else
+			pr_info("intelli_plug is suspened!\n");
 	}
 	schedule_delayed_work_on(0, &intelli_plug_work,
 		msecs_to_jiffies(DEF_SAMPLING_MS));
@@ -254,6 +255,7 @@ static int intelli_plug_cpufreq_policy_notifier_call(struct notifier_block *this
 			(!strnicmp(policy->governor->name, "pegasusq", CPUFREQ_NAME_LEN)) ||
 			(!strnicmp(policy->governor->name, "hotplug", CPUFREQ_NAME_LEN)) ||
 			(!strnicmp(policy->governor->name, "zzmoove", CPUFREQ_NAME_LEN)) ||
+			(!strnicmp(policy->governor->name, "devilq", CPUFREQ_NAME_LEN)) ||
 			(!strnicmp(policy->governor->name, "lulzactiveq", CPUFREQ_NAME_LEN))
 			) 
 		{
