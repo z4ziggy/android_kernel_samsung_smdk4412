@@ -14,6 +14,9 @@ enum MODE {
 };
 
 enum SCENARIO {
+#if defined(CONFIG_CPU_EXYNOS4210)
+	CYANOGENMOD_MODE,
+#endif
 	UI_MODE,
 	VIDEO_MODE,
 	VIDEO_WARM_MODE,
@@ -83,11 +86,17 @@ enum NEGATIVE {
 
 struct mdnie_tunning_info {
 	char *name;
+#if defined(CONFIG_CPU_EXYNOS4210)
+	const
+#endif
 	unsigned short *seq;
 };
 
 struct mdnie_tunning_info_cabc {
 	char *name;
+#if defined(CONFIG_CPU_EXYNOS4210)
+	const
+#endif
 	unsigned short *seq;
 	unsigned int idx_lut;
 };
@@ -118,8 +127,13 @@ struct mdnie_info {
 };
 
 extern struct mdnie_info *g_mdnie;
+#if defined(CONFIG_CPU_EXYNOS4210)
+int mdnie_send_sequence(struct mdnie_info *mdnie, const unsigned short *seq);
+extern void set_mdnie_value(struct mdnie_info *mdnie, u8 force);
+#else
+int mdnie_send_sequence(struct mdnie_info *mdnie, unsigned short *seq);	
+#endif
 
-int mdnie_send_sequence(struct mdnie_info *mdnie, unsigned short *seq);
 #if defined(CONFIG_FB_MDNIE_PWM)
 extern void set_mdnie_pwm_value(struct mdnie_info *mdnie, int value);
 #endif
