@@ -107,7 +107,9 @@ static cpumask_t down_cpumask;
 static spinlock_t down_cpumask_lock;
 static struct mutex set_speed_lock;
 
+#ifndef CONFIG_CPU_EXYNOS4210
 extern bool touch_state_val;
+#endif
 /*
  * The minimum amount of time to spend at a frequency before we can step up.
  */
@@ -1728,9 +1730,10 @@ static int check_up(void)
 
 	if (online == num_possible_cpus())
 		return 0;
-
+#ifndef CONFIG_CPU_EXYNOS4210
 	if (online == 1 && touch_state_val)
 		return 1;
+#endif
 
 	if (dbs_tuners_ins.max_cpu_lock != 0
 		&& online >= dbs_tuners_ins.max_cpu_lock)
@@ -1796,9 +1799,10 @@ static int check_down(void)
 
 	if(early_suspended && online > dbs_tuners_ins.suspend_max_cpu && 			dbs_tuners_ins.suspend_max_cpu != 0)
 		return 1;
-	
+#ifndef CONFIG_CPU_EXYNOS4210
 	if (online < 3 && touch_state_val)
 		return 0;
+#endif
 
 	if (dbs_tuners_ins.max_cpu_lock != 0
 		&& online > dbs_tuners_ins.max_cpu_lock)

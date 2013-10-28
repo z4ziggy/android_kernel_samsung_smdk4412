@@ -556,12 +556,16 @@ static inline void rotation_booster_on(void)
 {
 	exynos_cpufreq_lock(DVFS_LOCK_ID_ROTATION_BOOSTER, L4);
 	exynos4_busfreq_lock(DVFS_LOCK_ID_ROTATION_BOOSTER, BUS_L0);
+#ifndef CONFIG_CPU_EXYNOS4210
 	exynos_gpufreq_lock();
+#endif
 }
 
 static inline void rotation_booster_off(void)
 {
+#ifndef CONFIG_CPU_EXYNOS4210
 	exynos_gpufreq_unlock();
+#endif
 	exynos4_busfreq_lock_free(DVFS_LOCK_ID_ROTATION_BOOSTER);
 	exynos_cpufreq_lock_free(DVFS_LOCK_ID_ROTATION_BOOSTER);
 }

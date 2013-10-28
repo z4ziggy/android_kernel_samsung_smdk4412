@@ -97,7 +97,7 @@ static _mali_osk_atomic_t voltage_lock_status;
 static mali_bool mali_vol_lock_flag = 0;
 #endif
 
-extern int  gpu_power_state;
+extern int gpu_power_state;
 static int bPoweroff;
 
 #ifdef CONFIG_REGULATOR

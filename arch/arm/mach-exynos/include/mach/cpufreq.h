@@ -14,6 +14,7 @@
  * This should be same with cpufreq_frequency_table
 */
 
+#define CPUFREQ_LEVEL_END		(L16 + 1)
 
 #define CPU_UV_MV_MAX 1500000
 #define CPU_UV_MV_MIN 600000
