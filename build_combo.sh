@@ -13,6 +13,9 @@ fi
 if [ "$TARGET" = "i9300" ] ; then
 CUSTOM_PATH=i9300
 MODE=DUAL
+elif [ "$TARGET" = "i9100" ] ; then
+CUSTOM_PATH=i9100
+MODE=CM
 else
 CUSTOM_PATH=note
 MODE=DUAL	
@@ -75,16 +78,23 @@ make $defconfig
 
 make -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$TOOLCHAIN || exit -1
 # Copying and stripping kernel modules
+if [ "$TARGET" != "i9100" ] ; then
 mkdir -p $MODULES/lib/modules
 find -name '*.ko' -exec cp -av {} $MODULES/lib/modules/ \;
         for i in $MODULES/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
+else
+MODULES=releasetools/$CUSTOM_PATH/zip/system/lib/modules
+mkdir -p $MODULES
+find -name '*.ko' -exec cp -av {} $MODULES \;
+        for i in $MODULES/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
+fi
 
 # Copy Kernel Image
 rm -f $KERNEL_PATH/releasetools/$CUSTOM_PATH/tar/$KBUILD_BUILD_VERSION.tar
 rm -f $KERNEL_PATH/releasetools/$CUSTOM_PATH/zip/$KBUILD_BUILD_VERSION.zip
 cp -f $KERNEL_PATH/arch/arm/boot/zImage .
 
-
+if [ "$TARGET" != "i9100" ] ; then
 # Create ramdisk.cpio archive
 cd $MODULES
 find . | cpio -o -H newc > $KERNEL_PATH/ramdisk.cpio
@@ -96,6 +106,10 @@ cd $KERNEL_PATH
 # Copy boot.img
 cp boot.img $KERNEL_PATH/releasetools/$CUSTOM_PATH/zip
 cp boot.img $KERNEL_PATH/releasetools/$CUSTOM_PATH/tar
+else
+cp zImage $KERNEL_PATH/releasetools/$CUSTOM_PATH/zip
+cp zImage $KERNEL_PATH/releasetools/$CUSTOM_PATH/tar
+fi
 
 # Creating flashable zip and tar
 cd $KERNEL_PATH
@@ -104,9 +118,12 @@ zip -0 -r $KBUILD_BUILD_VERSION.zip *
 mkdir -p $KERNEL_PATH/release
 mv *.zip $KERNEL_PATH/release
 cd ..
+
+if [ "$TARGET" != "i9100" ] ; then
 cd tar
 tar cf $KBUILD_BUILD_VERSION.tar boot.img && ls -lh $KBUILD_BUILD_VERSION.tar
 mv *.tar $KERNEL_PATH/release
+fi
 
 # Cleanup
 cd $KERNEL_PATH

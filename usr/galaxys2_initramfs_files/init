@@ -8,7 +8,7 @@ exec >>boot.txt 2>&1
 busybox rm init
 busybox mount -t proc proc /proc
 busybox mount -t sysfs sysfs /sys
-
+echo 7 > /proc/sys/kernel/rom_feature_set
 load_image=/stage1/boot.cpio
 
 if busybox grep -q bootmode=2 /proc/cmdline ; then
