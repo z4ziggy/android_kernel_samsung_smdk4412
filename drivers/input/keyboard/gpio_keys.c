@@ -471,16 +471,20 @@ static inline int64_t get_time_inms(void) {
 
 #define HOME_KEY_VAL	0xac
 extern void mdnie_toggle_negative(void);
-int homekey_trg_cnt = 4;
-int homekey_trg_ms = 300;
+extern void mdnie_toggle_nightmode(void);
 
-static int mdnie_shortcut_enabled = 1;
+static int mdnie_shortcut_enabled = 0;
 module_param_named(mdnie_shortcut_enabled, mdnie_shortcut_enabled, int, S_IRUGO | S_IWUSR | S_IWGRP);
+
+static int nightmode_shortcut_enabled = 1;
+module_param_named(nightmode_shortcut_enabled, nightmode_shortcut_enabled, int, S_IRUGO | S_IWUSR | S_IWGRP);
 
 static void gpio_keys_report_event(struct gpio_button_data *bdata)
 {
-	static int64_t homekey_lasttime = 0;
-	static int homekey_count = 0;
+	static int64_t time_homekey_pressed = 0;
+	static unsigned int delta = 0;
+	static unsigned int ctr_homekey_negative = 0;
+	static unsigned int ctr_homekey_nightmode = 0;
 	
 	struct gpio_keys_button *button = bdata->button;
 	struct input_dev *input = bdata->input;
@@ -539,26 +543,48 @@ static void gpio_keys_report_event(struct gpio_button_data *bdata)
 	}
 #endif
 
-	//mdnie negative effect toggle by gm
-	if((button->code == HOME_KEY_VAL) && mdnie_shortcut_enabled)
-	{
-		if(state) {
-			if (  get_time_inms() - homekey_lasttime < homekey_trg_ms) {
-				homekey_count++;
-				printk(KERN_INFO "repeated home_key action %d.\n", homekey_count);
+	// mdnie negative effect toggle by gm + added nightmode effect and dual toggle by ff
+	// 4x moderately quick presses = negative toggle
+	// 3x superquick presses = nightmode (red) toggle
+	if (button->code == HOME_KEY_VAL) {
+		if (state) {
+			// process toggle on button down-state
+			
+			// find out how many ms have passed
+			delta = get_time_inms() - time_homekey_pressed;
+			
+			if (delta < 150) {
+				// check for superquick presses to trigger nightmode
+				ctr_homekey_nightmode++;
+				printk(KERN_INFO "[keys] repeated home_key action: nightmode, count: %d.\n", ctr_homekey_nightmode);
+			} else if (delta < 400) {
+				// check for normalquick presses to trigger negative mode
+				ctr_homekey_negative++;
+				ctr_homekey_nightmode = 0;
+				printk(KERN_INFO "[keys] repeated home_key action: negative, count: %d.\n", ctr_homekey_negative);
+			} else {
+				// user didn't press it fast enough to register either, so reset.
+				ctr_homekey_nightmode = 0;
+				ctr_homekey_negative = 0;
+				time_homekey_pressed = 0;
 			}
-			else
-			{
-				homekey_count = 0;
-			}
-		}
-		else {
-			if(homekey_count>=homekey_trg_cnt - 1)
-			{
+            
+			if (ctr_homekey_negative >= 3 && mdnie_shortcut_enabled) {
+				// apply negative effect
 				mdnie_toggle_negative();
-				homekey_count = 0;
+				ctr_homekey_nightmode = 0;
+				ctr_homekey_negative = 0;
+				time_homekey_pressed = 0;
+			} else if (ctr_homekey_nightmode >= 2 && nightmode_shortcut_enabled) {
+				// apply nightmode effect
+				mdnie_toggle_nightmode();
+				ctr_homekey_nightmode = 0;
+				ctr_homekey_negative = 0;
+				time_homekey_pressed = 0;
 			}
-			homekey_lasttime = get_time_inms();
+		} else {
+			// record the time on button up-state
+			time_homekey_pressed = get_time_inms();
 		}
 	}
 
