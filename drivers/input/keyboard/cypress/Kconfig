@@ -14,3 +14,9 @@ config S2W
 	help
 	  Say y here to enable Slide to Wake
 	default n
+
+config TOUCHKEY_BLN
+	bool "Backlight notification"
+	help
+	  Say y here to enable BLN
+	default y

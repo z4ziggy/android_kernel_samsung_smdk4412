@@ -471,7 +471,9 @@ static inline int64_t get_time_inms(void) {
 
 #define HOME_KEY_VAL	0xac
 extern void mdnie_toggle_negative(void);
+#ifndef CONFIG_CPU_EXYNOS4210
 extern void mdnie_toggle_nightmode(void);
+#endif
 
 static int mdnie_shortcut_enabled = 0;
 module_param_named(mdnie_shortcut_enabled, mdnie_shortcut_enabled, int, S_IRUGO | S_IWUSR | S_IWGRP);
@@ -575,13 +577,16 @@ static void gpio_keys_report_event(struct gpio_button_data *bdata)
 				ctr_homekey_nightmode = 0;
 				ctr_homekey_negative = 0;
 				time_homekey_pressed = 0;
+#ifndef CONFIG_CPU_EXYNOS4210
 			} else if (ctr_homekey_nightmode >= 2 && nightmode_shortcut_enabled) {
 				// apply nightmode effect
 				mdnie_toggle_nightmode();
 				ctr_homekey_nightmode = 0;
 				ctr_homekey_negative = 0;
 				time_homekey_pressed = 0;
+#endif
 			}
+
 		} else {
 			// record the time on button up-state
 			time_homekey_pressed = get_time_inms();

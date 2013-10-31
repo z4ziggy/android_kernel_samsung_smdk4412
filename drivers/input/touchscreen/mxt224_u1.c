@@ -1271,6 +1271,10 @@ static unsigned int x_lo;
 static unsigned int x_hi;
 #endif
 
+#ifdef CONFIG_TOUCHSCREEN_ATMEL_MXT224_U1
+void (*mxt224_touch_cb)(void) = NULL;
+#endif
+
 static void report_input_data(struct mxt224_data *data)
 {
 	int i;
@@ -1430,10 +1434,15 @@ static void report_input_data(struct mxt224_data *data)
 				level);
 			copy_data->lock_status = 1;
 		}
+#ifdef CONFIG_TOUCHSCREEN_ATMEL_MXT224_U1
+                if (touch_is_pressed && mxt224_touch_cb != NULL) {
+                        (*mxt224_touch_cb)();
+                }
+#endif
 	}
 
     /* tell cypress keypad we had finger activity */
-    touchscreen_state_report(touch_is_pressed);
+    //touchscreen_state_report(touch_is_pressed);
 
 #ifdef CONFIG_S2W
 	if (s2w_enabled)
