@@ -14,10 +14,3 @@ config S2W
 	help
 	  Say y here to enable Slide to Wake
 	default n
-
-config TOUCHKEY_BLN
-  	bool "BLN Support"
-  	depends on KEYBOARD_CYPRESS_TOUCH
-  	help
-    	  BLN support
-	default y
