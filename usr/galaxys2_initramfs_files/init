@@ -6,37 +6,17 @@ busybox cd /
 busybox date >>boot.txt
 exec >>boot.txt 2>&1
 busybox rm init
-busybox mount -t rootfs -o remount,rw rootfs;
 busybox mount -t proc proc /proc
 busybox mount -t sysfs sysfs /sys
-busybox mount -t ext4 /dev/block/mmcblk0p9 /system
-
-CM102=0
-if busybox grep -q ro.build.version.release=4.3 /system/build.prop; then
-   CM102=1
-else
-busybox [ -f /system/framework/framework2.jar ] || CM101=1
-fi
-
-if [ "$CM102" == 1 ]; then
 echo 7 > /proc/sys/kernel/rom_feature_set
 load_image=/stage1/boot.cpio
-else
-echo 2 > /proc/sys/kernel/rom_feature_set
-load_image=/stage1/boot_sammy.cpio
-fi
-
 
 if busybox grep -q bootmode=2 /proc/cmdline ; then
-	# recovery boot
-	load_image=/stage1/recovery.cpio
+        # recovery boot
+        load_image=/stage1/recovery.cpio
 fi
 
 busybox cpio -i < ${load_image}
-
-if busybox grep -q sammy $load_image; then
-ln -s /system/lib/modules /lib/modules
-fi
 
 busybox umount /sys
 busybox umount /proc
