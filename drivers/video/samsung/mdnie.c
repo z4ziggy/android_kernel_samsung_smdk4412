@@ -209,11 +209,6 @@ void set_mdnie_value(struct mdnie_info *mdnie, u8 force)
 			color_tone_table[idx].name);
 
 		goto exit;
-	} else if (mdnie->scenario == CAMERA_MODE) {
-		mdnie_send_sequence(mdnie, camera_table[mdnie->outdoor].sequence);
-		dev_info(mdnie->dev, "%s\n", camera_table[mdnie->outdoor].name);
-
-		goto exit;
 	} else {
 		mdnie_send_sequence(mdnie, tuning_table[mdnie->cabc][mdnie->mode][mdnie->scenario].sequence);
 		dev_info(mdnie->dev, "mode=%d, scenario=%d, outdoor=%d, cabc=%d, %s\n",
@@ -224,10 +219,6 @@ void set_mdnie_value(struct mdnie_info *mdnie, u8 force)
 #if defined(CONFIG_TDMB) || defined(CONFIG_TARGET_LOCALE_NTT)
 etc:
 #endif
-	if (!IS_ERR_OR_NULL(etc_table[mdnie->cabc][mdnie->outdoor][mdnie->tone].sequence)) {
-		mdnie_send_sequence(mdnie, etc_table[mdnie->cabc][mdnie->outdoor][mdnie->tone].sequence);
-		dev_info(mdnie->dev, "%s\n", etc_table[mdnie->cabc][mdnie->outdoor][mdnie->tone].name);
-	}
 
 exit:
 	mutex_unlock(&mdnie->lock);
@@ -1011,25 +1002,31 @@ MDNIE_STORE(tune_dynamic_gallery);
 MDNIE_STORE(tune_dynamic_ui);
 MDNIE_STORE(tune_dynamic_video);
 MDNIE_STORE(tune_dynamic_vt);
+MDNIE_STORE(tune_dynamic_browser);
+MDNIE_STORE(tune_dynamic_ebook);
+
 MDNIE_STORE(tune_movie_gallery);
 MDNIE_STORE(tune_movie_ui);
 MDNIE_STORE(tune_movie_video);
 MDNIE_STORE(tune_movie_vt);
+MDNIE_STORE(tune_movie_browser);
+MDNIE_STORE(tune_movie_ebook);
+
 MDNIE_STORE(tune_standard_gallery);
 MDNIE_STORE(tune_standard_ui);
 MDNIE_STORE(tune_standard_video);
 MDNIE_STORE(tune_standard_vt);
+MDNIE_STORE(tune_standard_browser);
+MDNIE_STORE(tune_standard_ebook);
+
 MDNIE_STORE(tune_natural_gallery);
 MDNIE_STORE(tune_natural_ui);
 MDNIE_STORE(tune_natural_video);
 MDNIE_STORE(tune_natural_vt);
+MDNIE_STORE(tune_natural_browser);
+MDNIE_STORE(tune_natural_ebook);
+
 MDNIE_STORE(tune_camera);
-MDNIE_STORE(tune_camera_outdoor);
-MDNIE_STORE(tune_cold);
-MDNIE_STORE(tune_cold_outdoor);
-MDNIE_STORE(tune_normal_outdoor);
-MDNIE_STORE(tune_warm);
-MDNIE_STORE(tune_warm_outdoor);
 
 MDNIE_STORE(tune_negative);
 #ifdef CONFIG_FB_MDNIE_PWM
@@ -1046,25 +1043,31 @@ MDNIE_ATTR(tune_dynamic_gallery)
 MDNIE_ATTR(tune_dynamic_ui)
 MDNIE_ATTR(tune_dynamic_video)
 MDNIE_ATTR(tune_dynamic_vt)
+MDNIE_ATTR(tune_dynamic_browser)
+MDNIE_ATTR(tune_dynamic_ebook)
+
 MDNIE_ATTR(tune_movie_gallery)
 MDNIE_ATTR(tune_movie_ui)
 MDNIE_ATTR(tune_movie_video)
 MDNIE_ATTR(tune_movie_vt)
+MDNIE_ATTR(tune_movie_browser)
+MDNIE_ATTR(tune_movie_ebook)
+
 MDNIE_ATTR(tune_standard_gallery)
 MDNIE_ATTR(tune_standard_ui)
 MDNIE_ATTR(tune_standard_video)
 MDNIE_ATTR(tune_standard_vt)
+MDNIE_ATTR(tune_standard_browser)
+MDNIE_ATTR(tune_standard_ebook)
+
 MDNIE_ATTR(tune_natural_gallery)
 MDNIE_ATTR(tune_natural_ui)
 MDNIE_ATTR(tune_natural_video)
 MDNIE_ATTR(tune_natural_vt)
+MDNIE_ATTR(tune_natural_browser)
+MDNIE_ATTR(tune_natural_ebook)
+
 MDNIE_ATTR(tune_camera)
-MDNIE_ATTR(tune_camera_outdoor)
-MDNIE_ATTR(tune_cold)
-MDNIE_ATTR(tune_cold_outdoor)
-MDNIE_ATTR(tune_normal_outdoor)
-MDNIE_ATTR(tune_warm)
-MDNIE_ATTR(tune_warm_outdoor)
 
 MDNIE_ATTR(tune_negative)
 #ifdef CONFIG_FB_MDNIE_PWM
