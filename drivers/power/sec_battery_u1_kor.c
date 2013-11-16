@@ -415,6 +415,15 @@ static int sec_bat_get_property(struct power_supply *ps,
 			pr_info("batt test case : %d\n",
 					info->test_info.test_value);
 			val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
+		} else if (info->is_timeout_chgstop &&
+			info->charging_status == POWER_SUPPLY_STATUS_FULL &&
+			info->batt_soc != 100) {
+			/* new concept : in case of time-out charging stop,
+			Do not update FULL for UI except soc 100%,
+			Use same time-out value for first charing and
+			re-charging
+			*/
+			val->intval = POWER_SUPPLY_STATUS_CHARGING;
 		} else
 			val->intval = info->charging_status;
 		break;
@@ -438,7 +447,8 @@ static int sec_bat_get_property(struct power_supply *ps,
 			return -EINVAL;
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
-		if (info->charging_status == POWER_SUPPLY_STATUS_FULL) {
+		if (!info->is_timeout_chgstop &&
+			info->charging_status == POWER_SUPPLY_STATUS_FULL) {
 			val->intval = 100;
 			break;
 		}
@@ -2285,13 +2295,18 @@ static int sec_bat_resume(struct device *dev)
 {
 	struct sec_bat_info *info = dev_get_drvdata(dev);
 
+	queue_delayed_work(info->monitor_wqueue,
+		&info->measure_work, 0);
+
 	wake_lock(&info->monitor_wake_lock);
 	queue_work(info->monitor_wqueue, &info->monitor_work);
 
 	schedule_delayed_work(&info->polling_work,
-			      msecs_to_jiffies(info->polling_interval));
+		msecs_to_jiffies(info->polling_interval));
+	/*
 	schedule_delayed_work(&info->measure_work,
-			      msecs_to_jiffies(info->measure_interval));
+		msecs_to_jiffies(info->measure_interval));
+	*/
 
 	return 0;
 }

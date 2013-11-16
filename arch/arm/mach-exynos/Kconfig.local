@@ -184,6 +184,24 @@ config MACH_GC1_KOR_LGT
 endchoice
 
 choice
+	prompt "CAMERA2 WIFI KOR Target Carrier"
+	depends on MACH_GD2 && TARGET_LOCALE_KOR
+	default MACH_GD2_KOR_ANY
+
+config MACH_GD2_KOR_SKT
+	bool "SKT"
+
+config MACH_GD2_KOR_KT
+	bool "KT"
+
+config MACH_GD2_KOR_LGT
+	bool "LG U+"
+
+config MACH_GD2_KOR_ANY
+	bool "WIFI ANY"
+endchoice
+
+choice
 	prompt "S USA Target Carrier"
 	depends on MACH_GC1 && TARGET_LOCALE_USA
 	default MACH_GC1_USA_ATT
@@ -211,6 +229,9 @@ config MACH_P4NOTELTE_USA_TMO
 
 config MACH_P4NOTELTE_USA_SPR
         bool "P4NOTE LTE USA SPR"
+
+config MACH_P4NOTELTE_USA_USCC
+        bool "P4NOTE LTE USA USCC"
 
 config MACH_P4NOTELTE_USA_ANY
         bool "P4NOTE LTE USA ANY"
@@ -282,6 +303,29 @@ config MACH_BAFFIN_KOR_LGT
 
 config MACH_SUPERIOR_KOR_SKT
 	bool "SUPERIOR SKT"
+
+endchoice
+
+choice
+	prompt "KONA Note8 Target Carrier"
+	depends on MACH_KONA &&\
+	(TARGET_LOCALE_EUR || TARGET_LOCALE_USA || TARGET_LOCALE_KOR)
+	default MACH_KONA_EUR_OPEN
+
+config MACH_KONA_EUR_OPEN
+	bool "KONA Note8 EUR OPEN 3G"
+
+config MACH_KONA_EUR_WIFI
+	bool "KONA Note8 EUR wifi"
+
+config MACH_KONA_EUR_LTE
+	bool "KONA Note8 EUR LTE"
+
+config MACH_KONALTE_USA_ATT
+	bool "ATT"
+
+config MACH_KONA_KOR_WIFI
+	bool "KONA Note8 KOR ANY"
 endchoice
 
 menu "M0 CTC based models"

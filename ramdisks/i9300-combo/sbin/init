@@ -42,10 +42,7 @@ else
    $BB mount -t ext4 /dev/block/mmcblk0p9 /system
 fi
 
-$BB mount
-
-
-#move .secondrom folder back to the original location if cm10.1 moved it to a subfolder
+#move .secondrom folder back to the original location if android moved it to a subfolder
 if $BB [ -d /.secondrom/media/0/.secondrom ];then
   if $BB [ ! -d /.secondrom/media/.secondrom ];then
     $BB mkdir /.secondrom/media/.secondrom
@@ -54,14 +51,16 @@ if $BB [ -d /.secondrom/media/0/.secondrom ];then
   fi
 fi
 
-CM101=0
-SAMMY42=0
+CM11=0
+CM102=0
+SAMMY43=0
 
-if $BB grep -q ro.build.version.release=4.3 /system/build.prop; then
-   CM102=1
+if $BB grep -q ro.build.version.release=4.4 /system/build.prop; then
+   CM11=1
+elif $BB [ -f /system/framework/smartfaceservice.jar ]; then
+   SAMMY43=1
 else
-$BB [ -f /system/framework/framework2.jar ] || CM101=1
-$BB [ -f /system/framework/telephony-common.jar ] && SAMMY42=1
+   CM102=1
 fi
 
 if $BB [ ! -f /system/etc/init.d/11setprop ]; then
@@ -77,6 +76,17 @@ fi
 if [ "$CM102" == 1 ]; then
 echo "using cm-10.2 initramfs"
 $BB mv -f /roms/cm102/* /
+$BB cp -r -f /mali/* /system/
+$BB chown root:root /system/lib/egl/libEGL_mali.so
+$BB chown root:root /system/lib/egl/libGLESv1_CM_mali.so
+$BB chown root:root /system/lib/egl/libGLESv2_mali.so
+$BB chmod 644 /system/lib/egl/libEGL_mali.so
+$BB chmod 644 /system/lib/egl/libGLESv1_CM_mali.so
+$BB chmod 644 /system/lib/egl/libGLESv2_mali.so
+$BB chown root:root /system/lib/libMali.so
+$BB chown root:root /system/lib/libUMP.so
+$BB chmod 644 /system/lib/libMali.so
+$BB chmod 644 /system/lib/libUMP.so
    if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
   	# low power mode
  	echo 0 > /proc/sys/kernel/rom_feature_set
@@ -89,7 +99,7 @@ $BB mv -f /roms/cm102/* /
 
 	if [ "$SECONDARYBOOT" == "1" ];then
 	  echo "secondary boot"
-  	  $BB mv /init.smdk4x12.rc.2 /init.smdk4x12.rc
+  	  $BB mv /init.mount.rc2 /init.mount.rc
   	  $BB mv /fstab.smdk4x12.2 /fstab.smdk4x12
 
 	  $BB echo "#!/system/bin/sh" > /system/etc/init.d/10sd_mount
@@ -97,9 +107,9 @@ $BB mv -f /roms/cm102/* /
 	  $BB chmod a+x /system/etc/init.d/10sd_mount
 	fi
    fi
-elif [ "$CM101" == 1 ]; then
-echo "using cm-10.1 initramfs"
-$BB mv -f /roms/cm101/* /
+elif [ "$CM11" == 1 ]; then
+echo "using cm-11 initramfs"
+$BB mv -f /roms/cm11/* /
    if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
   	# low power mode
  	echo 0 > /proc/sys/kernel/rom_feature_set
@@ -112,7 +122,7 @@ $BB mv -f /roms/cm101/* /
 
 	if [ "$SECONDARYBOOT" == "1" ];then
 	  echo "secondary boot"
-  	  $BB mv /init.smdk4x12.rc.2 /init.smdk4x12.rc
+  	  $BB mv /init.mount.rc2 /init.mount.rc
   	  $BB mv /fstab.smdk4x12.2 /fstab.smdk4x12
 
 	  $BB echo "#!/system/bin/sh" > /system/etc/init.d/10sd_mount
@@ -121,8 +131,8 @@ $BB mv -f /roms/cm101/* /
 	fi
    fi
 else
-echo "using sammy 4.1 initramfs"
-$BB mv -f /roms/sammy41/* /
+echo "using sammy 4.3 initramfs"
+$BB mv -f /roms/sammy43/* /
    if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
   	# low power mode
  	echo 0 > /proc/sys/kernel/rom_feature_set
@@ -132,7 +142,7 @@ $BB mv -f /roms/sammy41/* /
 	echo 2 > /proc/sys/kernel/rom_feature_set
 	if [ "$SECONDARYBOOT" == "1" ];then
 	  echo "secondary boot"
-  	  $BB mv /init.smdk4x12.rc.2 /init.smdk4x12.rc
+  	  $BB mv /init.mount.rc2 /init.mount.rc
   	  $BB mv /fstab.smdk4x12.2 /fstab.smdk4x12
 	fi
    fi

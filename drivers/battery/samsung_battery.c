@@ -45,6 +45,9 @@
 #include <linux/stmpe811-adc.h>
 #endif
 #include <linux/delay.h>
+#ifdef CONFIG_FAST_BOOT
+#include <linux/fake_shut_down.h>
+#endif
 
 static char *supply_list[] = {
 	"battery",
@@ -66,9 +69,11 @@ static int battery_get_lpm_state(char *str)
 	return lpcharge;
 }
 __setup("lpcharge=", battery_get_lpm_state);
-#if defined(CONFIG_RTC_ALARM_BOOT)
 EXPORT_SYMBOL(lpcharge);
-#endif
+
+#if defined(CONFIG_MACH_KONA)		
+extern bool mhl_connected;
+#endif		
 
 /* Cable type from charger or adc */
 static int battery_get_cable(struct battery_info *info)
@@ -320,7 +325,9 @@ static int battery_get_curr_avg(struct battery_info *info)
 	if ((info->battery_soc <= PWROFF_SOC) &&
 		(info->battery_vcell < info->pdata->voltage_min) &&
 		(info->battery_v_diff < 0) &&
-		(info->input_current < info->pdata->chg_curr_ta)) {
+		((info->input_current < info->pdata->chg_curr_ta) &&
+		(info->input_current < info->pdata->in_curr_limit)) &&
+		(info->monitor_count >= 5)) {
 		pr_info("%s: soc(%d), vol(%d < %d), diff(%d), in_curr(%d)\n",
 					__func__, info->battery_soc,
 					(info->battery_vcell / 1000),
@@ -566,7 +573,6 @@ void battery_control_info(struct battery_info *info,
 						property, &value);
 #endif
 		break;
-
 	/* Control to fuelgauge */
 	case POWER_SUPPLY_PROP_CAPACITY:
 		info->psy_fuelgauge->set_property(info->psy_fuelgauge,
@@ -1121,6 +1127,21 @@ static void battery_charge_control(struct battery_info *info,
 
 	mutex_lock(&info->ops_lock);
 
+#if defined(CONFIG_MACH_GD2)
+	if (info->is_hdmi_attached) {
+		/* Update when current is high (and not KEEP_CURR, OFF_CURR) */
+		if (chg_curr > HDMI_CONTROL_CURR)
+			chg_curr = HDMI_CONTROL_CURR;
+
+		if (in_curr > HDMI_CONTROL_CURR)
+			in_curr = HDMI_CONTROL_CURR;
+
+		pr_info("%s, hdmi is attached => chg(%d), in(%d)\n",
+			__func__, chg_curr, in_curr);
+	} else
+		pr_debug("%s, hdmi is not attached\n", __func__);
+#endif
+
 	ktime = alarm_get_elapsed_realtime();
 	current_time = ktime_to_timespec(ktime);
 
@@ -1285,6 +1306,14 @@ static void battery_indicator_icon(struct battery_info *info)
 				POWER_SUPPLY_STATUS_CHARGING;
 		}
 
+
+#if defined(CONFIG_MACH_KONA)
+		if (info->cable_type == POWER_SUPPLY_TYPE_USB) {
+			info->charge_virt_state =
+				POWER_SUPPLY_STATUS_DISCHARGING;
+		}
+#endif
+#if 0
 		/* in case of fast charging with TA, update charge type */
 		if ((info->cable_type == POWER_SUPPLY_TYPE_MAINS) &&
 			(info->charge_type == POWER_SUPPLY_CHARGE_TYPE_FAST) &&
@@ -1292,7 +1321,7 @@ static void battery_indicator_icon(struct battery_info *info)
 			pr_debug("%s: slow charge state\n", __func__);
 			info->charge_type = POWER_SUPPLY_CHARGE_TYPE_SLOW;
 		}
-
+#endif
 		if (info->temper_state == true) {
 			info->charge_virt_state =
 				POWER_SUPPLY_STATUS_NOT_CHARGING;
@@ -1525,6 +1554,9 @@ static void battery_monitor_work(struct work_struct *work)
 {
 	struct battery_info *info = container_of(work, struct battery_info,
 						 monitor_work);
+#if defined(CONFIG_MACH_KONA)
+	union power_supply_propval value;
+#endif
 	int muic_cb_typ;
 #ifdef CONFIG_FAST_BOOT
 	bool low_batt_power_off = false;
@@ -1566,6 +1598,21 @@ static void battery_monitor_work(struct work_struct *work)
 		}
 	}
 
+#if defined(CONFIG_MACH_GD2)
+	else if (info->pdata->vf_det_src == VF_DET_CHARGER) {
+		/* ldo control due to hw configuration */
+		info->cable_type = battery_get_cable(info);
+
+		if (info->cable_type == POWER_SUPPLY_TYPE_BATTERY) {
+			if (info->adc_pwr_st)
+				battery_set_adc_power(info, 0);
+		} else {
+			if (!info->adc_pwr_st)
+				battery_set_adc_power(info, 1);
+		}
+	}
+#endif
+
 	/* If battery is not connected, clear flag for charge scenario */
 	if ((battery_vf_cond(info) == true) ||
 		(battery_health_cond(info) == true)) {
@@ -1592,6 +1639,18 @@ static void battery_monitor_work(struct work_struct *work)
 		}
 #endif
 	}
+#if defined(CONFIG_MACH_KONA)
+	/* Check F/G compensation status */
+	info->psy_fuelgauge->get_property(info->psy_fuelgauge,
+					  POWER_SUPPLY_PROP_COMPENSATION_3,
+					  &value);
+	info->is_comp_3 = value.intval;
+
+	info->psy_fuelgauge->get_property(info->psy_fuelgauge,
+					  POWER_SUPPLY_PROP_COMPENSATION_1,
+					  &value);
+	info->is_comp_1 = value.intval;
+#endif
 
 	/* Check battery state from charger and fuelgauge */
 	battery_update_info(info);
@@ -1644,7 +1703,7 @@ static void battery_monitor_work(struct work_struct *work)
 	}
 
 charge_ok:
-#if defined(CONFIG_MACH_GC1)
+#if defined(CONFIG_MACH_GC1) || defined(CONFIG_MACH_GD2)
 	pr_err("%s: Updated Cable State(%d)\n", __func__, info->cable_type);
 #endif
 	switch (info->cable_type) {
@@ -1665,6 +1724,12 @@ charge_ok:
 	case POWER_SUPPLY_TYPE_MAINS:
 		if (!info->pdata->suspend_chging)
 			wake_lock(&info->charge_wake_lock);
+#if defined(CONFIG_MACH_KONA)
+		if(mhl_connected==true)
+			battery_charge_control(info,info->pdata->chg_curr_mhl,
+				info->pdata->chg_curr_mhl);
+		else
+#endif
 		battery_charge_control(info, info->pdata->chg_curr_ta,
 						info->pdata->in_curr_limit);
 		break;
@@ -1806,9 +1871,14 @@ monitor_finish:
 	pr_debug("%s: state=%d, soc=%d, fake_shut_down=%d\n", __func__,
 		info->charge_virt_state, info->battery_soc, fake_shut_down);
 
-	if ((info->charge_virt_state == POWER_SUPPLY_STATUS_DISCHARGING)
-		&& (info->battery_soc == 0) && (fake_shut_down)) {
-		low_batt_power_off = true;
+	if (fake_shut_down) {
+		if ((info->charge_virt_state ==
+			POWER_SUPPLY_STATUS_DISCHARGING)
+			&& (info->battery_soc == 0))
+			low_batt_power_off = true;
+
+		pr_info("%s: fake_shut_down mode, skip updating status\n",
+			__func__);
 		goto skip_updating_status;
 	}
 #endif
@@ -1820,21 +1890,27 @@ monitor_finish:
 		info->prev_battery_health != info->battery_health ||
 		info->prev_charge_virt_state != info->charge_virt_state ||
 		info->prev_battery_soc != info->battery_soc) {
-		pr_info("%s: update wakelock(%d)\n", __func__, HZ);
-		wake_lock_timeout(&info->update_wake_lock, HZ);
+		pr_info("%s: update wakelock(%d)\n", __func__, 3 * HZ);
+		wake_lock_timeout(&info->update_wake_lock, 3 * HZ);
 	}
 	info->prev_cable_type = info->cable_type;
 	info->prev_battery_health = info->battery_health;
 	info->prev_charge_virt_state = info->charge_virt_state;
 	info->prev_battery_soc = info->battery_soc;
 
+#ifdef CONFIG_FAST_BOOT
+skip_updating_status:
+#endif
+
 	/* if cable is detached in lpm, guarantee some secs for playlpm */
 	if ((info->lpm_state == true) &&
 		(info->cable_type == POWER_SUPPLY_TYPE_BATTERY)) {
 		pr_info("%s: lpm with battery, maybe power off\n", __func__);
-		wake_lock_timeout(&info->monitor_wake_lock, 3 * HZ);
+		wake_lock_timeout(&info->monitor_wake_lock,
+					msecs_to_jiffies(10000));
 	} else {
-		wake_lock_timeout(&info->monitor_wake_lock, HZ / 4);
+		wake_lock_timeout(&info->monitor_wake_lock,
+					msecs_to_jiffies(1000));
 	}
 
 #ifdef CONFIG_FAST_BOOT
@@ -1843,7 +1919,16 @@ skip_updating_status:
 	mutex_unlock(&info->mon_lock);
 
 #ifdef CONFIG_FAST_BOOT
-	if (low_batt_power_off == true) {
+	if (((info->cable_type == POWER_SUPPLY_TYPE_MAINS)
+		|| (info->cable_type == POWER_SUPPLY_TYPE_USB)
+		|| (info->cable_type == POWER_SUPPLY_TYPE_USB_CDP))
+		&& (fake_shut_down) && (!info->dup_power_off)
+		&& (!info->suspend_check)) {
+		pr_info("%s: Resetting the device in fake shutdown mode"\
+			"(TA/USB inserted !!!)\n", __func__);
+		info->dup_power_off = true;
+		kernel_power_off();
+	} else if (low_batt_power_off == true) {
 		pr_info("%s: Power off the device in fake shutdown mode"\
 			"(soc==0, discharging !!!)\n", __func__);
 
@@ -1994,7 +2079,7 @@ static int samsung_battery_get_property(struct power_supply *ps,
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
 		val->intval = info->charge_virt_state;
-	#if defined(CONFIG_MACH_GC1)
+	#if defined(CONFIG_MACH_GC1) || defined(CONFIG_MACH_GD2)
 		info->psy_fuelgauge->set_property(info->psy_fuelgauge,
 			POWER_SUPPLY_PROP_RCOMP, val);
 	#endif
@@ -2124,6 +2209,11 @@ static int samsung_battery_set_property(struct power_supply *ps,
 		switch (psp) {
 		case POWER_SUPPLY_PROP_STATUS:
 			break;
+#if defined(CONFIG_MACH_GD2)
+		case POWER_SUPPLY_PROP_HDMI:
+			info->is_hdmi_attached = val->intval;
+			break;
+#endif
 		default:
 			return -EINVAL;
 		}
@@ -2146,13 +2236,23 @@ static int samsung_usb_get_property(struct power_supply *ps,
 	if (psp != POWER_SUPPLY_PROP_ONLINE)
 		return -EINVAL;
 
+	/* re-update indicator icon */
+	battery_indicator_icon(info);
+
 	/* Set enable=1 only if the USB charger is connected */
+#if defined(CONFIG_MACH_KONA)
+	val->intval = (((info->cable_type == POWER_SUPPLY_TYPE_USB) ||
+			(info->cable_type == POWER_SUPPLY_TYPE_USB_CDP) ||
+			((info->cable_type == POWER_SUPPLY_TYPE_DOCK) &&
+				(info->online_prop == ONLINE_PROP_USB))));
+#else
 	val->intval = ((info->charge_virt_state !=
 				POWER_SUPPLY_STATUS_DISCHARGING) &&
 			((info->cable_type == POWER_SUPPLY_TYPE_USB) ||
 			(info->cable_type == POWER_SUPPLY_TYPE_USB_CDP) ||
 			((info->cable_type == POWER_SUPPLY_TYPE_DOCK) &&
 				(info->online_prop == ONLINE_PROP_USB))));
+#endif
 
 	return 0;
 }
@@ -2166,6 +2266,9 @@ static int samsung_ac_get_property(struct power_supply *ps,
 
 	if (psp != POWER_SUPPLY_PROP_ONLINE)
 		return -EINVAL;
+
+	/* re-update indicator icon */
+	battery_indicator_icon(info);
 
 	/* Set enable=1 only if the AC charger is connected */
 	val->intval = ((info->charge_virt_state !=
@@ -2194,6 +2297,25 @@ static irqreturn_t battery_isr(int irq, void *data)
 
 	return IRQ_HANDLED;
 }
+
+#ifdef CONFIG_FAST_BOOT
+int fsd_notifier_call(struct notifier_block *nb,
+			unsigned long cmd, void *_param)
+{
+	struct battery_info *info = container_of(nb, struct battery_info,
+						 fsd_notifier_block);
+	ktime_t next;
+
+	pr_info("%s: fsd_check = %lu\n", __func__, cmd);
+	if (cmd == FAKE_SHUT_DOWN_CMD_OFF) {
+		next = ktime_set(0, 0);
+		alarm_cancel(&info->monitor_alarm);
+		alarm_start_range(&info->monitor_alarm, next, next);
+	}
+
+	return 0;
+}
+#endif
 
 static __devinit int samsung_battery_probe(struct platform_device *pdev)
 {
@@ -2228,12 +2350,14 @@ static __devinit int samsung_battery_probe(struct platform_device *pdev)
 	}
 	info->charger_name = info->pdata->charger_name;
 	info->fuelgauge_name = info->pdata->fuelgauge_name;
+
 #if defined(CONFIG_CHARGER_MAX8922_U1)
 	if (system_rev >= 2)
 		info->sub_charger_name = info->pdata->sub_charger_name;
 #endif
 	pr_info("%s: Charger name: %s\n", __func__, info->charger_name);
 	pr_info("%s: Fuelgauge name: %s\n", __func__, info->fuelgauge_name);
+
 #if defined(CONFIG_CHARGER_MAX8922_U1)
 	if (system_rev >= 2)
 		pr_info("%s: SubCharger name: %s\n", __func__,
@@ -2242,11 +2366,13 @@ static __devinit int samsung_battery_probe(struct platform_device *pdev)
 
 	info->psy_charger = power_supply_get_by_name(info->charger_name);
 	info->psy_fuelgauge = power_supply_get_by_name(info->fuelgauge_name);
+
 #if defined(CONFIG_CHARGER_MAX8922_U1)
 	if (system_rev >= 2)
 		info->psy_sub_charger =
 		    power_supply_get_by_name(info->sub_charger_name);
 #endif
+
 	if (!info->psy_charger || !info->psy_fuelgauge) {
 		pr_err("%s: fail to get power supply\n", __func__);
 		goto err_psy_get;
@@ -2273,12 +2399,19 @@ static __devinit int samsung_battery_probe(struct platform_device *pdev)
 		info->pdata->vf_det_src = VF_DET_CHARGER;
 #endif
 
+#if defined(CONFIG_MACH_ZEST)
+	if (system_rev < 1)
+		info->pdata->vf_det_src = VF_DET_CHARGER;
+#endif
+
 	pr_info("%s: VF detect source: %s\n", __func__,
 		vf_src_name[info->pdata->vf_det_src]);
 
+#if !defined(CONFIG_MACH_KONA)
 	/* recalculate recharge voltage, it depends on max voltage value */
 	info->pdata->recharge_voltage = info->pdata->voltage_max -
 							RECHG_DROP_VALUE;
+#endif
 	pr_info("%s: Recharge voltage: %d\n", __func__,
 				info->pdata->recharge_voltage);
 
@@ -2321,6 +2454,13 @@ static __devinit int samsung_battery_probe(struct platform_device *pdev)
 	info->led_state = BATT_LED_DISCHARGING;
 	info->monitor_count = 0;
 	info->slate_mode = 0;
+#ifdef CONFIG_FAST_BOOT
+	info->dup_power_off = false;
+	info->suspend_check = false;
+#endif
+#if defined(CONFIG_MACH_GD2)
+	info->is_hdmi_attached = false;
+#endif
 
 	/* LPM charging state */
 	info->lpm_state = lpcharge;
@@ -2342,6 +2482,11 @@ static __devinit int samsung_battery_probe(struct platform_device *pdev)
 	/* Init wq for battery */
 	INIT_WORK(&info->error_work, battery_error_work);
 	INIT_WORK(&info->monitor_work, battery_monitor_work);
+
+#ifdef CONFIG_FAST_BOOT
+	info->fsd_notifier_block.notifier_call = fsd_notifier_call;
+	register_fake_shut_down_notifier(&info->fsd_notifier_block);
+#endif
 
 	/* Init Power supply class */
 	info->psy_bat.name = "battery";
@@ -2495,6 +2640,10 @@ static int __devexit samsung_battery_remove(struct platform_device *pdev)
 	if (info->pdata->ctia_spec == true)
 		alarm_cancel(&info->event_alarm);
 
+#ifdef CONFIG_FAST_BOOT
+	unregister_fake_shut_down_notifier(&info->fsd_notifier_block);
+#endif
+
 	cancel_work_sync(&info->error_work);
 	cancel_work_sync(&info->monitor_work);
 
@@ -2553,12 +2702,14 @@ static void samsung_battery_complete(struct device *dev)
 	if (((info->cable_type == POWER_SUPPLY_TYPE_MAINS)
 		|| (info->cable_type == POWER_SUPPLY_TYPE_USB)
 		|| (info->cable_type == POWER_SUPPLY_TYPE_USB_CDP))
-		&& (fake_shut_down)) {
+		&& (fake_shut_down) && (!info->dup_power_off)) {
 		pr_info("%s: Resetting the device in fake shutdown mode"\
 			"(TA/USB inserted !!!)\n", __func__);
-
+		info->dup_power_off = true;
 		kernel_power_off();
 	}
+
+	info->suspend_check = false;
 #endif
 }
 
@@ -2570,6 +2721,11 @@ static int samsung_battery_suspend(struct device *dev)
 	info->is_suspended = true;
 
 	cancel_work_sync(&info->monitor_work);
+
+#ifdef CONFIG_FAST_BOOT
+	if (fake_shut_down)
+		info->suspend_check = true;
+#endif
 
 	return 0;
 }

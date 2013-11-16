@@ -136,7 +136,7 @@ struct s3cfb_extdsp_lcd {
 #include <mach/midas-tsp.h>
 #include <mach/regs-clock.h>
 
-#include <mach/midas-lcd.h>
+#include <mach/board-lcd.h>
 #include <mach/midas-sound.h>
 #if defined(CONFIG_SEC_DEV_JACK)
 #include <mach/p4note-jack.h>
@@ -617,7 +617,7 @@ static struct s3c_mshci_platdata exynos4_mshc_pdata __initdata = {
 	.max_width		= 8,
 	.host_caps		= MMC_CAP_8_BIT_DATA | MMC_CAP_1_8V_DDR |
 				  MMC_CAP_UHS_DDR50 | MMC_CAP_CMD23,
-	.host_caps2		= MMC_CAP2_PACKED_CMD,
+	.host_caps2		= MMC_CAP2_PACKED_CMD | MMC_CAP2_POWEROFF_NOTIFY,
 #elif defined(CONFIG_EXYNOS4_MSHC_8BIT)
 	.max_width		= 8,
 	.host_caps		= MMC_CAP_8_BIT_DATA | MMC_CAP_CMD23,
@@ -853,6 +853,12 @@ static int sec_bat_get_input_current(void)
 	else
 		return 0;
 
+}
+
+static void sec_bat_set_aicl_state(int state)
+{
+	if (smb_callbacks && smb_callbacks->set_aicl_state)
+		smb_callbacks->set_aicl_state(state);
 }
 
 #endif
@@ -1314,7 +1320,8 @@ static void  sec_charger_cb(int set_cable_type, int cable_sub_type)
 #endif
 
 /* Send charger state to USB. USB needs cable type what USB data or not */
-	if (gadget) {
+	usb_path = usb_switch_get_path();
+	if (gadget && (usb_path != USB_PATH_CP)) {
 		if (cable_state_to_usb)
 			usb_gadget_vbus_connect(gadget);
 		else
@@ -1339,42 +1346,54 @@ static struct sec_battery_platform_data sec_battery_platform = {
 	.get_charger_is_full = sec_bat_get_charger_is_full,
 	.get_aicl_current = sec_bat_get_aicl_current,
 	.get_input_current = sec_bat_get_input_current,
+	.set_aicl_state = sec_bat_set_aicl_state,
 #endif
 	.init_charger_gpio = sec_bat_gpio_init,
 	.inform_charger_connection = sec_charger_cb,
 
 #if defined(CONFIG_TARGET_LOCALE_USA)
 #if defined(CONFIG_MACH_P4NOTELTE_USA_SPR)
-	.temp_event_threshold = 70000,		/* 62c */
-	.temp_high_threshold = 48000,		/* 45c */
-	.temp_high_recovery = 43200,		/* 42c */
+	.temp_event_threshold = 62000,		/* 62c */
+	.temp_high_threshold = 50500,		/* 50.5c */
+	.temp_high_recovery = 43200,		/* 43.2c */
 	.temp_low_recovery = 0,			/* 0c */
 	.temp_low_threshold = -5000,		/* -5c */
 
-	.temp_lpm_high_threshold = 48000,	/* 45c */
-	.temp_lpm_high_recovery = 43500,	/* 42c */
-	.temp_lpm_low_recovery = 0,		/* 0c */
-	.temp_lpm_low_threshold = -3700,	/* -5c */
+	.temp_lpm_high_threshold = 48000,	/* 48c */
+	.temp_lpm_high_recovery = 43500,	/* 43.5c */
+	.temp_lpm_low_recovery = -2000,	/* -2c */
+	.temp_lpm_low_threshold = -3500,	/* -3.5c */
 #elif defined(CONFIG_MACH_P4NOTELTE_USA_VZW)
 	.temp_event_threshold = 62000,		/* 62c */
-	.temp_high_threshold = 45000,		/* 45c */
-	.temp_high_recovery = 42000,		/* 42c */
+	.temp_high_threshold = 49000,		/* 45c */
+	.temp_high_recovery = 46000,		/* 42c */
 	.temp_low_recovery = 0,			/* 0c */
 	.temp_low_threshold = -5000,		/* -5c */
 
-	.temp_lpm_high_threshold = 45000,	/* 45c */
-	.temp_lpm_high_recovery = 42000,	/* 42c */
+	.temp_lpm_high_threshold = 48000,	/* 48c */
+	.temp_lpm_high_recovery = 44000,	/* 44c */
+	.temp_lpm_low_recovery = 0,		/* 0c */
+	.temp_lpm_low_threshold = -5000,	/* -5c */
+#elif defined(CONFIG_MACH_P4NOTELTE_USA_TMO)
+	.temp_event_threshold = 62000,		/* 62c */
+	.temp_high_threshold = 49000,		/* 45c */
+	.temp_high_recovery = 46000,		/* 42c */
+	.temp_low_recovery = 0,			/* 0c */
+	.temp_low_threshold = -5000,		/* -5c */
+
+	.temp_lpm_high_threshold = 48000,	/* 48c */
+	.temp_lpm_high_recovery = 44000,	/* 44c */
 	.temp_lpm_low_recovery = 0,		/* 0c */
 	.temp_lpm_low_threshold = -5000,	/* -5c */
 #else
-	.temp_event_threshold = 62000,          /* 62c */
-	.temp_high_threshold = 62000,		/* 62c */
-	.temp_high_recovery = 42000,		/* 42c */
+	.temp_event_threshold = 61000,          /* 61c */
+	.temp_high_threshold = 63000,		/* 63c */
+	.temp_high_recovery = 43000,		/* 43c */
 	.temp_low_recovery = 0,			/* 0c */
 	.temp_low_threshold = -5000,		/* -5c */
 
-	.temp_lpm_high_threshold = 62000,	/* 62c */
-	.temp_lpm_high_recovery = 42000,	/* 42c */
+	.temp_lpm_high_threshold = 48000,	/* 48c */
+	.temp_lpm_high_recovery = 44000,	/* 44c */
 	.temp_lpm_low_recovery = 0,		/* 0c */
 	.temp_lpm_low_threshold = -5000,	/* -5c */
 #endif
@@ -1400,8 +1419,9 @@ static struct sec_battery_platform_data sec_battery_platform = {
 #endif
 	.recharge_voltage = 4150,	/*4.15V */
 
-	.charge_duration = 10*60*60,	/* 10 hour */
-	.recharge_duration = 1.5*60*60,	/* 1.5 hour */
+	.charge_duration = 10 * 60 * 60,	/* 10 hour */
+	.recharge_duration = 1.5 * 60 * 60,	/* 1.5 hour */
+
 	.check_lp_charging_boot = check_bootmode,
 	.check_jig_status = check_jig_on
 };
@@ -1559,28 +1579,14 @@ static int noti_sec_univ_kbd_dock(unsigned int code)
 static void check_uart_path(bool en)
 {
 	int gpio_uart_sel;
-#ifdef CONFIG_MACH_P8LTE
-	int gpio_uart_sel2;
-
-	gpio_uart_sel = GPIO_UART_SEL1;
-	gpio_uart_sel2 = GPIO_UART_SEL2;
-	if (en)
-		gpio_direction_output(gpio_uart_sel2, 1);
-	else
-		gpio_direction_output(gpio_uart_sel2, 0);
-	printk(KERN_DEBUG "[Keyboard] uart_sel2 : %d\n",
-		gpio_get_value(gpio_uart_sel2));
-#else
 #if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
 	int gpio_uart_sel2;
-	gpio_uart_sel = GPIO_UART_SEL;
-	gpio_uart_sel2 = GPIO_UART_SEL2;
-#else
-	gpio_uart_sel = GPIO_UART_SEL;
-#endif
-#endif
+#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
 
+	gpio_uart_sel = GPIO_UART_SEL;
 #if (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2)
+	gpio_uart_sel2 = GPIO_UART_SEL2;
+
 	if (en) {
 		gpio_direction_output(gpio_uart_sel, 1);
 		gpio_direction_output(gpio_uart_sel2, 1);
@@ -1590,7 +1596,7 @@ static void check_uart_path(bool en)
 		gpio_direction_output(gpio_uart_sel2, 0);
 		printk(KERN_DEBUG "[Keyboard] uart_sel : 0, 0\n");
 	}
-#else
+#else /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH != 2) */
 	if (en)
 		gpio_direction_output(gpio_uart_sel, 1);
 	else
@@ -1598,7 +1604,12 @@ static void check_uart_path(bool en)
 
 	printk(KERN_DEBUG "[Keyboard] uart_sel : %d\n",
 		gpio_get_value(gpio_uart_sel));
-#endif
+#endif /* (CONFIG_SAMSUNG_ANALOG_UART_SWITCH == 2) */
+}
+
+static void sec_30pin_register_cb(struct sec_30pin_callbacks *cb)
+{
+	s30pin_callbacks = cb;
 }
 
 static void sec_30pin_register_cb(struct sec_30pin_callbacks *cb)
@@ -1711,22 +1722,6 @@ static struct fimg2d_platdata fimg2d_data __initdata = {
 };
 #endif
 
-#ifdef CONFIG_EXYNOS_C2C
-struct exynos_c2c_platdata smdk4212_c2c_pdata = {
-	.setup_gpio	= NULL,
-	.shdmem_addr	= C2C_SHAREDMEM_BASE,
-	.shdmem_size	= C2C_MEMSIZE_64,
-	.ap_sscm_addr	= NULL,
-	.cp_sscm_addr	= NULL,
-	.rx_width	= C2C_BUSWIDTH_16,
-	.tx_width	= C2C_BUSWIDTH_16,
-	.clk_opp100	= 400,
-	.clk_opp50	= 266,
-	.clk_opp25	= 0,
-	.default_opp_mode	= C2C_OPP50,
-	.get_c2c_state	= NULL,
-};
-#endif
 /* BUSFREQ to control memory/bus */
 static struct device_domain busfreq;
 
@@ -2117,9 +2112,6 @@ static struct platform_device *midas_devices[] __initdata = {
 #ifndef CONFIG_SND_SOC_SAMSUNG_USE_DMA_WRAPPER
 	&samsung_asoc_idma,
 #endif
-#ifdef CONFIG_EXYNOS_C2C
-	&exynos_device_c2c,
-#endif
 #if defined(CONFIG_S3C64XX_DEV_SPI)
 #if defined(CONFIG_VIDEO_S5C73M3_SPI)
 	&exynos_device_spi1,
@@ -2220,6 +2212,16 @@ static struct s5p_platform_cec hdmi_cec_data __initdata = {
 static void __init exynos4_reserve_mem(void)
 {
 	static struct cma_region regions[] = {
+#ifdef CONFIG_EXYNOS_C2C
+		{
+			.name = "c2c_shdmem",
+			.size = C2C_SHAREDMEM_SIZE,
+			{
+				.alignment = C2C_SHAREDMEM_SIZE,
+			},
+			.start = 0
+		},
+#endif
 #ifdef CONFIG_VIDEO_EXYNOS_FIMC_IS
 		{
 			.name = "fimc_is",
@@ -2372,7 +2374,7 @@ static void __init exynos4_reserve_mem(void)
 #ifdef CONFIG_EXYNOS_C2C
 		"samsung-c2c=c2c_shdmem;"
 #endif
-		"s3cfb.0=fimd;exynos4-fb.0=fimd;"
+		"s3cfb.0=fimd;exynos4-fb.0=fimd;samsung-pd.1=fimd;"
 		"s3c-fimc.0=fimc0;s3c-fimc.1=fimc1;s3c-fimc.2=fimc2;s3c-fimc.3=fimc3;"
 		"exynos4210-fimc.0=fimc0;exynos4210-fimc.1=fimc1;exynos4210-fimc.2=fimc2;exynos4210-fimc.3=fimc3;"
 #ifdef CONFIG_ION_EXYNOS
@@ -2736,9 +2738,6 @@ static void __init midas_machine_init(void)
 #ifdef CONFIG_VIDEO_FIMG2D
 	s5p_fimg2d_set_platdata(&fimg2d_data);
 #endif
-#ifdef CONFIG_EXYNOS_C2C
-	exynos_c2c_set_platdata(&smdk4212_c2c_pdata);
-#endif
 
 	brcm_wlan_init();
 
@@ -2892,24 +2891,6 @@ static void __init midas_machine_init(void)
 /* IR_LED */
 }
 
-#ifdef CONFIG_EXYNOS_C2C
-static void __init exynos_c2c_reserve(void)
-{
-	static struct cma_region region = {
-			.name = "c2c_shdmem",
-			.size = 64 * SZ_1M,
-			{ .alignment	= 64 * SZ_1M },
-			.start = C2C_SHAREDMEM_BASE
-	};
-
-	BUG_ON(cma_early_region_register(&region));
-	BUG_ON(cma_early_region_reserve(&region));
-
-	pr_info("%s %10s %8x %8x\n", __func__,
-		region.name, region.start, region.size);
-}
-#endif
-
 static void __init exynos_init_reserve(void)
 {
 	sec_debug_magic_init();
@@ -2921,9 +2902,6 @@ MACHINE_START(SMDK4412, "SMDK4x12")
 	.map_io		= midas_map_io,
 	.init_machine	= midas_machine_init,
 	.timer		= &exynos4_timer,
-#ifdef CONFIG_EXYNOS_C2C
-	.reserve	= &exynos_c2c_reserve,
-#endif
 	.init_early	= &exynos_init_reserve,
 MACHINE_END
 
@@ -2933,8 +2911,5 @@ MACHINE_START(SMDK4212, "SMDK4x12")
 	.map_io		= midas_map_io,
 	.init_machine	= midas_machine_init,
 	.timer		= &exynos4_timer,
-#ifdef CONFIG_EXYNOS_C2C
-	.reserve	= &exynos_c2c_reserve,
-#endif
 	.init_early	= &exynos_init_reserve,
 MACHINE_END

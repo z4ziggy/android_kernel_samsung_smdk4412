@@ -18,8 +18,8 @@
 #include <linux/wakelock.h>
 #include <linux/host_notify.h>
 
-#if defined(CONFIG_HAS_EARLYSUSPEND) && defined(CONFIG_FAST_BOOT)
-#include <linux/earlysuspend.h>
+#if defined(CONFIG_FAST_BOOT)
+#include <linux/fake_shut_down.h>
 #endif
 
 struct  host_notifier_info {
@@ -30,13 +30,12 @@ struct  host_notifier_info {
 	wait_queue_head_t	delay_wait;
 	int	thread_remove;
 	int currentlimit_irq;
+#if defined(CONFIG_FAST_BOOT)
+	struct notifier_block fsd_notifier_block;
+#endif
 };
 
 static struct host_notifier_info ninfo;
-
-#if defined(CONFIG_HAS_EARLYSUSPEND) && defined(CONFIG_FAST_BOOT)
-static struct early_suspend early_suspend;
-#endif
 
 static int currentlimit_thread(void *data)
 {
@@ -116,8 +115,8 @@ static int stop_usbhostd_thread(void)
 
 	return 0;
 }
-#if defined(CONFIG_HAS_EARLYSUSPEND) && defined(CONFIG_FAST_BOOT)
-static int start_usbhostd_wakelock(void)
+
+int start_usbhostd_wakelock(void)
 {
 	pr_info("host_notifier: start usbhostd wakelock\n");
 	wake_lock(&ninfo.wlock);
@@ -125,16 +124,15 @@ static int start_usbhostd_wakelock(void)
 	return 0;
 }
 
-static int stop_usbhostd_wakelock(void)
+int stop_usbhostd_wakelock(void)
 {
 	pr_info("host_notifier: stop usbhostd wakelock\n");
 	wake_unlock(&ninfo.wlock);
 
 	return 0;
 }
-#endif
 
-#ifdef CONFIG_MACH_P4NOTE
+#if defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_SP7160LTE) || defined(CONFIG_MACH_KONA)
 void host_notifier_enable_irq(void)
 {
 	pr_info("host_notifier: %s\n", __func__);
@@ -150,7 +148,7 @@ void host_notifier_disable_irq(void)
 static int start_usbhostd_notify(void)
 {
 	pr_info("host_notifier: start usbhostd notify\n");
-#ifdef CONFIG_MACH_P4NOTE
+#if defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_SP7160LTE) || defined(CONFIG_MACH_KONA)
 	host_notifier_enable_irq();
 #endif
 
@@ -163,7 +161,7 @@ static int start_usbhostd_notify(void)
 static int stop_usbhostd_notify(void)
 {
 	pr_info("host_notifier: stop usbhostd notify\n");
-#ifdef CONFIG_MACH_P4NOTE
+#if defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_SP7160LTE) || defined(CONFIG_MACH_KONA)
 	host_notifier_disable_irq();
 #endif
 
@@ -176,7 +174,7 @@ static int stop_usbhostd_notify(void)
 static void host_notifier_booster(int enable)
 {
 	pr_info("host_notifier: booster %s\n", enable ? "ON" : "OFF");
-#ifdef CONFIG_MACH_P4NOTE
+#if defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_SP7160LTE) || defined(CONFIG_MACH_KONA)
 	if (enable)
 		host_notifier_enable_irq();
 	else
@@ -231,7 +229,7 @@ static int currentlimit_irq_init(struct host_notifier_info *hostinfo)
 			"overcurrent_detect", hostinfo);
 	if (ret)
 		pr_info("host_notifier: %s return : %d\n", __func__, ret);
-#ifdef CONFIG_MACH_P4NOTE
+#if defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_SP7160LTE) || defined(CONFIG_MACH_KONA)
 	host_notifier_disable_irq();
 #endif
 
@@ -251,28 +249,27 @@ static void currentlimit_irq_work(struct work_struct *work)
 	return;
 }
 
-#if defined(CONFIG_HAS_EARLYSUSPEND) && defined(CONFIG_FAST_BOOT)
+#if defined(CONFIG_FAST_BOOT)
 static bool restart_hostd;
-static void host_notifier_early_suspend(struct early_suspend *h)
+static int fsd_host_notifier_call(struct notifier_block *nb,
+		unsigned long cmd, void *_param)
 {
-	if (fake_shut_down) {
+	if (cmd == FAKE_SHUT_DOWN_CMD_ON) {
 		pr_info("%s: fake shut down ", __func__);
 		host_notifier_booster(0);
 		stop_usbhostd_wakelock();
 		restart_hostd = true;
-	}
-}
-
-static void host_notifier_late_resume(struct early_suspend *h)
-{
-	if (restart_hostd) {
-		pr_info("%s: fake shut down ", __func__);
-		restart_hostd = false;
-		if (ninfo.pdata->is_host_working) {
-			host_notifier_booster(1);
-			start_usbhostd_wakelock();
+	} else {
+		if (restart_hostd) {
+			pr_info("%s: fake shut down ", __func__);
+			restart_hostd = false;
+			if (ninfo.pdata->is_host_working) {
+				host_notifier_booster(1);
+				start_usbhostd_wakelock();
+			}
 		}
 	}
+	return 0;
 }
 #endif
 
@@ -321,11 +318,9 @@ static int host_notifier_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-#if defined(CONFIG_HAS_EARLYSUSPEND) && defined(CONFIG_FAST_BOOT)
-	early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB - 1;
-	early_suspend.suspend = host_notifier_early_suspend;
-	early_suspend.resume = host_notifier_late_resume;
-	register_early_suspend(&early_suspend);
+#if defined(CONFIG_FAST_BOOT)
+	ninfo.fsd_notifier_block.notifier_call = fsd_host_notifier_call;
+	register_fake_shut_down_notifier(&ninfo.fsd_notifier_block);
 #endif
 	wake_lock_init(&ninfo.wlock, WAKE_LOCK_SUSPEND, "hostd");
 
@@ -334,8 +329,8 @@ static int host_notifier_probe(struct platform_device *pdev)
 
 static int host_notifier_remove(struct platform_device *pdev)
 {
-#if defined(CONFIG_HAS_EARLYSUSPEND) && defined(CONFIG_FAST_BOOT)
-	unregister_early_suspend(&early_suspend);
+#if defined(CONFIG_FAST_BOOT)
+	unregister_fake_shut_down_notifier(&ninfo.fsd_notifier_block);
 #endif
 	/* gpio_free(ninfo.pdata->gpio); */
 	host_notify_dev_unregister(&ninfo.pdata->ndev);

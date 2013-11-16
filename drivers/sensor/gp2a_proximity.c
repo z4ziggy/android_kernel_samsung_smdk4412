@@ -63,8 +63,11 @@ fmt, __func__ , __LINE__, ## x)
 #define CALIBRATION_FILE_PATH	"/efs/prox_cal"
 #endif
 #endif
+#if defined(CONFIG_MACH_KONA_SENSOR)
+#define DEFAULT_THRESHOLD_DIFF	2
+#else
 #define DEFAULT_THRESHOLD_DIFF	1
-
+#endif
 #define PROX_READ_NUM	40
 
 #define PS_LOW_THD_L		0x08
@@ -72,6 +75,10 @@ fmt, __func__ , __LINE__, ## x)
 #define PS_HIGH_THD_L		0x0A
 #define PS_HIGH_THD_H		0x0B
 
+#if defined(CONFIG_MACH_KONA_SENSOR)
+#define XTALK	8
+#define THDL	10
+#endif
 /* global var */
 static struct i2c_driver opt_i2c_driver;
 static struct i2c_client *opt_i2c_client;
@@ -90,7 +97,6 @@ struct gp2a_data {
 	struct hrtimer prox_timer;
 	struct workqueue_struct *prox_wq;
 	struct work_struct work_prox;
-	int enabled;
 	int proximity_data;
 	int irq;
 	int average[3];	/*for proximity adc average */
@@ -117,9 +123,17 @@ static u8 gp2a_original_image_030a[COL][2] = {
 	/*	{0x05 , 0x00}, */
 	/*	{0x06 , 0xFF}, */
 	/*	{0x07 , 0xFF}, */
-	{0x08, 0x09},		/*PS mode LTH(Loff):  (??mm) */
+#if defined(CONFIG_MACH_KONA_SENSOR)
+	{0x08, 0x08},	/*PS mode LTH(Loff):  (??mm) */
+#else
+	{0x08, 0x09},	/*PS mode LTH(Loff):  (??mm) */
+#endif
 	{0x09, 0x00},		/*PS mode LTH(Loff) : */
-	{0x0A, 0x0A},		/*PS mode HTH(Lon) : (??mm) */
+#if defined(CONFIG_MACH_KONA_SENSOR)
+	{0x0A, 0x0A},	/*PS mode HTH(Lon) : (??mm) */
+#else
+	{0x0A, 0x0A},	/*PS mode HTH(Lon) : (??mm) */
+#endif
 	{0x0B, 0x00},		/* PS mode HTH(Lon) : */
 	/* {0x13 , 0x08}, by sharp for internal calculation (type:0) */
 	/*alternating mode (PS+ALS), TYPE=1
@@ -157,14 +171,15 @@ static int proximity_open_calibration(struct gp2a_data *data);
 
 int is_gp2a030a(void)
 {
-#if defined(CONFIG_MACH_C1) || \
-	defined(CONFIG_MACH_M0) || \
-	defined(CONFIG_MACH_GRANDE) || \
+#if defined(CONFIG_MACH_GRANDE) || \
 	defined(CONFIG_MACH_IRON)
 	return (system_rev != 0 && system_rev != 3);
 #endif
-#if defined(CONFIG_MACH_M3) || \
-	defined(CONFIG_MACH_BAFFIN)
+#if defined(CONFIG_MACH_M3_USA_TMO) || \
+	defined(CONFIG_MACH_BAFFIN) || \
+	defined(CONFIG_MACH_KONA_SENSOR) ||\
+	defined(CONFIG_MACH_TAB3) ||\
+	defined(CONFIG_MACH_GC2PD)
 	return 1;
 #endif
 #if defined(CONFIG_MACH_REDWOOD)
@@ -175,18 +190,22 @@ int is_gp2a030a(void)
 }
 
 static int gp2a_update_threshold(struct gp2a_data *data,
-	u8 (*selected_image)[2], unsigned long new_threshold, bool update_reg)
+	u8 (*selected_image)[2], u8 new_threshold, bool update_reg)
 {
 	int i, err = 0;
 	u8 set_value;
 
-	pr_info("%s, new = 0x%lx, thresh_diff = %d\n", __func__,
+	pr_info("%s, new = 0x%x, thresh_diff = %d\n", __func__,
 		new_threshold, data->thresh_diff);
 	for (i = 0; i < COL; i++) {
 		switch (selected_image[i][0]) {
 		case PS_LOW_THD_L:
 			/*PS mode LTH(Loff) for low 8bit*/
+#if defined(CONFIG_MACH_KONA_SENSOR)
+			set_value = (new_threshold-data->thresh_diff) & 0x00FF;
+#else
 			set_value = new_threshold & 0x00FF;
+#endif
 			break;
 
 		case PS_LOW_THD_H:
@@ -196,7 +215,11 @@ static int gp2a_update_threshold(struct gp2a_data *data,
 
 		case PS_HIGH_THD_L:
 			/*PS mode HTH(Lon) for low 8bit*/
+#if defined(CONFIG_MACH_KONA_SENSOR)
+			set_value = (new_threshold) & 0x00FF;
+#else
 			set_value = (new_threshold+data->thresh_diff) & 0x00FF;
+#endif
 			break;
 
 		case PS_HIGH_THD_H:
@@ -216,8 +239,9 @@ static int gp2a_update_threshold(struct gp2a_data *data,
 			pr_err("%s : setting error i = %d, err=%d\n",
 			 __func__, i, err);
 			return err;
-		} else
+		} else {
 			selected_image[i][1] = set_value;
+		}
 	}
 
 	return err;
@@ -228,10 +252,9 @@ static ssize_t
 proximity_enable_show(struct device *dev,
 		      struct device_attribute *attr, char *buf)
 {
-	struct gp2a_data *data = dev_get_drvdata(dev);
 	int enabled;
 
-	enabled = data->enabled;
+	enabled = gp2a_enabled & PROXIMITY_ENABLED;
 
 	return sprintf(buf, "%d\n", enabled);
 }
@@ -256,15 +279,45 @@ proximity_enable_store(struct device *dev,
 
 	gprintk("value = %d\n", value);
 
-	if (data->enabled && !value) {	/* Proximity power off */
+	if ((gp2a_enabled & PROXIMITY_ENABLED) && !value) { /* proximity disable */
 		disable_irq(data->irq);
 
-		proximity_enable = value;
+		gp2a_enabled &= ~PROXIMITY_ENABLED;
 		proximity_onoff(0);
 		disable_irq_wake(data->irq);
-		data->pdata->gp2a_led_on(false);
-	} else if (!data->enabled && value) {	/* proximity power on */
-		data->pdata->gp2a_led_on(true);
+
+		/* proximity power off */
+		if (data->pdata->gp2a_led_on
+			&& (gp2a_power_state & PROXIMITY_ENABLED)) {
+			data->pdata->gp2a_led_on(false);
+			gp2a_power_state &= ~PROXIMITY_ENABLED;
+		}
+
+#ifdef CONFIG_SENSORS_GP2A_VDD_CONTROL
+	        /* gp2a vdd power off */
+		if (data->pdata->gp2a_vdd_on
+			&& !(gp2a_enabled & LIGHT_ENABLED)) {
+			data->pdata->gp2a_vdd_on(false);
+			gp2a_power_state &= ~LIGHT_ENABLED;
+		}
+#endif
+	} else if (!(gp2a_enabled & PROXIMITY_ENABLED) && value) { /* proximity enable */
+		/* proximity power on */
+		if (data->pdata->gp2a_led_on
+			&& !(gp2a_power_state & PROXIMITY_ENABLED)) {
+			data->pdata->gp2a_led_on(true);
+			gp2a_power_state |= PROXIMITY_ENABLED;
+		}
+
+#ifdef CONFIG_SENSORS_GP2A_VDD_CONTROL
+		/* gp2a vdd power on */
+		if (data->pdata->gp2a_vdd_on
+			&& !(gp2a_power_state & LIGHT_ENABLED)) {
+			data->pdata->gp2a_vdd_on(true);
+			gp2a_power_state |= LIGHT_ENABLED;
+		}
+#endif
+
 		/*msleep(1); */
 #ifdef GP2A_CALIBRATION
 		/* open cancelation data */
@@ -273,10 +326,9 @@ proximity_enable_store(struct device *dev,
 			pr_err("%s: proximity_open_calibration() failed\n",
 				__func__);
 #endif
-		proximity_enable = value;
+		gp2a_enabled |= PROXIMITY_ENABLED;
 		proximity_onoff(1);
 		enable_irq_wake(data->irq);
-		msleep(160);
 
 		input = gpio_get_value(data->pdata->p_out);
 		input_report_abs(data->input_dev, ABS_DISTANCE, input);
@@ -284,7 +336,6 @@ proximity_enable_store(struct device *dev,
 
 		enable_irq(data->irq);
 	}
-	data->enabled = value;
 
 	return count;
 }
@@ -330,7 +381,7 @@ static ssize_t proximity_avg_store(struct device *dev,
 	}
 
 	if (new_value && !proximity_avg_on) {
-		if (!(proximity_enable)) {
+		if (!(gp2a_enabled & PROXIMITY_ENABLED)) {
 			/*data->pdata->gp2a_led_on(true);*/
 			proximity_onoff(1);
 		}
@@ -344,7 +395,7 @@ static ssize_t proximity_avg_store(struct device *dev,
 		hrtimer_cancel(&data->prox_timer);
 		proximity_avg_on = 0;
 
-		if (!(proximity_enable)) {
+		if (!(gp2a_enabled & PROXIMITY_ENABLED)) {
 			proximity_onoff(0);
 			/*data->pdata->gp2a_led_on(false);*/
 		}
@@ -360,7 +411,7 @@ static ssize_t proximity_thresh_show(struct device *dev,
 				    struct device_attribute *attr, char *buf)
 {
 	int i;
-	int threshold = 0;
+	u8 threshold = 0;
 	u8 (*selected_image)[2] = (is_gp2a030a() ?
 			gp2a_original_image_030a : gp2a_original_image);
 
@@ -381,10 +432,10 @@ static ssize_t proximity_thresh_store(struct device *dev,
 				   const char *buf, size_t size)
 {
 	struct gp2a_data *data = dev_get_drvdata(dev);
-	unsigned long threshold = 0;
+	u8 threshold = 0;
 	int err = 0;
 
-	err = strict_strtoul(buf, 10, &threshold);
+	err = kstrtou8(buf, 10, &threshold);
 
 	if (err) {
 		pr_err("%s, conversion %s to number.\n",
@@ -405,6 +456,41 @@ static ssize_t proximity_thresh_store(struct device *dev,
 }
 
 #ifdef GP2A_CALIBRATION
+static u8 proximity_adc_read(struct gp2a_data *gp2a)
+{
+	int adc_arr[OFFSET_ARRAY_LENGTH];
+	int total = 0, min = 0, max = 0;
+	u8 avg = 0;
+	int D2_data = 0;
+	unsigned char get_D2_data[2] = {0,};
+	int i;
+
+	for (i = 0; i < OFFSET_ARRAY_LENGTH; i++) {
+		mdelay(50);
+		mutex_lock(&gp2a->data_mutex);
+		opt_i2c_read(0x10, get_D2_data, sizeof(get_D2_data));
+		mutex_unlock(&gp2a->data_mutex);
+		D2_data = (get_D2_data[1] << 8) | get_D2_data[0];
+		adc_arr[i] = D2_data;
+		if (i == 0) {
+			min = adc_arr[i];
+			max = adc_arr[i];
+		} else {
+			if (adc_arr[i] < min)
+				min = adc_arr[i];
+			else if (adc_arr[i] > max)
+				max = adc_arr[i];
+		}
+		total += adc_arr[i];
+	}
+
+	total -= (min + max);
+	avg = (u8)(total / (OFFSET_ARRAY_LENGTH - 2));
+	pr_info("%s: offset = %d\n", __func__, avg);
+
+	return avg;
+}
+
 static int proximity_open_calibration(struct gp2a_data *data)
 {
 	struct file *cancel_filp = NULL;
@@ -431,17 +517,23 @@ static int proximity_open_calibration(struct gp2a_data *data)
 	}
 
 	if (data->cal_data != 0) {/*If there is an offset cal data. */
+#if defined(CONFIG_MACH_KONA_SENSOR)
 		if (is_gp2a030a()) {
-			if (gp2a_original_image_030a[3][1]
-				== data->default_threshold)
-				gp2a_original_image_030a[3][1]
-					-= data->cal_data;
-		} else {
-			if (gp2a_original_image[3][1]
-				== data->default_threshold)
-				gp2a_original_image[3][1]
-					-= data->cal_data;
-		}
+			gp2a_original_image_030a[5][1] =
+				data->default_threshold + data->cal_data;
+			gp2a_original_image_030a[3][1] =
+				data->default_threshold
+				+ data->cal_data - DEFAULT_THRESHOLD_DIFF;
+			}
+#else
+		if (is_gp2a030a())
+			gp2a_original_image_030a[3][1] =
+				data->default_threshold + data->cal_data;
+
+#endif
+		else
+			gp2a_original_image[3][1] =
+				data->default_threshold + data->cal_data;
 
 		pr_info("%s: prox_cal = %d, prox_thresh = 0x%x\n",
 			__func__, data->cal_data, (is_gp2a030a() ?
@@ -461,18 +553,25 @@ static int proximity_store_calibration(struct device *dev, bool do_calib)
 	struct file *cancel_filp = NULL;
 	mm_segment_t old_fs;
 	int err = 0;
+	u8 thresh_x;
 
 	if (do_calib) {
-		unsigned char get_D2_data[2] = {0,};
+		gp2a->cal_data = proximity_adc_read(gp2a);
+		if (is_gp2a030a()) {
+#if defined(CONFIG_MACH_KONA_SENSOR)
+			gp2a_original_image_030a[3][1] = gp2a->cal_data+XTALK;
+			gp2a->cal_data = gp2a_original_image_030a[3][1]-THDL;
+#else
+			/* if x-talk + 8 > threshold, threhold = x-talk + 8 */
+			/* LTH = threshold - thresh_diff */
+			thresh_x = gp2a->cal_data + 8 - gp2a->thresh_diff;
 
-		mutex_lock(&gp2a->data_mutex);
-		opt_i2c_read(0x10, get_D2_data, sizeof(get_D2_data));
-		mutex_unlock(&gp2a->data_mutex);
-		gp2a->cal_data = (get_D2_data[1] << 8) | get_D2_data[0];
-		if (is_gp2a030a())
-			gp2a_original_image_030a[3][1] -= gp2a->cal_data;
+			if (thresh_x > gp2a_original_image_030a[3][1])
+				gp2a_original_image_030a[3][1]= thresh_x;
+#endif
+		}
 		else
-			gp2a_original_image[3][1] -= gp2a->cal_data;
+			gp2a_original_image[3][1] += gp2a->cal_data;
 	} else { /* reset */
 		gp2a->cal_data = 0;
 		if (is_gp2a030a())
@@ -498,7 +597,7 @@ static int proximity_store_calibration(struct device *dev, bool do_calib)
 	set_fs(KERNEL_DS);
 
 	cancel_filp = filp_open(CALIBRATION_FILE_PATH,
-			O_CREAT | O_TRUNC | O_WRONLY, 0666);
+			O_CREAT | O_TRUNC | O_WRONLY | O_SYNC, 0666);
 	if (IS_ERR(cancel_filp)) {
 		pr_err("%s: Can't open cancelation file\n", __func__);
 		set_fs(old_fs);
@@ -523,10 +622,14 @@ static ssize_t proximity_cal_show(struct device *dev,
 				    struct device_attribute *attr, char *buf)
 {
 	struct gp2a_data *data = dev_get_drvdata(dev);
-
+#if defined(CONFIG_MACH_KONA_SENSOR)
+	return sprintf(buf, "%d,%d\n", data->cal_data,
+			gp2a_original_image_030a[5][1]);
+#else
 	return sprintf(buf, "%d,%d\n", data->cal_data, (is_gp2a030a() ?
-			gp2a_original_image_030a[3][1] :
-			gp2a_original_image[3][1]));
+			gp2a_original_image_030a[5][1] :
+			gp2a_original_image[5][1]));
+#endif
 }
 
 static ssize_t proximity_cal_store(struct device *dev,
@@ -553,16 +656,60 @@ static ssize_t proximity_cal_store(struct device *dev,
 
 	return size;
 }
+
+static ssize_t proximity_thresh_diff_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	struct gp2a_data *gp2a = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%d\n", gp2a->thresh_diff);
+}
+
+static ssize_t proximity_thresh_diff_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t size)
+{
+	struct gp2a_data *gp2a = dev_get_drvdata(dev);
+	struct gp2a_platform_data *pdata = gp2a->pdata;
+	u8 threshold_diff = 0;
+	int err;
+
+	err = kstrtou8(buf, 10, &threshold_diff);
+	if (err) {
+		pr_err("%s, conversion %s to number.\n",
+			__func__, buf);
+		return err;
+	}
+
+	if ((threshold_diff > 0) && (threshold_diff < 5)) { /* update diff */
+		gp2a->thresh_diff = threshold_diff;
+	} else if (threshold_diff == 0) { /* reset to default */
+		pdata->gp2a_get_threshold(&gp2a->thresh_diff);
+	} else {
+		pr_err("%s: invalid value %d\n", __func__, *buf);
+		return -EINVAL;
+	}
+
+	gp2a_update_threshold(gp2a, is_gp2a030a() ?
+			gp2a_original_image_030a : gp2a_original_image,
+			(is_gp2a030a() ?
+			gp2a_original_image_030a[3][1] :
+			gp2a_original_image[3][1]), true);
+
+	return size;
+}
 #endif
 
 static DEVICE_ATTR(enable, 0664, proximity_enable_show, proximity_enable_store);
 static DEVICE_ATTR(prox_avg, 0664, proximity_avg_show, proximity_avg_store);
 static DEVICE_ATTR(state, 0664, proximity_state_show, NULL);
-static DEVICE_ATTR(prox_thresh, S_IRUGO | S_IWUSR,
+static DEVICE_ATTR(prox_thresh, 0664,
 			proximity_thresh_show, proximity_thresh_store);
 #ifdef GP2A_CALIBRATION
 static DEVICE_ATTR(prox_cal, 0664,
-			proximity_cal_show, proximity_cal_store);
+		proximity_cal_show, proximity_cal_store);
+static DEVICE_ATTR(prox_diff, 0664,
+		proximity_thresh_diff_show, proximity_thresh_diff_store);
 #endif
 
 static struct attribute *proximity_attributes[] = {
@@ -897,8 +1044,9 @@ static int gp2a_opt_probe(struct platform_device *pdev)
 		return err;
 	}
 	/* gp2a power on */
+#if !defined(CONFIG_MACH_TAB3) || !defined(CONFIG_MACH_GC2PD)
 	pdata->gp2a_led_on(true);
-
+#endif
 	/* allocate driver_data */
 	gp2a = kzalloc(sizeof(struct gp2a_data), GFP_KERNEL);
 	if (!gp2a) {
@@ -909,22 +1057,33 @@ static int gp2a_opt_probe(struct platform_device *pdev)
 #ifdef CONFIG_SLP
 	gp2a->thresh_diff = DEFAULT_THRESHOLD_DIFF;
 #endif
+
+#if defined(CONFIG_MACH_KONA_SENSOR)
+	gp2a->thresh_diff = DEFAULT_THRESHOLD_DIFF;
+#else
 	if (pdata->gp2a_get_threshold)
 		gp2a_update_threshold(gp2a, is_gp2a030a() ?
 			gp2a_original_image_030a : gp2a_original_image,
 			pdata->gp2a_get_threshold(&gp2a->thresh_diff), false);
 	else
 		gp2a->thresh_diff = DEFAULT_THRESHOLD_DIFF;
+#endif
 #ifdef GP2A_CALIBRATION
+#if defined(CONFIG_MACH_KONA_SENSOR)
+		gp2a->default_threshold = (is_gp2a030a() ?
+				gp2a_original_image_030a[5][1] :
+				gp2a_original_image[5][1]);
+#else
 		gp2a->default_threshold = (is_gp2a030a() ?
 				gp2a_original_image_030a[3][1] :
 				gp2a_original_image[3][1]);
 #endif
+#endif
 
-	proximity_enable = 0;
+	gp2a_enabled &= ~PROXIMITY_ENABLED;
+
 	proximity_sensor_detection = 0;
 	proximity_avg_on = 0;
-	gp2a->enabled = 0;
 	gp2a->pdata = pdata;
 
 	/* prox_timer settings. we poll for prox_avg values using a timer. */
@@ -969,6 +1128,16 @@ static int gp2a_opt_probe(struct platform_device *pdev)
 	} else
 		pr_info("opt_i2c_client : (0x%p), address = %x\n",
 		       opt_i2c_client, opt_i2c_client->addr);
+
+#ifdef CONFIG_SENSORS_GP2A_VDD_CONTROL
+	/* gp2a power on */
+	if (pdata->gp2a_vdd_on) {
+		pdata->gp2a_vdd_on(true);
+		pr_info("%s, power : %d\n", __func__, gp2a_power_state);
+	}
+	gp2a_power_state |= LIGHT_ENABLED;
+	msleep(20);
+#endif
 
 	/* GP2A Regs INIT SETTINGS  and Check I2C communication */
 	value = 0x00;
@@ -1039,6 +1208,12 @@ static int gp2a_opt_probe(struct platform_device *pdev)
 		       dev_attr_prox_cal.attr.name);
 		goto err_proximity_device_create_file7;
 	}
+
+	if (device_create_file(gp2a->proximity_dev, &dev_attr_prox_diff) < 0) {
+		pr_err("%s: could not create device file(%s)!\n", __func__,
+		       dev_attr_prox_diff.attr.name);
+		goto err_proximity_device_create_file8;
+	}
 #endif
 
 #ifdef CONFIG_SLP
@@ -1053,6 +1228,8 @@ static int gp2a_opt_probe(struct platform_device *pdev)
 	return 0;
 
 #ifdef GP2A_CALIBRATION
+err_proximity_device_create_file8:
+	device_remove_file(gp2a->proximity_dev, &dev_attr_prox_cal);
 err_proximity_device_create_file7:
 	device_remove_file(gp2a->proximity_dev, &dev_attr_raw_data);
 #endif
@@ -1094,15 +1271,16 @@ static int gp2a_opt_remove(struct platform_device *pdev)
 		return -1;
 	}
 
-	if (gp2a->enabled) {
+	if (gp2a_enabled & PROXIMITY_ENABLED) {
 		disable_irq(gp2a->irq);
-		proximity_enable = 0;
+		gp2a_enabled &= ~PROXIMITY_ENABLED;
+
 		proximity_onoff(0);
 		disable_irq_wake(gp2a->irq);
-#ifndef CONFIG_MACH_MIDAS_02_BD
+#if !defined(CONFIG_MACH_MIDAS_02_BD)
 		gp2a->pdata->gp2a_led_on(false);
+		gp2a_power_state &= ~PROXIMITY_ENABLED;
 #endif
-		gp2a->enabled = 0;
 	}
 
 	hrtimer_cancel(&gp2a->prox_timer);
@@ -1119,6 +1297,7 @@ static int gp2a_opt_remove(struct platform_device *pdev)
 	device_remove_file(gp2a->proximity_dev, &dev_attr_raw_data);
 #ifdef GP2A_CALIBRATION
 	device_remove_file(gp2a->proximity_dev, &dev_attr_prox_cal);
+	device_remove_file(gp2a->proximity_dev, &dev_attr_prox_diff);
 #endif
 	sensors_classdev_unregister(gp2a->proximity_dev);
 
@@ -1146,7 +1325,7 @@ static int gp2a_opt_suspend(struct platform_device *pdev, pm_message_t state)
 
 	gprintk("\n");
 
-	if (gp2a->enabled) {
+	if (gp2a_enabled & PROXIMITY_ENABLED) {
 		if (device_may_wakeup(&pdev->dev))
 			enable_irq_wake(gp2a->irq);
 	}
@@ -1165,7 +1344,8 @@ static int gp2a_opt_resume(struct platform_device *pdev)
 
 	gprintk("\n");
 
-	if (gp2a->enabled) {
+	if (gp2a_enabled & PROXIMITY_ENABLED) {
+
 		if (device_may_wakeup(&pdev->dev))
 			enable_irq_wake(gp2a->irq);
 	}

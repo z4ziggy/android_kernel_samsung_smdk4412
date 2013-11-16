@@ -45,16 +45,16 @@ ifeq ($(CONFIG_PM_RUNTIME),y)
 USING_MALI_RUN_TIME_PM=1
 endif
 
-ifeq ($(CONFIG_VIDEO_MALI400MP_DVFS),y)
+ifeq ($(CONFIG_MALI_400MP_UMP_DVFS),y)
 USING_GPU_UTILIZATION=1
 USING_MALI_DVFS_ENABLED=1
 endif
 
-ifeq ($(CONFIG_VIDEO_MALI400MP_DEBUG),y)
+ifeq ($(CONFIG_MALI_400MP_UMP_DEBUG),y)
 BUILD=debug
 endif
 
-ifeq ($(CONFIG_VIDEO_MALI400MP_STREAMLINE_PROFILING),y)
+ifeq ($(CONFIG_MALI_400MP_UMP_STREAMLINE_PROFILING),y)
 USING_PROFILING=1
 USING_TRACEPOINTS=1
 endif
@@ -73,7 +73,7 @@ USING_MALI_RUN_TIME_PM ?= 0
 USING_MALI_PMM_TESTSUITE ?= 0
 USING_MALI_PMU ?= 0
 USING_GPU_UTILIZATION ?= 0
-OS_MEMORY_KERNEL_BUFFER_SIZE_IN_MB ?= 8
+OS_MEMORY_KERNEL_BUFFER_SIZE_IN_MB ?= 6
 USING_PROFILING ?= 0
 USING_TRACEPOINTS ?= 0
 USING_MALI_MAJOR_PREDEFINE = 1
@@ -82,7 +82,7 @@ TIMESTAMP ?= default
 BUILD ?= release 
 USING_MALI_PMM_EARLYSUSPEND ?= 0
 #USING_KERNEL_WITH_DMA_ALLOC_PHYS_PAGE ?= 0
-CONFIG_MALI_MEM_SIZE ?= 128
+CONFIG_MALI_MEM_SIZE ?= 64
 
 #config validtion check
 ifeq ($(USING_OS_MEMORY),1)
@@ -128,7 +128,7 @@ endif
 DEFINES += -DMALI_UKK_HAS_IMPLICIT_MMAP_CLEANUP
 
 # UMP
-ifeq ($(CONFIG_VIDEO_UMP),y)
+ifeq ($(CONFIG_MALI_400MP_UMP),y)
 	DEFINES += -DMALI_USE_UNIFIED_MEMORY_PROVIDER=1 -DHAVE_UNLOCKED_IOCTL
 	EXTRA_CFLAGS += -I$(MALI_FILE_PREFIX)/../ump/include
 else
@@ -136,7 +136,7 @@ else
 endif
 
 # Target build file
-obj-$(CONFIG_VIDEO_MALI400MP)		+= mali.o
+obj-$(CONFIG_MALI_400MP_UMP)	+= mali.o
 
 # Use our defines when compiling
 # MALI
@@ -154,7 +154,7 @@ EXTRA_CFLAGS += -I$(MALI_FILE_PREFIX)/linux/license/gpl
 EXTRA_CFLAGS += -I$(MALI_FILE_PREFIX)/common/pmm
 
 # Source files which always are included in a build
-ifeq ($(CONFIG_VIDEO_UMP),y)
+ifeq ($(CONFIG_MALI_400MP_UMP),y)
 OSKFILES=\
         $(FILES_PREFIX)$(OSKOS)/mali_osk_irq.o \
         $(FILES_PREFIX)$(OSKOS)/mali_osk_low_level_mem.o \
@@ -175,7 +175,7 @@ OSKFILES=\
         $(FILES_PREFIX)$(OSKOS)/mali_osk_notification.o \
         $(FILES_PREFIX)$(OSKOS)/mali_osk_time.o \
         $(FILES_PREFIX)$(OSKOS)/mali_osk_timers.o
-endif #($(CONFIG_VIDEO_UMP),y)
+endif #($(CONFIG_MALI_400MP_UMP),y)
 
 ifeq ($(CONFIG_CPU_EXYNOS4210),y)
 	MALI_PLATFORM_FILE = platform/orion-m400/mali_platform.o
@@ -275,8 +275,7 @@ ifeq ($(PANIC_ON_WATCHDOG_TIMEOUT),1)
 endif
 
 # Get subversion revision number, fall back to 0000 if no svn info is available
-#SVN_REV:=$(shell ((svnversion | grep -qv exported && echo -n 'Revision: ' && svnversion) || git svn info | sed -e 's/$$$$/M/' | grep '^Revision: ' || echo ${MALI_RELEASE_NAME}) 2>/dev/null | sed -e 's/^Revision: //')
-SVN=REV:=1
+SVN_REV:=$(shell ((svnversion | grep -qv exported && echo -n 'Revision: ' && svnversion) || git svn info | sed -e 's/$$$$/M/' | grep '^Revision: ' || echo ${MALI_RELEASE_NAME}) 2>/dev/null | sed -e 's/^Revision: //')
 
 EXTRA_CFLAGS += -DSVN_REV=$(SVN_REV)
 EXTRA_CFLAGS += -DSVN_REV_STRING=\"$(SVN_REV)\"

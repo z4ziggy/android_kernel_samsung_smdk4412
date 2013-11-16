@@ -49,10 +49,6 @@
 
 #include <asm/unaligned.h>
 
-#ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_FLEXRATE
-#include <mach/midas-tsp.h>
-#endif
-
 #ifdef CONFIG_CPU_FREQ_GOV_DEVILQ
 bool touch_state_val = false;
 EXPORT_SYMBOL(touch_state_val);
@@ -1209,12 +1205,6 @@ if (get_touchoff_delay() != 0)
 
 #if TOUCH_BOOSTER
 	set_dvfs_lock(info, !!touch_is_pressed);
-#endif
-
-#ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_FLEXRATE
-	if(!!touch_is_pressed){
-		midas_tsp_request_qos();
-	}
 #endif
 
 #ifdef CONFIG_CPU_FREQ_GOV_DEVILQ
@@ -4106,6 +4096,7 @@ static int mms_ts_fw_check(struct mms_ts_info *info)
 	if (ret < 0) {		/* tsp connect check */
 		pr_err("%s: i2c fail...[%d], addr[%d]\n",
 			   __func__, ret, info->client->addr);
+#if !defined(CONFIG_MACH_GD2)
 		if (gpio_get_value(GPIO_OLED_DET)) {
 			dev_err(&client->dev, "panel connected\n");
 			dev_err(&client->dev, "excute core firmware update\n");
@@ -4120,6 +4111,7 @@ static int mms_ts_fw_check(struct mms_ts_info *info)
 			pr_err("%s: tsp driver unload\n", __func__);
 			return ret;
 		}
+#endif
 	}
 
 	ver = get_fw_version(info, SEC_BOOTLOADER);

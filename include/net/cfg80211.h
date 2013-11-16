@@ -2006,8 +2006,6 @@ struct wiphy_wowlan_support {
  * @wowlan: WoWLAN support information
  *
  * @ap_sme_capa: AP SME capabilities, flags from &enum nl80211_ap_sme_features.
- * @ht_capa_mod_mask:  Specify what ht_cap values can be over-ridden.
- *	If null, then none can be over-ridden.
  */
 struct wiphy {
 	/* assign these fields before you register the wiphy */

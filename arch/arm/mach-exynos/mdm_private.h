@@ -56,6 +56,9 @@ struct mdm_modem_drv {
 #endif
 	struct mdm_ops *ops;
 	struct mdm_platform_data *pdata;
+
+	bool sim_shutdown_req;
+	bool sim_irq;
 };
 
 int mdm_common_create(struct platform_device  *pdev,
@@ -65,8 +68,10 @@ void mdm_common_modem_shutdown(struct platform_device *pdev);
 void mdm_common_set_debug_state(int value);
 void mdm_peripheral_disconnect(struct mdm_modem_drv *mdm_drv);
 
+void set_shutdown(void);
 void notify_modem_fatal(void);
 void request_autopm_lock(int status);
+bool mdm_check_main_connect(const char *);
 #ifdef CONFIG_SIM_DETECT
 void get_sim_state_at_boot(void);
 #endif

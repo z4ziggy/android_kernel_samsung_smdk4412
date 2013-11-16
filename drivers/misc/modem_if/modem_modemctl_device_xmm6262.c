@@ -26,7 +26,9 @@
 #include <plat/devs.h>
 #include <linux/platform_data/modem.h>
 #include "modem_prj.h"
-
+#ifdef CONFIG_FAST_BOOT
+#include <linux/fake_shut_down.h>
+#endif
 static int xmm6262_on(struct modem_ctl *mc)
 {
 	mif_info("\n");
@@ -122,6 +124,20 @@ static int xmm6262_reset(struct modem_ctl *mc)
 	return 0;
 }
 
+static int xmm6262_force_crash_exit(struct modem_ctl *mc)
+{
+	mif_info("\n");
+
+	if (!mc->gpio_ap_dump_int)
+		return -ENXIO;
+	
+	gpio_set_value(mc->gpio_ap_dump_int, 1);
+	mif_info("set ap_dump_int(%d) to high=%d\n",
+		mc->gpio_ap_dump_int, gpio_get_value(mc->gpio_ap_dump_int));
+	return 0;
+}
+
+
 static irqreturn_t phone_active_irq_handler(int irq, void *_mc)
 {
 	int phone_reset = 0;
@@ -176,7 +192,7 @@ static irqreturn_t phone_active_irq_handler(int irq, void *_mc)
 
 #ifdef CONFIG_FAST_BOOT
 #include <linux/reboot.h>
-extern bool fake_shut_down;
+
 static void mif_sim_detect_complete(struct modem_ctl *mc)
 {
 	if (mc->sim_shutdown_req) {
@@ -249,6 +265,7 @@ static void xmm6262_get_ops(struct modem_ctl *mc)
 	mc->ops.modem_on = xmm6262_on;
 	mc->ops.modem_off = xmm6262_off;
 	mc->ops.modem_reset = xmm6262_reset;
+	mc->ops.modem_force_crash_exit = xmm6262_force_crash_exit;
 }
 
 int xmm6262_init_modemctl_device(struct modem_ctl *mc,

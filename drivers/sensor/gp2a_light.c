@@ -60,24 +60,29 @@ struct sensor_data {
 	struct device *light_dev;
 	struct input_dev *input_dev;
 	struct workqueue_struct *wq;
-	int enabled;
+
+#ifdef CONFIG_SENSORS_GP2A_VDD_CONTROL
+	struct gp2a_platform_data *pdata;
+#endif
+
 	int delay;
 	int reset_cnt;
 	int zero_cnt;
 };
 
-
-static struct platform_device *sensor_pdev;
 static bool first_value = true;
 u8 lightsensor_mode;		/* 0 = low, 1 = high */
+u8 gp2a_power_state;
+u8 gp2a_enabled;
 
 /* prototype */
 static int lightsensor_get_adc(struct sensor_data *data);
-static int lightsensor_onoff(u8 onoff);
+static int gp2a_onoff_light(u8 onoff);
 static int lightsensor_get_adcvalue(struct sensor_data *data);
 
 /* Light Sysfs interface */
-#ifdef CONFIG_MACH_BAFFIN
+#if defined(CONFIG_MACH_BAFFIN) || defined(CONFIG_MACH_TAB3) ||\
+	 defined(CONFIG_MACH_KONA) || defined(CONFIG_MACH_GC2PD)
 static ssize_t lightsensor_file_state_show(struct device *dev,
 				struct device_attribute *attr,
 				char *buf)
@@ -147,7 +152,7 @@ light_delay_store(struct device *dev, struct device_attribute *attr,
 
 	mutex_lock(&data->mutex);
 
-	if (data->enabled) {
+	if (gp2a_enabled & LIGHT_ENABLED) {
 		cancel_delayed_work_sync(&data->work);
 		queue_delayed_work(data->wq, &data->work,
 				   msecs_to_jiffies(delay));
@@ -161,10 +166,9 @@ light_delay_store(struct device *dev, struct device_attribute *attr,
 static ssize_t
 light_enable_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	struct sensor_data *data = dev_get_drvdata(dev);
 	int enabled;
 
-	enabled = data->enabled;
+	enabled = gp2a_enabled & LIGHT_ENABLED;
 
 	return sprintf(buf, "%d\n", enabled);
 }
@@ -192,15 +196,34 @@ light_enable_store(struct device *dev, struct device_attribute *attr,
 
 	mutex_lock(&data->mutex);
 
-	if (data->enabled && !value) {
+	if ((gp2a_enabled & LIGHT_ENABLED) && !value) { /* light sensor disable */
 		cancel_delayed_work_sync(&data->work);
 		gprintk("timer canceled.\n");
-		lightsensor_onoff(0);
-		data->enabled = value;
-	}
-	if (!data->enabled && value) {
-		lightsensor_onoff(1);
-		data->enabled = value;
+
+		gp2a_onoff_light(0);
+		gp2a_enabled &= ~LIGHT_ENABLED;
+
+#ifdef CONFIG_SENSORS_GP2A_VDD_CONTROL
+	        /* gp2a vdd power off */
+		if (data->pdata->gp2a_vdd_on && (gp2a_power_state & LIGHT_ENABLED)
+			&& !(gp2a_power_state & PROXIMITY_ENABLED)) {
+			data->pdata->gp2a_vdd_on(false);
+		}
+		gp2a_power_state &= ~LIGHT_ENABLED;
+#endif
+	} else if (!(gp2a_enabled & LIGHT_ENABLED) && value) { /* light sensor enable */
+#ifdef CONFIG_SENSORS_GP2A_VDD_CONTROL
+		/* gp2a vdd power on */
+		if (data->pdata->gp2a_vdd_on && !(gp2a_power_state & LIGHT_ENABLED)) {
+			data->pdata->gp2a_vdd_on(true);
+		}
+		gp2a_power_state |= LIGHT_ENABLED;
+		msleep(20);
+#endif
+
+		gp2a_onoff_light(1);
+		gp2a_enabled |= LIGHT_ENABLED;
+
 		first_value = true;
 		queue_delayed_work(data->wq, &data->work,
 			msecs_to_jiffies(data->delay));
@@ -211,7 +234,6 @@ light_enable_store(struct device *dev, struct device_attribute *attr,
 
 	return count;
 }
-
 
 /* sysfs for vendor & name */
 static ssize_t lightsensor_vendor_show(struct device *dev,
@@ -244,8 +266,11 @@ static DEVICE_ATTR(enable, 0664, light_enable_show, light_enable_store);
 static DEVICE_ATTR(lux, 0664, lightsensor_file_state_show, NULL);
 static DEVICE_ATTR(vendor, 0664, lightsensor_vendor_show, NULL);
 static DEVICE_ATTR(name, 0664, lightsensor_name_show, NULL);
+#if defined(CONFIG_MACH_TAB3)
+static DEVICE_ATTR(raw_data, 0664, lightsensor_file_state_show, NULL);
+#else
 static DEVICE_ATTR(raw_data, 0664, lightsensor_raw_data_show, NULL);
-
+#endif
 
 static struct attribute *lightsensor_attributes[] = {
 	&dev_attr_poll_delay.attr,
@@ -264,10 +289,19 @@ static int lightsensor_suspend(struct platform_device *pdev, pm_message_t state)
 
 	mutex_lock(&data->mutex);
 
-	if (data->enabled) {
+	if (gp2a_enabled & LIGHT_ENABLED) {
 		rt = cancel_delayed_work_sync(&data->work);
 		gprintk(": The timer is cancled.\n");
 	}
+
+#ifdef CONFIG_SENSORS_GP2A_VDD_CONTROL
+	/* gp2a vdd power off */
+	if (data->pdata->gp2a_vdd_on && (gp2a_power_state & LIGHT_ENABLED)
+		&& !(gp2a_power_state & PROXIMITY_ENABLED)) {
+		data->pdata->gp2a_vdd_on(false);
+		gp2a_power_state &= ~LIGHT_ENABLED;
+	}
+#endif
 
 	mutex_unlock(&data->mutex);
 
@@ -283,7 +317,16 @@ static int lightsensor_resume(struct platform_device *pdev)
 
 	mutex_lock(&data->mutex);
 
-	if (data->enabled) {
+#ifdef CONFIG_SENSORS_GP2A_VDD_CONTROL
+	/* gp2a vdd power on */
+	if (data->pdata->gp2a_vdd_on && !(gp2a_power_state & LIGHT_ENABLED)) {
+		data->pdata->gp2a_vdd_on(true);
+		gp2a_power_state |= LIGHT_ENABLED;
+	}
+	msleep(20);
+#endif
+
+	if (gp2a_enabled & LIGHT_ENABLED) {
 		rt = queue_delayed_work(data->wq, &data->work, 0);
 		gprintk(": The timer is started.\n");
 	}
@@ -306,7 +349,18 @@ int lightsensor_get_adc(struct sensor_data *data)
 	int light_beta;
 	static int lx_prev;
 	int ret = 0;
+#if defined(CONFIG_MACH_BAFFIN_KOR_SKT) || \
+	defined(CONFIG_MACH_BAFFIN_KOR_KT) || \
+	defined(CONFIG_MACH_BAFFIN_KOR_LGT)
+
+	int d0_boundary = 91;
+#elif defined(CONFIG_MACH_KONA)
+	int d0_boundary = 90;
+#elif defined(CONFIG_MACH_GC2PD)
+	int d0_boundary = 91;
+#else
 	int d0_boundary = 93;
+#endif
 
 	mutex_lock(&data->light_mutex);
 	ret = opt_i2c_read(DATA0_LSB, get_data, sizeof(get_data));
@@ -327,6 +381,53 @@ int lightsensor_get_adc(struct sensor_data *data)
 			} else if (100 * D1_raw_data <= d0_boundary * D0_raw_data) {
 				light_alpha = 924;
 				light_beta = 1015;
+			} else {
+				light_alpha = 0;
+				light_beta = 0;
+			}
+		#elif defined(CONFIG_MACH_BAFFIN_KOR_SKT) || \
+			defined(CONFIG_MACH_BAFFIN_KOR_KT) || \
+			defined(CONFIG_MACH_BAFFIN_KOR_LGT)
+			if (100 * D1_raw_data <= 41 * D0_raw_data) {
+				light_alpha = 868;
+				light_beta = 0;
+			} else if (100 * D1_raw_data <= 62 * D0_raw_data) {
+				light_alpha = 2308;
+				light_beta = 3509;
+			} else if (100 * D1_raw_data
+						<= d0_boundary * D0_raw_data) {
+				light_alpha = 404;
+				light_beta = 440;
+			} else {
+				light_alpha = 0;
+				light_beta = 0;
+			}
+		#elif defined(CONFIG_MACH_KONA)
+			if (100 * D1_raw_data <= 40 * D0_raw_data) {
+				light_alpha = 833;
+				light_beta = 0;
+			} else if (100 * D1_raw_data <= 62 * D0_raw_data) {
+				light_alpha = 2007;
+				light_beta = 2935;
+			} else if (100 * D1_raw_data
+					<= d0_boundary * D0_raw_data) {
+					/* Incandescent Low lux */
+					light_alpha = 603;
+					light_beta = 670;
+			} else {
+				light_alpha = 0;
+				light_beta = 0;
+			}
+		#elif defined(CONFIG_MACH_GC2PD)
+			if (100 * D1_raw_data <= 41 * D0_raw_data) {
+				light_alpha = 783;
+				light_beta = 0;
+			} else if (100 * D1_raw_data <= 62 * D0_raw_data) {
+				light_alpha = 1932;
+				light_beta = 2873;
+			} else if (100 * D1_raw_data <= d0_boundary * D0_raw_data) {
+				light_alpha = 474;
+				light_beta = 521;
 			} else {
 				light_alpha = 0;
 				light_beta = 0;
@@ -476,7 +577,7 @@ gprintk
 				value = 0x63;
 			opt_i2c_write(COMMAND2, &value);
 
-			if (proximity_enable)
+			if (gp2a_enabled & PROXIMITY_ENABLED)
 				value = 0xCC;
 			else
 				value = 0xDC;
@@ -499,7 +600,7 @@ gprintk
 				value = 0x67;
 			opt_i2c_write(COMMAND2, &value);
 
-			if (proximity_enable)
+			if (gp2a_enabled & PROXIMITY_ENABLED)
 				value = 0xCC;
 			else
 				value = 0xDC;
@@ -551,18 +652,17 @@ int lightsensor_get_adcvalue(struct sensor_data *data)
 	return adc_avr_value;
 }
 
-static int lightsensor_onoff(u8 onoff)
+static int gp2a_onoff_light(u8 onoff)
 {
 	u8 value = 0;
 
-#ifdef DEBUG
-	gprintk("lightsensor_onoff = %d\n", onoff);
-	gprintk("proximity_enable onoff = %d\n", proximity_enable);
-#endif
+	gprintk("onoff = %d, proximity_enable = %d\n"
+		, onoff, gp2a_enabled);
+
 
 	if (onoff) {
 		/*in calling, must turn on proximity sensor */
-		if (proximity_enable == 0) {
+		if (!(gp2a_enabled & PROXIMITY_ENABLED)) {
 			value = 0x01;
 			opt_i2c_write(COMMAND4, &value);
 
@@ -577,7 +677,7 @@ static int lightsensor_onoff(u8 onoff)
 		}
 	} else {
 		/*in calling, must turn on proximity sensor */
-		if (proximity_enable == 0) {
+		if (!(gp2a_enabled & PROXIMITY_ENABLED)) {
 			value = 0x00;	/*shutdown mode */
 			opt_i2c_write((u8) (COMMAND1), &value);
 		}
@@ -610,8 +710,8 @@ static void gp2a_work_func_light(struct work_struct *work)
 		if (data->zero_cnt++ > 25) {
 			data->zero_cnt = 0;
 			if (data->reset_cnt++ <= LIMIT_RESET_COUNT) {
-				lightsensor_onoff(0);
-				lightsensor_onoff(1);
+				gp2a_onoff_light(0);
+				gp2a_onoff_light(1);
 				pr_info("%s : lightsensor reset done.\n",
 					__func__);
 			} else {
@@ -623,7 +723,7 @@ static void gp2a_work_func_light(struct work_struct *work)
 		data->zero_cnt = 0;
 	}
 
-	if (data->enabled)
+	if (gp2a_enabled & LIGHT_ENABLED)
 		queue_delayed_work(data->wq, &data->work,
 				   msecs_to_jiffies(data->delay));
 }
@@ -633,16 +733,23 @@ static int lightsensor_probe(struct platform_device *pdev)
 	struct sensor_data *data = NULL;
 	int rt = -ENXIO;
 	unsigned char get_data = 0;
+	int err = 0;
+#ifdef CONFIG_SENSORS_GP2A_VDD_CONTROL
+	struct gp2a_platform_data *pdata = pdev->dev.platform_data;
 
+	pr_info("%s, power : %d\n", __func__, gp2a_power_state);
+	if (!pdata) {
+		pr_err("%s: missing pdata!\n", __func__);
+		return err;
+	}
+#endif
+	gprintk("probe start!\n");
 	/* Check I2C communication */
 	rt = opt_i2c_read(DATA0_LSB, &get_data, sizeof(get_data));
-
 	if (rt < 0) {
 		pr_err("%s failed : threre is no such device.\n", __func__);
 		return rt;
 	}
-
-	gprintk("probe start!\n");
 
 	data = kzalloc(sizeof(struct sensor_data), GFP_KERNEL);
 	if (!data) {
@@ -651,7 +758,16 @@ static int lightsensor_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	data->enabled = 0;
+#ifdef CONFIG_SENSORS_GP2A_VDD_CONTROL
+	data->pdata = pdata;
+	/* gp2a vdd power off */
+	if (data->pdata->gp2a_vdd_on && (gp2a_power_state & LIGHT_ENABLED)) {
+		pdata->gp2a_vdd_on(false);
+		gp2a_power_state &= ~LIGHT_ENABLED;
+	}
+#endif
+
+	gp2a_enabled &= ~LIGHT_ENABLED;
 	data->delay = SENSOR_DEFAULT_DELAY;
 
 	data->input_dev = input_allocate_device();
@@ -817,10 +933,6 @@ static struct platform_driver lightsensor_driver = {
 
 static int __init lightsensor_init(void)
 {
-	sensor_pdev = platform_device_register_simple(SENSOR_NAME, 0, NULL, 0);
-	if (IS_ERR(sensor_pdev))
-		return -1;
-
 	return platform_driver_register(&lightsensor_driver);
 }
 
@@ -829,7 +941,6 @@ module_init(lightsensor_init);
 static void __exit lightsensor_exit(void)
 {
 	platform_driver_unregister(&lightsensor_driver);
-	platform_device_unregister(sensor_pdev);
 }
 
 module_exit(lightsensor_exit);

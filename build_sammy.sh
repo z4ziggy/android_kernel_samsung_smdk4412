@@ -10,7 +10,7 @@ else
 	exit 1
 fi
 
-version=Devil-$TARGET-SAMSUNG4.3-0.41.0_$(date +%Y%m%d)
+version=Devil-$TARGET-SAMSUNG4.3-1.09_$(date +%Y%m%d)
 
 if [ "$TARGET" = "i9300" ] ; then
 CUSTOM_PATH=i9300
@@ -30,8 +30,8 @@ if [ -e compile.log ]; then
 	rm compile.log
 fi
 
-if [ -e ramdisk.cpio ]; then
-	rm ramdisk.cpio
+if [ -e ramdisk.cpio.gz ]; then
+	rm ramdisk.cpio.gz
 fi
 
 # Set Default Path
@@ -47,8 +47,8 @@ elif [ "$(whoami)" == "rollus" ]; then
         TOOLCHAIN_PATH="/home/rollus/android-toolchain-eabi/bin/"
 fi
 TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
-ROOTFS_PATH="$KERNEL_PATH/ramdisks/$TARGET-combo"
-MODULES="$KERNEL_PATH/ramdisks/modules"
+ROOTFS_PATH="$KERNEL_PATH/ramdisks/ramdisk-samsung-$TARGET"
+MODULES="$ROOTFS_PATH/lib/modules"
 
 defconfig=samsung_"$TARGET"_defconfig
 
@@ -58,9 +58,9 @@ export KERNELDIR=$KERNEL_PATH
 export USE_SEC_FIPS_MODE=true
 
 # Set ramdisk files permissions
-#chmod 750 $ROOTFS_PATH/init*
-#chmod 644 $ROOTFS_PATH/ueventd*
-#chmod 644 $ROOTFS_PATH/lpm.rc
+chmod 750 $ROOTFS_PATH/init*
+chmod 644 $ROOTFS_PATH/ueventd*
+chmod 644 $ROOTFS_PATH/lpm.rc
 chmod 750 $ROOTFS_PATH/sbin/init*
 
 
@@ -77,9 +77,9 @@ make $defconfig
 
 make -j`grep 'processor' /proc/cpuinfo | wc -l` ARCH=arm CROSS_COMPILE=$TOOLCHAIN || exit -1
 # Copying and stripping kernel modules
-mkdir -p $MODULES/lib/modules
-find -name '*.ko' -exec cp -av {} $MODULES/lib/modules/ \;
-        for i in $MODULES/lib/modules/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
+mkdir -p $MODULES
+find -name '*.ko' -exec cp -av {} $MODULES/ \;
+        for i in $MODULES/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
 
 
 # Copy Kernel Image
@@ -89,12 +89,14 @@ cp -f $KERNEL_PATH/arch/arm/boot/zImage .
 
 
 # Create ramdisk.cpio archive
-cd $MODULES
-find . | cpio -o -H newc > $KERNEL_PATH/ramdisk.cpio
+cd $ROOTFS_PATH
+find . | cpio -o -H newc | gzip > $KERNEL_PATH/ramdisk.cpio.gz
+RAMDISK=ramdisk.cpio.gz
+#find . | cpio -o -H newc > $KERNEL_PATH/ramdisk.cpio
 cd $KERNEL_PATH
 
 # Make boot.img
-./mkbootimg --kernel zImage --ramdisk ramdisk.cpio --board smdk4x12 --base 0x10000000 --pagesize 2048 --ramdiskaddr 0x11000000 -o $KERNEL_PATH/boot.img
+./mkbootimg --kernel zImage --ramdisk $RAMDISK --board smdk4x12 --base 0x10000000 --pagesize 2048 --ramdiskaddr 0x11000000 -o $KERNEL_PATH/boot.img
 
 # Copy boot.img
 cp boot.img $KERNEL_PATH/releasetools/$CUSTOM_PATH/zip

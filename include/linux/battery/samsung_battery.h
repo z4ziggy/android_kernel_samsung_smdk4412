@@ -188,6 +188,21 @@ struct battery_info {
 	bool is_unspec_phase;
 	bool is_unspec_recovery;
 #endif
+
+#ifdef CONFIG_FAST_BOOT
+	struct notifier_block fsd_notifier_block;
+	bool dup_power_off;
+	bool suspend_check;
+#endif
+
+#if defined(CONFIG_MACH_KONA)
+	unsigned int is_comp_3;
+	unsigned int is_comp_1;
+#endif
+
+#if defined(CONFIG_MACH_GD2)
+	bool is_hdmi_attached;
+#endif
 };
 
 /* jig state */
@@ -197,11 +212,7 @@ extern bool is_jig_attached;
 #endif
 
 /* charger detect source */
-#if defined(CONFIG_MACH_BAFFIN)
-#undef USE_CHGIN_INTR
-#else
 #define USE_CHGIN_INTR
-#endif
 
 /* extended online type */
 #if defined(CONFIG_MACH_T0)
@@ -217,7 +228,13 @@ enum online_property {
 };
 
 /* use 2step charge termination */
-#if defined(CONFIG_MACH_T0)
+#if defined(CONFIG_MACH_T0) || \
+	defined(CONFIG_MACH_BAFFIN_KOR_SKT) || \
+	defined(CONFIG_MACH_BAFFIN_KOR_KT) || \
+	defined(CONFIG_MACH_BAFFIN_KOR_LGT) || \
+	defined(CONFIG_MACH_KONA) || \
+	defined(CONFIG_MACH_GD2) || \
+	defined(CONFIG_MACH_GC2PD)
 #define USE_2STEP_TERM
 #else
 #undef USE_2STEP_TERM
@@ -280,13 +297,14 @@ enum status_full_type {
 
 /* WORKAROUND: define audio dock current */
 #define DOCK_TYPE_AUDIO_CURR		1000
-#if defined(CONFIG_MACH_T0)
 #define DOCK_TYPE_SMART_NOTG_CURR	1700
-#else
-#define DOCK_TYPE_SMART_NOTG_CURR	1000
-#endif
 #define DOCK_TYPE_SMART_OTG_CURR	1000
 #define DOCK_TYPE_LOW_CURR		475
+
+/* Define current on HDMI connection (for seperate HDMI connector) */
+#if defined(CONFIG_MACH_GD2)
+#define HDMI_CONTROL_CURR	1000
+#endif
 
 /* voltage diff for recharge voltage calculation */
 #if defined(CONFIG_TARGET_LOCALE_USA) || \
@@ -447,6 +465,9 @@ struct samsung_battery_platform_data {
 	unsigned int chg_curr_siop_lv1;
 	unsigned int chg_curr_siop_lv2;
 	unsigned int chg_curr_siop_lv3;
+#if defined(CONFIG_MACH_KONA)
+	unsigned int chg_curr_mhl;
+#endif
 
 	/* variable monitoring interval */
 	unsigned int chng_interval;

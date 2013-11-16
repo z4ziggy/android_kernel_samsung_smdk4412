@@ -1777,9 +1777,11 @@ config ARM_FLUSH_CONSOLE_ON_RESTART
 	  released if it failed to be acquired, which will cause all the
 	  pending messages to be flushed.
 
-source "arch/arm/mvp/Kconfig"
+
 
 endmenu
+
+source "arch/arm/mvp/Kconfig"
 
 menu "Boot options"
 

@@ -21,7 +21,8 @@ CUSTOM_PATH=note
 MODE=DUAL	
 fi
 
-version=Devil-$TARGET-$MODE-0.42.1_$(date +%Y%m%d)
+displayversion=Devil2-1.0.6
+version=$displayversion-$TARGET-$MODE-$(date +%Y%m%d)
 
 if [ -e boot.img ]; then
 	rm boot.img
@@ -53,7 +54,7 @@ MODULES="$KERNEL_PATH/ramdisks/modules"
 
 defconfig=cyanogenmod_"$TARGET"_defconfig
 
-export KBUILD_BUILD_VERSION="$version"
+export KBUILD_BUILD_VERSION="$displayversion"
 export KERNELDIR=$KERNEL_PATH
 
 export USE_SEC_FIPS_MODE=true
@@ -90,8 +91,8 @@ find -name '*.ko' -exec cp -av {} $MODULES \;
 fi
 
 # Copy Kernel Image
-rm -f $KERNEL_PATH/releasetools/$CUSTOM_PATH/tar/$KBUILD_BUILD_VERSION.tar
-rm -f $KERNEL_PATH/releasetools/$CUSTOM_PATH/zip/$KBUILD_BUILD_VERSION.zip
+rm -f $KERNEL_PATH/releasetools/$CUSTOM_PATH/tar/$version.tar
+rm -f $KERNEL_PATH/releasetools/$CUSTOM_PATH/zip/$version.zip
 cp -f $KERNEL_PATH/arch/arm/boot/zImage .
 
 if [ "$TARGET" != "i9100" ] ; then
@@ -114,14 +115,14 @@ fi
 # Creating flashable zip and tar
 cd $KERNEL_PATH
 cd releasetools/$CUSTOM_PATH/zip
-zip -0 -r $KBUILD_BUILD_VERSION.zip *
+zip -0 -r $version.zip *
 mkdir -p $KERNEL_PATH/release
 mv *.zip $KERNEL_PATH/release
 cd ..
 
 if [ "$TARGET" != "i9100" ] ; then
 cd tar
-tar cf $KBUILD_BUILD_VERSION.tar boot.img && ls -lh $KBUILD_BUILD_VERSION.tar
+tar cf $version.tar boot.img && ls -lh $version.tar
 mv *.tar $KERNEL_PATH/release
 fi
 

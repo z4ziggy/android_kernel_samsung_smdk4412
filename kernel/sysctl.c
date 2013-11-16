@@ -122,6 +122,9 @@ static int __maybe_unused two = 2;
 static int __maybe_unused three = 3;
 static unsigned long one_ul = 1;
 static int one_hundred = 100;
+#ifdef CONFIG_ZSWAP
+extern int max_swappiness;
+#endif
 #ifdef CONFIG_PRINTK
 static int ten_thousand = 10000;
 #endif
@@ -228,12 +231,12 @@ int sysctl_legacy_va_layout;
 #endif
 
 extern int late_init_android_gadget(int romtype);
-extern int mfc_late_init(void);
+//extern int mfc_late_init(void);
 #ifdef CONFIG_CPU_EXYNOS4210
 extern int u1_gps_ntt_init(void);
 #endif
-extern int new_late_mali_driver_init(void);
-extern int late_mali_driver_init(void);
+//extern int new_late_mali_driver_init(void);
+//extern int late_mali_driver_init(void);
 #ifdef CONFIG_MALI_CONTROL
 extern int register_mali_control(void);
 #endif
@@ -261,18 +264,20 @@ rom_feature_set_sysctl(struct ctl_table *table, int write,
                 rom_feature_set_save = rom_feature_set;
                 printk("Initializing USB with rom_feature_set: %d\n", rom_feature_set);
                 late_init_android_gadget(rom_feature_set);
+/*
 #ifdef CONFIG_MALI_CM
                 if(!OLDMALIEXPR) new_late_mali_driver_init();
                 else late_mali_driver_init();
 #else
                 late_mali_driver_init();
-#endif
+#endif*/
 #ifdef CONFIG_MALI_CONTROL
                 register_mali_control();
 #endif
+/*
 #ifndef CONFIG_CPU_EXYNOS4210
                 mfc_late_init();
-#endif
+#endif*/
         }
         return 0;
 }
@@ -1053,118 +1058,123 @@ static struct ctl_table kern_table[] = {
 };
 
 static struct ctl_table vm_table[] = {
-        {
-                .procname       = "overcommit_memory",
-                .data           = &sysctl_overcommit_memory,
-                .maxlen         = sizeof(sysctl_overcommit_memory),
-                .mode           = 0644,
-                .proc_handler   = proc_dointvec_minmax,
-                .extra1         = &zero,
-                .extra2         = &two,
-        },
-        {
-                .procname       = "panic_on_oom",
-                .data           = &sysctl_panic_on_oom,
-                .maxlen         = sizeof(sysctl_panic_on_oom),
-                .mode           = 0644,
-                .proc_handler   = proc_dointvec_minmax,
-                .extra1         = &zero,
-                .extra2         = &two,
-        },
-        {
-                .procname       = "oom_kill_allocating_task",
-                .data           = &sysctl_oom_kill_allocating_task,
-                .maxlen         = sizeof(sysctl_oom_kill_allocating_task),
-                .mode           = 0644,
-                .proc_handler   = proc_dointvec,
-        },
-        {
-                .procname       = "oom_dump_tasks",
-                .data           = &sysctl_oom_dump_tasks,
-                .maxlen         = sizeof(sysctl_oom_dump_tasks),
-                .mode           = 0644,
-                .proc_handler   = proc_dointvec,
-        },
-        {
-                .procname       = "overcommit_ratio",
-                .data           = &sysctl_overcommit_ratio,
-                .maxlen         = sizeof(sysctl_overcommit_ratio),
-                .mode           = 0644,
-                .proc_handler   = proc_dointvec,
-        },
-        {
-                .procname       = "page-cluster", 
-                .data           = &page_cluster,
-                .maxlen         = sizeof(int),
-                .mode           = 0644,
-                .proc_handler   = proc_dointvec_minmax,
-                .extra1         = &zero,
-        },
-        {
-                .procname       = "dirty_background_ratio",
-                .data           = &dirty_background_ratio,
-                .maxlen         = sizeof(dirty_background_ratio),
-                .mode           = 0644,
-                .proc_handler   = dirty_background_ratio_handler,
-                .extra1         = &zero,
-                .extra2         = &one_hundred,
-        },
-        {
-                .procname       = "dirty_background_bytes",
-                .data           = &dirty_background_bytes,
-                .maxlen         = sizeof(dirty_background_bytes),
-                .mode           = 0644,
-                .proc_handler   = dirty_background_bytes_handler,
-                .extra1         = &one_ul,
-        },
-        {
-                .procname       = "dirty_ratio",
-                .data           = &vm_dirty_ratio,
-                .maxlen         = sizeof(vm_dirty_ratio),
-                .mode           = 0644,
-                .proc_handler   = dirty_ratio_handler,
-                .extra1         = &zero,
-                .extra2         = &one_hundred,
-        },
-        {
-                .procname       = "dirty_bytes",
-                .data           = &vm_dirty_bytes,
-                .maxlen         = sizeof(vm_dirty_bytes),
-                .mode           = 0644,
-                .proc_handler   = dirty_bytes_handler,
-                .extra1         = &dirty_bytes_min,
-        },
-        {
-                .procname       = "dirty_writeback_centisecs",
-                .data           = &dirty_writeback_interval,
-                .maxlen         = sizeof(dirty_writeback_interval),
-                .mode           = 0644,
-                .proc_handler   = dirty_writeback_centisecs_handler,
-        },
-        {
-                .procname       = "dirty_expire_centisecs",
-                .data           = &dirty_expire_interval,
-                .maxlen         = sizeof(dirty_expire_interval),
-                .mode           = 0644,
-                .proc_handler   = proc_dointvec_minmax,
-                .extra1         = &zero,
-        },
-        {
-                .procname       = "nr_pdflush_threads",
-                .data           = &nr_pdflush_threads,
-                .maxlen         = sizeof nr_pdflush_threads,
-                .mode           = 0444 /* read-only*/,
-                .proc_handler   = proc_dointvec,
-        },
-        {
-                .procname       = "swappiness",
-                .data           = &vm_swappiness,
-                .maxlen         = sizeof(vm_swappiness),
-                .mode           = 0644,
-                .proc_handler   = proc_dointvec_minmax,
-                .extra1         = &zero,
-                .extra2         = &one_hundred,
-        },
+	{
+		.procname	= "overcommit_memory",
+		.data		= &sysctl_overcommit_memory,
+		.maxlen		= sizeof(sysctl_overcommit_memory),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+		.extra2		= &two,
+	},
+	{
+		.procname	= "panic_on_oom",
+		.data		= &sysctl_panic_on_oom,
+		.maxlen		= sizeof(sysctl_panic_on_oom),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+		.extra2		= &two,
+	},
+	{
+		.procname	= "oom_kill_allocating_task",
+		.data		= &sysctl_oom_kill_allocating_task,
+		.maxlen		= sizeof(sysctl_oom_kill_allocating_task),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+	},
+	{
+		.procname	= "oom_dump_tasks",
+		.data		= &sysctl_oom_dump_tasks,
+		.maxlen		= sizeof(sysctl_oom_dump_tasks),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+	},
+	{
+		.procname	= "overcommit_ratio",
+		.data		= &sysctl_overcommit_ratio,
+		.maxlen		= sizeof(sysctl_overcommit_ratio),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+	},
+	{
+		.procname	= "page-cluster", 
+		.data		= &page_cluster,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+	},
+	{
+		.procname	= "dirty_background_ratio",
+		.data		= &dirty_background_ratio,
+		.maxlen		= sizeof(dirty_background_ratio),
+		.mode		= 0644,
+		.proc_handler	= dirty_background_ratio_handler,
+		.extra1		= &zero,
+		.extra2		= &one_hundred,
+	},
+	{
+		.procname	= "dirty_background_bytes",
+		.data		= &dirty_background_bytes,
+		.maxlen		= sizeof(dirty_background_bytes),
+		.mode		= 0644,
+		.proc_handler	= dirty_background_bytes_handler,
+		.extra1		= &one_ul,
+	},
+	{
+		.procname	= "dirty_ratio",
+		.data		= &vm_dirty_ratio,
+		.maxlen		= sizeof(vm_dirty_ratio),
+		.mode		= 0644,
+		.proc_handler	= dirty_ratio_handler,
+		.extra1		= &zero,
+		.extra2		= &one_hundred,
+	},
+	{
+		.procname	= "dirty_bytes",
+		.data		= &vm_dirty_bytes,
+		.maxlen		= sizeof(vm_dirty_bytes),
+		.mode		= 0644,
+		.proc_handler	= dirty_bytes_handler,
+		.extra1		= &dirty_bytes_min,
+	},
+	{
+		.procname	= "dirty_writeback_centisecs",
+		.data		= &dirty_writeback_interval,
+		.maxlen		= sizeof(dirty_writeback_interval),
+		.mode		= 0644,
+		.proc_handler	= dirty_writeback_centisecs_handler,
+	},
+	{
+		.procname	= "dirty_expire_centisecs",
+		.data		= &dirty_expire_interval,
+		.maxlen		= sizeof(dirty_expire_interval),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+	},
+	{
+		.procname	= "nr_pdflush_threads",
+		.data		= &nr_pdflush_threads,
+		.maxlen		= sizeof nr_pdflush_threads,
+		.mode		= 0444 /* read-only*/,
+		.proc_handler	= proc_dointvec,
+	},
+	{
+		.procname	= "swappiness",
+		.data		= &vm_swappiness,
+		.maxlen		= sizeof(vm_swappiness),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+#ifdef CONFIG_ZSWAP
+		.extra2		= &max_swappiness,
+#else
+		.extra2		= &one_hundred,
+#endif
+	},
+
 #ifdef CONFIG_HUGETLB_PAGE
         {
                 .procname       = "nr_hugepages",

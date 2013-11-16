@@ -155,7 +155,7 @@
 #include <linux/mdnie.h>
 #endif
 
-#include <../../../drivers/video/samsung/s3cfb.h>
+#include <plat/fb-s5p.h>
 #include "u1.h"
 
 #include <mach/sec_debug.h>
@@ -285,26 +285,26 @@ struct class *camera_class;
 
 static int __init camera_class_init(void)
 {
-        camera_class = class_create(THIS_MODULE, "camera");
-        if (IS_ERR(camera_class)) {
-                pr_err("Failed to create class(camera)!\n");
-                return PTR_ERR(camera_class);
-        }
+	camera_class = class_create(THIS_MODULE, "camera");
+	if (IS_ERR(camera_class)) {
+		pr_err("Failed to create class(camera)!\n");
+		return PTR_ERR(camera_class);
+	}
 
-        return 0;
+	return 0;
 }
 
 subsys_initcall(camera_class_init);
 
-#define CAM_CHECK_ERR_RET(x, msg)                                        \
-        if (unlikely((x) < 0)) {                                        \
-                printk(KERN_ERR "\nfail to %s: err = %d\n", msg, x);        \
-                return x;                                                \
-        }
-#define CAM_CHECK_ERR(x, msg)                                                \
-        if (unlikely((x) < 0)) {                                        \
-                printk(KERN_ERR "\nfail to %s: err = %d\n", msg, x);        \
-        }
+#define CAM_CHECK_ERR_RET(x, msg)					\
+	if (unlikely((x) < 0)) {					\
+		printk(KERN_ERR "\nfail to %s: err = %d\n", msg, x);	\
+		return x;						\
+	}
+#define CAM_CHECK_ERR(x, msg)						\
+	if (unlikely((x) < 0)) {					\
+		printk(KERN_ERR "\nfail to %s: err = %d\n", msg, x);	\
+	}
 
 static int m5mo_get_i2c_busnum(void)
 {
@@ -318,68 +318,68 @@ static int m5mo_get_i2c_busnum(void)
 
 static int m5mo_power_on(void)
 {
-        struct regulator *regulator;
-        int ret = 0;
+	struct regulator *regulator;
+	int ret = 0;
 
-        printk(KERN_DEBUG "%s: in. hw=0x%X\n", __func__, system_rev);
+	printk(KERN_DEBUG "%s: in. hw=0x%X\n", __func__, system_rev);
 
-        ret = gpio_request(GPIO_CAM_VGA_nSTBY, "GPL2");
-        if (ret) {
-                printk(KERN_ERR "faile to request gpio(GPIO_CAM_VGA_nSTBY)\n");
-                return ret;
-        }
-        ret = gpio_request(GPIO_CAM_VGA_nRST, "GPL2");
-        if (ret) {
-                printk(KERN_ERR "faile to request gpio(GPIO_CAM_VGA_nRST)\n");
-                return ret;
-        }
-        ret = gpio_request(GPIO_CAM_SENSOR_CORE, "GPE2");
-        if (ret) {
-                printk(KERN_ERR "fail to request gpio(CAM_SENSOR_CORE)\n");
-                return ret;
-        }
-        ret = gpio_request(GPIO_CAM_IO_EN, "GPE2");
-        if (ret) {
-                printk(KERN_ERR "fail to request gpio(CAM_IO_EN)\n");
-                return ret;
-        }
-        ret = gpio_request(GPIO_VT_CAM_15V, "GPE2");
-        if (ret) {
-                printk(KERN_ERR "faile to request gpio(GPIO_VT_CAM_15V)\n");
-                return ret;
-        }
-        ret = gpio_request(GPIO_ISP_RESET, "ISP_RESET");
-        if (ret) {
-                printk(KERN_ERR "faile to request gpio(ISP_RESET)\n");
-                return ret;
-        }
-        ret = gpio_request(GPIO_8M_AF_EN, "GPK1");
-        if (ret) {
-                printk(KERN_ERR "fail to request gpio(8M_AF_EN)\n");
-                return ret;
-        }
+	ret = gpio_request(GPIO_CAM_VGA_nSTBY, "GPL2");
+	if (ret) {
+		printk(KERN_ERR "faile to request gpio(GPIO_CAM_VGA_nSTBY)\n");
+		return ret;
+	}
+	ret = gpio_request(GPIO_CAM_VGA_nRST, "GPL2");
+	if (ret) {
+		printk(KERN_ERR "faile to request gpio(GPIO_CAM_VGA_nRST)\n");
+		return ret;
+	}
+	ret = gpio_request(GPIO_CAM_SENSOR_CORE, "GPE2");
+	if (ret) {
+		printk(KERN_ERR "fail to request gpio(CAM_SENSOR_CORE)\n");
+		return ret;
+	}
+	ret = gpio_request(GPIO_CAM_IO_EN, "GPE2");
+	if (ret) {
+		printk(KERN_ERR "fail to request gpio(CAM_IO_EN)\n");
+		return ret;
+	}
+	ret = gpio_request(GPIO_VT_CAM_15V, "GPE2");
+	if (ret) {
+		printk(KERN_ERR "faile to request gpio(GPIO_VT_CAM_15V)\n");
+		return ret;
+	}
+	ret = gpio_request(GPIO_ISP_RESET, "ISP_RESET");
+	if (ret) {
+		printk(KERN_ERR "faile to request gpio(ISP_RESET)\n");
+		return ret;
+	}
+	ret = gpio_request(GPIO_8M_AF_EN, "GPK1");
+	if (ret) {
+		printk(KERN_ERR "fail to request gpio(8M_AF_EN)\n");
+		return ret;
+	}
 
-        /* CAM_VT_nSTBY low */
-        ret = gpio_direction_output(GPIO_CAM_VGA_nSTBY, 0);
-        CAM_CHECK_ERR_RET(ret, "output VGA_nSTBY");
+	/* CAM_VT_nSTBY low */
+	ret = gpio_direction_output(GPIO_CAM_VGA_nSTBY, 0);
+	CAM_CHECK_ERR_RET(ret, "output VGA_nSTBY");
 
-        /* CAM_VT_nRST        low */
-        gpio_direction_output(GPIO_CAM_VGA_nRST, 0);
-        CAM_CHECK_ERR_RET(ret, "output VGA_nRST");
-        udelay(10);
+	/* CAM_VT_nRST	low */
+	gpio_direction_output(GPIO_CAM_VGA_nRST, 0);
+	CAM_CHECK_ERR_RET(ret, "output VGA_nRST");
+	udelay(10);
 
-        /* CAM_ISP_CORE_1.2V */
-        regulator = regulator_get(NULL, "cam_isp_core");
-        if (IS_ERR(regulator))
-                return -ENODEV;
-        ret = regulator_enable(regulator);
-        regulator_put(regulator);
-        CAM_CHECK_ERR_RET(ret, "enable cam_isp_core");
-        /* No delay */
+	/* CAM_ISP_CORE_1.2V */
+	regulator = regulator_get(NULL, "cam_isp_core");
+	if (IS_ERR(regulator))
+		return -ENODEV;
+	ret = regulator_enable(regulator);
+	regulator_put(regulator);
+	CAM_CHECK_ERR_RET(ret, "enable cam_isp_core");
+	udelay(15);
 
-        /* CAM_SENSOR_CORE_1.2V */
-        ret = gpio_direction_output(GPIO_CAM_SENSOR_CORE, 1);
-        CAM_CHECK_ERR_RET(ret, "output senser_core");
+	/* CAM_SENSOR_CORE_1.2V */
+	ret = gpio_direction_output(GPIO_CAM_SENSOR_CORE, 1);
+	CAM_CHECK_ERR_RET(ret, "output senser_core");
 
 #if defined(CONFIG_MACH_Q1_BD)
         udelay(120);
@@ -393,10 +393,13 @@ static int m5mo_power_on(void)
         /* it takes about 100us at least during level transition. */
         udelay(160);                /* 130us -> 160us */
 
-        /* VT_CORE_1.5V */
-        ret = gpio_direction_output(GPIO_VT_CAM_15V, 1);
-        CAM_CHECK_ERR_RET(ret, "output VT_CAM_1.5V");
-        udelay(20);
+	/* VT_CORE_1.5V */
+	ret = gpio_direction_output(GPIO_VT_CAM_15V, 1);
+#ifdef CONFIG_TARGET_LOCALE_NA
+	s3c_gpio_setpull(GPIO_VT_CAM_15V, S3C_GPIO_PULL_NONE);
+#endif /* CONFIG_TARGET_LOCALE_NA */
+	CAM_CHECK_ERR_RET(ret, "output VT_CAM_1.5V");
+	udelay(20);
 
 #if defined(CONFIG_MACH_Q1_BD)
         udelay(120);
@@ -1165,14 +1168,14 @@ error_out:
 }
 
 static struct s5k5bafx_platform_data s5k5bafx_plat = {
-        .default_width = 640,
-        .default_height = 480,
-        .pixelformat = V4L2_PIX_FMT_UYVY,
-        .freq = 24000000,
-        .is_mipi = 1,
-        .streamoff_delay = S5K5BAFX_STREAMOFF_DELAY,
-        .init_streamoff = true,
-        .dbg_level = CAMDBG_LEVEL_DEFAULT,
+	.default_width = 640,
+	.default_height = 480,
+	.pixelformat = V4L2_PIX_FMT_UYVY,
+	.freq = 24000000,
+	.is_mipi = 1,
+	.streamoff_delay = S5K5BAFX_STREAMOFF_DELAY,
+	.init_streamoff = true,
+	.dbg_level = CAMDBG_LEVEL_DEFAULT,
 };
 
 static struct i2c_board_info s5k5bafx_i2c_info = {
@@ -1726,12 +1729,14 @@ static struct s3c_sdhci_platdata exynos4_hsmmc3_pdata __initdata = {
 
 #ifdef CONFIG_EXYNOS4_DEV_MSHC
 static struct s3c_mshci_platdata exynos4_mshc_pdata __initdata = {
-        .cd_type = S3C_MSHCI_CD_PERMANENT,
-#if defined(CONFIG_EXYNOS4_MSHC_8BIT) &&        \
-        defined(CONFIG_EXYNOS4_MSHC_DDR)
-        .max_width = 8,
-        .host_caps = MMC_CAP_8_BIT_DATA | MMC_CAP_1_8V_DDR |
-                        MMC_CAP_UHS_DDR50 | MMC_CAP_CMD23,
+	.cd_type = S3C_MSHCI_CD_PERMANENT,
+#if defined(CONFIG_EXYNOS4_MSHC_8BIT) &&	\
+	defined(CONFIG_EXYNOS4_MSHC_DDR)
+	.max_width = 8,
+	.host_caps = MMC_CAP_8_BIT_DATA | MMC_CAP_1_8V_DDR |
+			MMC_CAP_UHS_DDR50 | MMC_CAP_CMD23,
+	/* enable PON */
+	.host_caps2 = MMC_CAP2_POWEROFF_NOTIFY,
 #elif defined(CONFIG_EXYNOS4_MSHC_8BIT)
         .max_width = 8,
         .host_caps = MMC_CAP_8_BIT_DATA | MMC_CAP_CMD23,
@@ -2073,15 +2078,15 @@ static struct spi_board_info spi0_board_info[] __initdata = {
                 .controller_data        =        &spi0_csi[0],
         },
 
-#elif defined(CONFIG_PHONE_IPC_SPI)
-        {
-                .modalias = "ipc_spi",
-                .bus_num = 0,
-                .chip_select = 0,
-                .max_speed_hz = 12*1000*1000,
-                .mode = SPI_MODE_1,
-                .controller_data = &spi0_csi[0],
-        },
+#elif defined(CONFIG_LINK_DEVICE_SPI)
+	{
+		.modalias = "modem_if_spi",
+		.bus_num = 0,
+		.chip_select = 0,
+		.max_speed_hz = 12*1000*1000,
+		.mode = SPI_MODE_1,
+		.controller_data = &spi0_csi[0],
+	},
 #else
         {
                 .modalias = "spidev",
@@ -3351,60 +3356,60 @@ static struct max8997_motor_data max8997_motor = {
 #endif
 
 #if defined(CONFIG_TARGET_LOCALE_NA)
-#define USB_PATH_AP        0
-#define USB_PATH_CP               1
-#define USB_PATH_ALL        2
+#define USB_PATH_AP	0
+#define USB_PATH_CP	       1
+#define USB_PATH_ALL	2
 extern int u1_get_usb_hub_path(void);
 static int max8997_muic_set_safeout(int path)
 {
-        struct regulator *regulator;
-        int hub_usb_path = u1_get_usb_hub_path();
+	struct regulator *regulator;
+	int hub_usb_path = u1_get_usb_hub_path();
 
-        if (hub_usb_path == USB_PATH_CP) {
-                regulator = regulator_get(NULL, "safeout1");
-                if (IS_ERR(regulator))
-                        return -ENODEV;
-                if (regulator_is_enabled(regulator))
-                        regulator_force_disable(regulator);
-                regulator_put(regulator);
+	if (hub_usb_path == USB_PATH_CP) {
+		regulator = regulator_get(NULL, "safeout1");
+		if (IS_ERR(regulator))
+			return -ENODEV;
+		if (regulator_is_enabled(regulator))
+			regulator_force_disable(regulator);
+		regulator_put(regulator);
 
-                regulator = regulator_get(NULL, "safeout2");
-                if (IS_ERR(regulator))
-                        return -ENODEV;
-                if (!regulator_is_enabled(regulator))
-                        regulator_enable(regulator);
-                regulator_put(regulator);
-        } else if (hub_usb_path == USB_PATH_AP) {
-                regulator = regulator_get(NULL, "safeout1");
-                if (IS_ERR(regulator))
-                        return -ENODEV;
-                if (!regulator_is_enabled(regulator))
-                        regulator_enable(regulator);
-                regulator_put(regulator);
+		regulator = regulator_get(NULL, "safeout2");
+		if (IS_ERR(regulator))
+			return -ENODEV;
+		if (!regulator_is_enabled(regulator))
+			regulator_enable(regulator);
+		regulator_put(regulator);
+	} else if (hub_usb_path == USB_PATH_AP) {
+		regulator = regulator_get(NULL, "safeout1");
+		if (IS_ERR(regulator))
+			return -ENODEV;
+		if (!regulator_is_enabled(regulator))
+			regulator_enable(regulator);
+		regulator_put(regulator);
 
-                regulator = regulator_get(NULL, "safeout2");
-                if (IS_ERR(regulator))
-                        return -ENODEV;
-                if (regulator_is_enabled(regulator))
-                        regulator_force_disable(regulator);
-                regulator_put(regulator);
-        } else if (hub_usb_path == USB_PATH_ALL) {
-                regulator = regulator_get(NULL, "safeout1");
-                if (IS_ERR(regulator))
-                        return -ENODEV;
-                if (!regulator_is_enabled(regulator))
-                        regulator_enable(regulator);
-                regulator_put(regulator);
+		regulator = regulator_get(NULL, "safeout2");
+		if (IS_ERR(regulator))
+			return -ENODEV;
+		if (regulator_is_enabled(regulator))
+			regulator_force_disable(regulator);
+		regulator_put(regulator);
+	} else if (hub_usb_path == USB_PATH_ALL) {
+		regulator = regulator_get(NULL, "safeout1");
+		if (IS_ERR(regulator))
+			return -ENODEV;
+		if (!regulator_is_enabled(regulator))
+			regulator_enable(regulator);
+		regulator_put(regulator);
 
-                regulator = regulator_get(NULL, "safeout2");
-                if (IS_ERR(regulator))
-                        return -ENODEV;
-                if (!regulator_is_enabled(regulator))
-                        regulator_enable(regulator);
-                regulator_put(regulator);
-        }
+		regulator = regulator_get(NULL, "safeout2");
+		if (IS_ERR(regulator))
+			return -ENODEV;
+		if (!regulator_is_enabled(regulator))
+			regulator_enable(regulator);
+		regulator_put(regulator);
+	}
 
-        return 0;
+	return 0;
 }
 #elif defined(CONFIG_MACH_U1_KOR_LGT)
 static int max8997_muic_set_safeout(int path)
@@ -3935,25 +3940,33 @@ static struct mc1n2_platform_data mc1n2_pdata = {
 static void u1_sound_init(void)
 {
 #ifdef CONFIG_SND_SOC_USE_EXTERNAL_MIC_BIAS
-        int err;
+	int err;
 
-        err = gpio_request(GPIO_MIC_BIAS_EN, "GPE1");
-        if (err) {
-                pr_err(KERN_ERR "MIC_BIAS_EN GPIO set error!\n");
-                return;
-        }
-        gpio_direction_output(GPIO_MIC_BIAS_EN, 1);
-        gpio_set_value(GPIO_MIC_BIAS_EN, 0);
-        gpio_free(GPIO_MIC_BIAS_EN);
+	err = gpio_request(GPIO_MIC_BIAS_EN, "GPE1");
+	if (err) {
+		pr_err(KERN_ERR "MIC_BIAS_EN GPIO set error!\n");
+		return;
+	}
+	gpio_direction_output(GPIO_MIC_BIAS_EN, 1);
+#ifdef CONFIG_TARGET_LOCALE_NA
+	s3c_gpio_setpull(GPIO_MIC_BIAS_EN, S3C_GPIO_PULL_NONE);
+#endif /* CONFIG_TARGET_LOCALE_NA */
 
-        err = gpio_request(GPIO_EAR_MIC_BIAS_EN, "GPE2");
-        if (err) {
-                pr_err(KERN_ERR "EAR_MIC_BIAS_EN GPIO set error!\n");
-                return;
-        }
-        gpio_direction_output(GPIO_EAR_MIC_BIAS_EN, 1);
-        gpio_set_value(GPIO_EAR_MIC_BIAS_EN, 0);
-        gpio_free(GPIO_EAR_MIC_BIAS_EN);
+	gpio_set_value(GPIO_MIC_BIAS_EN, 0);
+	gpio_free(GPIO_MIC_BIAS_EN);
+
+	err = gpio_request(GPIO_EAR_MIC_BIAS_EN, "GPE2");
+	if (err) {
+		pr_err(KERN_ERR "EAR_MIC_BIAS_EN GPIO set error!\n");
+		return;
+	}
+	gpio_direction_output(GPIO_EAR_MIC_BIAS_EN, 1);
+#ifdef CONFIG_TARGET_LOCALE_NA
+	s3c_gpio_setpull(GPIO_EAR_MIC_BIAS_EN, S3C_GPIO_PULL_NONE);
+#endif /* CONFIG_TARGET_LOCALE_NA */
+
+	gpio_set_value(GPIO_EAR_MIC_BIAS_EN, 0);
+	gpio_free(GPIO_EAR_MIC_BIAS_EN);
 
 #if defined(CONFIG_MACH_Q1_BD)
         err = gpio_request(GPIO_SUB_MIC_BIAS_EN, "submic_bias");
@@ -3966,15 +3979,19 @@ static void u1_sound_init(void)
         gpio_free(GPIO_SUB_MIC_BIAS_EN);
 
 #else
-        if (system_rev >= SYSTEM_REV_SND) {
-                err = gpio_request(GPIO_SUB_MIC_BIAS_EN, "submic_bias");
-                if (err) {
-                        pr_err(KERN_ERR "SUB_MIC_BIAS_EN GPIO set error!\n");
-                        return;
-                }
-                gpio_direction_output(GPIO_SUB_MIC_BIAS_EN, 0);
-                gpio_free(GPIO_SUB_MIC_BIAS_EN);
-        }
+	if (system_rev >= SYSTEM_REV_SND) {
+		err = gpio_request(GPIO_SUB_MIC_BIAS_EN, "submic_bias");
+		if (err) {
+			pr_err(KERN_ERR "SUB_MIC_BIAS_EN GPIO set error!\n");
+			return;
+		}
+		gpio_direction_output(GPIO_SUB_MIC_BIAS_EN, 0);
+#ifdef CONFIG_TARGET_LOCALE_NA
+		s3c_gpio_setpull(GPIO_SUB_MIC_BIAS_EN, S3C_GPIO_PULL_NONE);
+#endif /* CONFIG_TARGET_LOCALE_NA */
+
+		gpio_free(GPIO_SUB_MIC_BIAS_EN);
+	}
 #endif /* #if defined(CONFIG_MACH_Q1_BD) */
 #endif
 }
@@ -4157,79 +4174,78 @@ static struct platform_device samsung_device_battery = {
 #ifdef CONFIG_TARGET_LOCALE_KOR
 /* temperature table for ADC 6 */
 static struct sec_bat_adc_table_data temper_table[] =  {
-        {  264,         500 },
-        {  275,         490 },
-        {  286,         480 },
-        {  293,         480 },
-        {  299,         470 },
-        {  306,         460 },
-        {  324,         450 },
-        {  341,         450 },
-        {  354,         440 },
-        {  368,         430 },
-        {  381,         420 },
-        {  396,         420 },
-        {  411,         410 },
-        {  427,         400 },
-        {  442,         390 },
-        {  457,         390 },
-        {  472,         380 },
-        {  487,         370 },
-        {  503,         370 },
-        {  518,         360 },
-        {  533,         350 },
-        {  554,         340 },
-        {  574,         330 },
-        {  595,         330 },
-        {  615,         320 },
-        {  636,         310 },
-        {  656,         310 },
-        {  677,         300 },
-        {  697,         290 },
-        {  718,         280 },
-        {  738,         270 },
-        {  761,         270 },
-        {  784,         260 },
-        {  806,         250 },
-        {  829,         240 },
-        {  852,         230 },
-        {  875,         220 },
-        {  898,         210 },
-        {  920,         200 },
-        {  943,         190 },
-        {  966,         180 },
-        {  990,         170 },
-        { 1013,         160 },
-        { 1037,         150 },
-        { 1060,         140 },
-        { 1084,         130 },
-        { 1108,         120 },
-        { 1131,         110 },
-        { 1155,         100 },
-        { 1178,          90 },
-        { 1202,          80 },
-        { 1226,          70 },
-        { 1251,          60 },
-        { 1275,          50 },
-        { 1299,          40 },
-        { 1324,          30 },
-        { 1348,          20 },
-        { 1372,          10 },
-        { 1396,           0 },
-        { 1421,         -10 },
-        { 1445,         -20 },
-        { 1468,         -30 },
-        { 1491,         -40 },
-        { 1513,         -50 },
-        { 1536,         -60 },
-        { 1559,         -70 },
-        { 1577,         -80 },
-        { 1596,         -90 },
-        { 1614,         -100 },
-        { 1619,         -110 },
-        { 1632,         -120 },
-        { 1658,         -130 },
-        { 1667,         -140 },
+	{ 264,      570 },
+	{ 289,      560 },
+	{ 314,      550 },
+	{ 340,      540 },
+	{ 365,      530 },
+	{ 390,      520 },
+	{ 416,      510 },
+	{ 441,      500 },
+	{ 467,      490 },
+	{ 492,      480 },
+	{ 517,      470 },
+	{ 543,      460 },
+	{ 578,      450 },
+	{ 614,      440 },
+	{ 649,      430 },
+	{ 686,      420 },
+	{ 698,      410 },
+	{ 710,      400 },
+	{ 722,      390 },
+	{ 734,      380 },
+	{ 746,      370 },
+	{ 761,      360 },
+	{ 780,      350 },
+	{ 799,      340 },
+	{ 819,      330 },
+	{ 838,      320 },
+	{ 857,      310 },
+	{ 876,      300 },
+	{ 895,      290 },
+	{ 914,      280 },
+	{ 933,      270 },
+	{ 952,      260 },
+	{ 971,      250 },
+	{ 990,      240 },
+	{ 1009,     230 },
+	{ 1030,     220 },
+	{ 1056,     210 },
+	{ 1082,     200 },
+	{ 1108,     190 },
+	{ 1131,     180 },
+	{ 1155,     170 },
+	{ 1178,     160 },
+	{ 1202,     150 },
+	{ 1226,     140 },
+	{ 1251,     130 },
+	{ 1275,     120 },
+	{ 1299,     110 },
+	{ 1324,     100 },
+	{ 1348,      90 },
+	{ 1372,      80 },
+	{ 1396,      70 },
+	{ 1421,      60 },
+	{ 1445,      50 },
+	{ 1468,      40 },
+	{ 1491,      30 },
+	{ 1513,      20 },
+	{ 1536,      10 },
+	{ 1559,       0 },
+	{ 1573,     -10 },
+	{ 1588,     -20 },
+	{ 1603,     -30 },
+	{ 1618,     -40 },
+	{ 1633,     -50 },
+	{ 1648,     -60 },
+	{ 1663,     -70 },
+	{ 1678,     -80 },
+	{ 1693,     -90 },
+	{ 1705,    -100 },
+	{ 1720,    -110 },
+	{ 1736,    -120 },
+	{ 1751,    -130 },
+	{ 1767,    -140 },
 };
 #elif defined(CONFIG_TARGET_LOCALE_NTT)
 /* temperature table for ADC 6 */
@@ -4578,112 +4594,113 @@ static struct sec_bat_adc_table_data temper_table_ADC7[] =  {
 #else
 /* temperature table for ADC 7 */
 static struct sec_bat_adc_table_data temper_table_ADC7[] = {
-        {  193,         800 },
-        {  200,         790 },
-        {  207,         780 },
-        {  215,         770 },
-        {  223,         760 },
-        {  230,         750 },
-        {  238,         740 },
-        {  245,         730 },
-        {  252,         720 },
-        {  259,         710 },
-        {  266,         700 },
-        {  277,         690 },
-        {  288,         680 },
-        {  300,         670 },
-        {  311,         660 },
-        {  326,         650 },
-        {  340,         640 },
-        {  354,         630 },
-        {  368,         620 },
-        {  382,         610 },
-        {  397,         600 },
-        {  410,         590 },
-        {  423,         580 },
-        {  436,         570 },
-        {  449,         560 },
-        {  462,         550 },
-        {  475,         540 },
-        {  488,         530 },
-        {  491,         520 },
-        {  503,         510 },
-        {  535,         500 },
-        {  548,         490 },
-        {  562,         480 },
-        {  576,         470 },
-        {  590,         460 },
-        {  603,         450 },
-        {  616,         440 },
-        {  630,         430 },
-        {  646,         420 },
-        {  663,         410 },
-        {  679,         400 },
-        {  696,         390 },
-        {  712,         380 },
-        {  728,         370 },
-        {  745,         360 },
-        {  762,         350 },
-        {  784,         340 },
-        {  806,         330 },
-        {  828,         320 },
-        {  850,         310 },
-        {  872,         300 },
-        {  895,         290 },
-        {  919,         280 },
-        {  942,         270 },
-        {  966,         260 },
-        {  989,         250 },
-        { 1013,         240 },
-        { 1036,         230 },
-        { 1060,         220 },
-        { 1083,         210 },
-        { 1107,         200 },
-        { 1133,         190 },
-        { 1159,         180 },
-        { 1186,         170 },
-        { 1212,         160 },
-        { 1238,         150 },
-        { 1265,         140 },
-        { 1291,         130 },
-        { 1316,         120 },
-        { 1343,         110 },
-        { 1370,         100 },
-        { 1381,          90 },
-        { 1393,          80 },
-        { 1404,          70 },
-        { 1416,          60 },
-        { 1427,          50 },
-        { 1453,          40 },
-        { 1479,          30 },
-        { 1505,          20 },
-        { 1531,          10 },
-        { 1557,           0 },
-        { 1565,         -10 },
-        { 1577,         -20 },
-        { 1601,         -30 },
-        { 1620,         -40 },
-        { 1633,         -50 },
-        { 1642,         -60 },
-        { 1656,         -70 },
-        { 1667,  -80 },
-        { 1674,  -90 },
-        { 1689, -100 },
-        { 1704, -110 },
-        { 1719, -120 },
-        { 1734, -130 },
-        { 1749, -140 },
-        { 1763, -150 },
-        { 1778, -160 },
-        { 1793, -170 },
-        { 1818, -180 },
-        { 1823, -190 },
-        { 1838, -200 },
+	{  193,	 800 },
+	{  200,	 790 },
+	{  207,	 780 },
+	{  215,	 770 },
+	{  223,	 760 },
+	{  230,	 750 },
+	{  238,	 740 },
+	{  245,	 730 },
+	{  252,	 720 },
+	{  259,	 710 },
+	{  266,	 700 },
+	{  277,	 690 },
+	{  288,	 680 },
+	{  300,	 670 },
+	{  311,	 660 },
+	{  326,	 650 },
+	{  340,	 640 },
+	{  354,	 630 },
+	{  368,	 620 },
+	{  382,	 610 },
+	{  397,	 600 },
+	{  410,	 590 },
+	{  423,	 580 },
+	{  436,	 570 },
+	{  449,	 560 },
+	{  462,	 550 },
+	{  475,	 540 },
+	{  488,	 530 },
+	{  491,	 520 },
+	{  503,	 510 },
+	{  535,	 500 },
+	{  548,	 490 },
+	{  562,	 480 },
+	{  576,	 470 },
+	{  590,	 460 },
+	{  603,	 450 },
+	{  616,	 440 },
+	{  630,	 430 },
+	{  646,	 420 },
+	{  663,	 410 },
+	{  679,	 400 },
+	{  696,	 390 },
+	{  712,	 380 },
+	{  728,	 370 },
+	{  745,	 360 },
+	{  762,	 350 },
+	{  784,	 340 },
+	{  806,	 330 },
+	{  828,	 320 },
+	{  850,	 310 },
+	{  872,	 300 },
+	{  895,	 290 },
+	{  919,	 280 },
+	{  942,	 270 },
+	{  966,	 260 },
+	{  989,	 250 },
+	{ 1013,	 240 },
+	{ 1036,	 230 },
+	{ 1060,	 220 },
+	{ 1083,	 210 },
+	{ 1107,	 200 },
+	{ 1133,	 190 },
+	{ 1159,	 180 },
+	{ 1186,	 170 },
+	{ 1212,	 160 },
+	{ 1238,	 150 },
+	{ 1265,	 140 },
+	{ 1291,	 130 },
+	{ 1316,	 120 },
+	{ 1343,	 110 },
+	{ 1370,	 100 },
+	{ 1381,	  90 },
+	{ 1393,	  80 },
+	{ 1404,	  70 },
+	{ 1416,	  60 },
+	{ 1427,	  50 },
+	{ 1453,	  40 },
+	{ 1479,	  30 },
+	{ 1505,	  20 },
+	{ 1531,	  10 },
+	{ 1557,	   0 },
+	{ 1565,	 -10 },
+	{ 1577,	 -20 },
+	{ 1601,	 -30 },
+	{ 1620,	 -40 },
+	{ 1633,	 -50 },
+	{ 1642,	 -60 },
+	{ 1656,	 -70 },
+	{ 1667,  -80 },
+	{ 1674,  -90 },
+	{ 1689, -100 },
+	{ 1704, -110 },
+	{ 1719, -120 },
+	{ 1734, -130 },
+	{ 1749, -140 },
+	{ 1763, -150 },
+	{ 1778, -160 },
+	{ 1793, -170 },
+	{ 1818, -180 },
+	{ 1823, -190 },
+	{ 1838, -200 },
 };
 #endif
 
-#define ADC_CH_TEMPERATURE_PMIC        6
-#define ADC_CH_TEMPERATURE_LCD        7
+#define ADC_CH_VF	2
+#define ADC_CH_TEMPERATURE_PMIC	6
+#define ADC_CH_TEMPERATURE_LCD	7
 
 static unsigned int sec_bat_get_lpcharging_state(void)
 {
@@ -4718,16 +4735,21 @@ static struct sec_bat_platform_data sec_bat_pdata = {
 #ifdef CONFIG_CHARGER_MAX8922_U1
         .sub_charger_name        = "max8922-charger",
 #elif defined(CONFIG_MAX8903_CHARGER)
-        .sub_charger_name        = "max8903-charger",
+	.sub_charger_name	= "max8903-charger",
 #endif
-        /* TODO: should provide temperature table */
-        .adc_arr_size                = ARRAY_SIZE(temper_table),
-        .adc_table                        = temper_table,
-        .adc_channel                = ADC_CH_TEMPERATURE_PMIC,
-        .adc_sub_arr_size        = ARRAY_SIZE(temper_table_ADC7),
-        .adc_sub_table                = temper_table_ADC7,
-        .adc_sub_channel        = ADC_CH_TEMPERATURE_LCD,
-        .get_lpcharging_state        = sec_bat_get_lpcharging_state,
+	/* TODO: should provide temperature table */
+	.adc_arr_size		= ARRAY_SIZE(temper_table),
+	.adc_table			= temper_table,
+	.adc_channel		= ADC_CH_TEMPERATURE_PMIC,
+	.adc_sub_arr_size	= ARRAY_SIZE(temper_table_ADC7),
+	.adc_sub_table		= temper_table_ADC7,
+	.adc_sub_channel	= ADC_CH_TEMPERATURE_LCD,
+	.get_lpcharging_state	= sec_bat_get_lpcharging_state,
+#if defined(CONFIG_TARGET_LOCALE_NAATT) || \
+	defined(CONFIG_TARGET_LOCALE_NAATT_TEMP)
+	.adc_vf_channel = ADC_CH_VF,
+#endif
+
 #if defined(CONFIG_MACH_Q1_BD)
         .initial_check                = sec_bat_initial_check,
 #else
@@ -5052,11 +5074,55 @@ static struct sec_therm_adc_table adc_ch6_table[] = {
 };
 #endif
 
+/* when the next level is same as prev, returns -1 */
+static int get_exynos4210_siop_level(int temp)
+{
+	static int prev_temp = 400;
+	static int prev_level;
+	int level = -1;
+
+	if (temp > prev_temp) {
+		if (temp >= 610)
+			level = 4;
+		else if (temp >= 590)
+			level = 3;
+		else if (temp >= 540)
+			level = 2;
+		else if (temp >= 510)
+			level = 1;
+		else
+			level = 0;
+	} else {
+		if (temp < 480)
+			level = 0;
+		else if (temp < 510)
+			level = 1;
+		else if (temp < 540)
+			level = 2;
+		else if (temp < 590)
+			level = 3;
+		else
+			level = 4;
+
+		if (level > prev_level)
+			level = prev_level;
+	}
+
+	prev_temp = temp;
+	if (prev_level == level)
+		return -1;
+
+	prev_level = level;
+
+	return level;
+}
+
 static struct sec_therm_platform_data sec_therm_pdata = {
-        .adc_channel        = 6,
-        .adc_arr_size        = ARRAY_SIZE(adc_ch6_table),
-        .adc_table        = adc_ch6_table,
-        .polling_interval = 30 * 1000, /* msecs */
+	.adc_channel	= 6,
+	.adc_arr_size	= ARRAY_SIZE(adc_ch6_table),
+	.adc_table	= adc_ch6_table,
+	.polling_interval = 30 * 1000, /* msecs */
+	.get_siop_level = get_exynos4210_siop_level,
 };
 
 static struct platform_device sec_device_thermistor = {
@@ -5446,31 +5512,35 @@ static const u8 *mxt224_config[] = {
   Configuration for MXT224-E
 */
 #ifdef CONFIG_TARGET_LOCALE_NAATT_TEMP
-#define MXT224E_THRESHOLD_BATT                50
-#define MXT224E_THRESHOLD_CHRG                40
-#define MXT224E_T48_THRESHOLD_BATT                33
-#define MXT224E_CALCFG_BATT                0x72
-#define MXT224E_CALCFG_CHRG                0x72
-#define MXT224E_ATCHFRCCALTHR_NORMAL                40
-#define MXT224E_ATCHFRCCALRATIO_NORMAL                55
-#define MXT224E_GHRGTIME_BATT                22
-#define MXT224E_GHRGTIME_CHRG                22
-#define MXT224E_ATCHCALST                4
-#define MXT224E_ATCHCALTHR                35
-#define MXT224E_BLEN_BATT                32
-#define MXT224E_T48_BLEN_BATT                0
-#define MXT224E_BLEN_CHRG                0
-#define MXT224E_T48_BLEN_CHRG                0
-#define MXT224E_MOVFILTER_BATT                14
-#define MXT224E_MOVFILTER_CHRG                46
-#define MXT224E_ACTVSYNCSPERX_NORMAL                29
-#define MXT224E_NEXTTCHDI_NORMAL                0
-#define MXT224E_NEXTTCHDI_CHRG                1
+#define MXT224E_THRESHOLD_BATT		50
+#define MXT224E_THRESHOLD_CHRG		40
+#define MXT224E_T48_THRESHOLD_BATT		33
+#define MXT224E_CALCFG_BATT		0x72
+#define MXT224E_CALCFG_CHRG		0x72
+#define MXT224E_ATCHFRCCALTHR_NORMAL		40
+#define MXT224E_ATCHFRCCALRATIO_NORMAL		55
+#define MXT224E_GHRGTIME_BATT		22
+#define MXT224E_GHRGTIME_CHRG		22
+#define MXT224E_ATCHCALST		4
+#define MXT224E_ATCHCALTHR		35
+#define MXT224E_BLEN_BATT		32
+#define MXT224E_T48_BLEN_BATT		0
+#define MXT224E_BLEN_CHRG		0
+#define MXT224E_T48_BLEN_CHRG		0
+#define MXT224E_MOVFILTER_BATT		14
+#define MXT224E_MOVFILTER_CHRG		46
+#define MXT224E_ACTVSYNCSPERX_NORMAL		29
+#define MXT224E_NEXTTCHDI_NORMAL		0
+#define MXT224E_NEXTTCHDI_CHRG		1
 #else
 #define MXT224E_THRESHOLD_BATT		40
 #define MXT224E_T48_THRESHOLD_BATT		28
-#define MXT224E_THRESHOLD_CHRG		37
+#define MXT224E_THRESHOLD_CHRG		40
+#if defined(CONFIG_MACH_U1_NA_SPR)
+#define MXT224E_CALCFG_BATT		0x72
+#else
 #define MXT224E_CALCFG_BATT		0x42
+#endif
 #define MXT224E_CALCFG_CHRG		0x52
 #if defined(CONFIG_TARGET_LOCALE_NA)
 #define MXT224E_ATCHFRCCALTHR_NORMAL                45
@@ -6251,6 +6321,27 @@ static struct i2c_board_info i2c_devs4[] __initdata = {
 #endif /* CONFIG_WIMAX_CMC */
 };
 #endif
+
+#if defined(CONFIG_WIMAX_CMC)
+static struct i2c_gpio_platform_data wmxeeprom_i2c_gpio_data = {
+	.sda_pin  = GPIO_CMC_SDA_18V,
+	.scl_pin  = GPIO_CMC_SCL_18V,
+	.udelay = 2,
+};
+static struct platform_device wmxeeprom_i2c_gpio_device = {
+	.name	= "i2c-gpio",
+	.id	= 18,
+	.dev	= {
+		.platform_data  = &wmxeeprom_i2c_gpio_data,
+	},
+};
+static struct i2c_board_info wmxeeprom_i2c_devices[] __initdata = {
+{
+	I2C_BOARD_INFO("wmxeeprom", 0x50),
+}
+};
+
+#endif /* CONFIG_WIMAX_CMC */
 
 #ifdef CONFIG_S3C_DEV_I2C5
 /* I2C5 */
@@ -7250,9 +7341,14 @@ static struct platform_device *smdkc210_devices[] __initdata = {
 #endif
 #endif
 #endif
+#endif
 
         /* consumer driver should resume after resuming i2c drivers */
         &u1_regulator_consumer,
+
+#if defined(CONFIG_WIMAX_CMC)
+	&wmxeeprom_i2c_gpio_device,
+#endif
 
 #ifdef CONFIG_EXYNOS4_DEV_MSHC
         &s3c_device_mshci,
@@ -7478,56 +7574,71 @@ static struct s5p_platform_cec hdmi_cec_data __initdata = {
 
 #if defined(CONFIG_S5P_MEM_CMA)
 static void __init exynos4_cma_region_reserve(struct cma_region *regions_normal,
-                                              struct cma_region *regions_secure)
+					      struct cma_region *regions_secure)
 {
-        struct cma_region *reg;
-        size_t size_secure = 0, align_secure = 0;
-        phys_addr_t paddr = 0;
+	struct cma_region *reg;
+	size_t size_secure = 0, align_secure = 0;
+	phys_addr_t paddr = 0;
 
-        for (reg = regions_normal; reg->size != 0; reg++) {
-                if (WARN_ON(cma_early_region_register(reg)))
-                        continue;
+	for (reg = regions_normal; reg->size != 0; reg++) {
+		if (WARN_ON(cma_early_region_register(reg)))
+			continue;
 
-                if ((reg->alignment & (reg->alignment - 1)) || reg->reserved)
-                        continue;
+		if ((reg->alignment & (reg->alignment - 1)) || reg->reserved)
+			continue;
 
-                if (reg->start) {
-                        if (!memblock_is_region_reserved(reg->start, reg->size)
-                            && memblock_reserve(reg->start, reg->size) >= 0)
-                                reg->reserved = 1;
-                } else {
-                        paddr = __memblock_alloc_base(reg->size, reg->alignment,
-                                                MEMBLOCK_ALLOC_ACCESSIBLE);
-                        if (paddr) {
-                                reg->start = paddr;
-                                reg->reserved = 1;
-                        }
-                }
-        }
+		if (reg->start) {
+#if defined(CONFIG_USE_MFC_CMA) && defined(CONFIG_MACH_Q1_BD)
+			if (reg->start == 0x67200000) {
+				if (!memblock_is_region_reserved
+					(reg->start, 0x600000) &&
+					memblock_reserve(reg->start,
+						reg->size) >= 0)
+					reg->reserved = 1;
+			} else if (reg->start == 0x68400000)
+				reg->reserved = 1;
+			else
+#endif
+			if (!memblock_is_region_reserved(reg->start, reg->size)
+			    && memblock_reserve(reg->start, reg->size) >= 0)
+				reg->reserved = 1;
+		} else {
+			paddr = __memblock_alloc_base(reg->size, reg->alignment,
+						MEMBLOCK_ALLOC_ACCESSIBLE);
+			if (paddr) {
+				reg->start = paddr;
+				reg->reserved = 1;
+			}
+		}
 
-        if (regions_secure && regions_secure->size) {
-                for (reg = regions_secure; reg->size != 0; reg++)
-                        size_secure += reg->size;
+		if (reg->reserved)
+			pr_info("S5P/CMA: Reserved 0x%08x/0x%08x for '%s'\n",
+				reg->start, reg->size, reg->name);
+	}
 
-                reg--;
+	if (regions_secure && regions_secure->size) {
+		for (reg = regions_secure; reg->size != 0; reg++)
+			size_secure += reg->size;
 
-                align_secure = reg->alignment;
-                BUG_ON(align_secure & (align_secure - 1));
+		reg--;
 
-                paddr -= size_secure;
-                paddr &= ~(align_secure - 1);
+		align_secure = reg->alignment;
+		BUG_ON(align_secure & (align_secure - 1));
 
-                if (!memblock_reserve(paddr, size_secure)) {
-                        do {
-                                reg->start = paddr;
-                                reg->reserved = 1;
-                                paddr += reg->size;
+		paddr -= size_secure;
+		paddr &= ~(align_secure - 1);
 
-                                if (WARN_ON(cma_early_region_register(reg)))
-                                        memblock_free(reg->start, reg->size);
-                        } while (reg-- != regions_secure);
-                }
-        }
+		if (!memblock_reserve(paddr, size_secure)) {
+			do {
+				reg->start = paddr;
+				reg->reserved = 1;
+				paddr += reg->size;
+
+				if (WARN_ON(cma_early_region_register(reg)))
+					memblock_free(reg->start, reg->size);
+			} while (reg-- != regions_secure);
+		}
+	}
 }
 
 static void __init exynos4_reserve_mem(void)
@@ -7591,24 +7702,32 @@ static void __init exynos4_reserve_mem(void)
                 },
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC1
-                {
-                        .name = "mfc1",
-                        .size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC1 * SZ_1K,
-                        {
-                                .alignment = 1 << 17,
-                        },
-                        .start = 0,
-                },
+		{
+			.name = "mfc1",
+			.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC1 * SZ_1K,
+			{
+				.alignment = 1 << 17,
+			},
+#if defined(CONFIG_USE_MFC_CMA) && defined(CONFIG_MACH_Q1_BD)
+			.start = 0x68400000,
+#else
+			.start = 0,
+#endif
+		},
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC0
-                {
-                        .name = "mfc0",
-                        .size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC0 * SZ_1K,
-                        {
-                                .alignment = 1 << 17,
-                        },
-                        .start = 0,
-                },
+		{
+			.name = "mfc0",
+			.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC0 * SZ_1K,
+			{
+				.alignment = 1 << 17,
+			},
+#if defined(CONFIG_USE_MFC_CMA) && defined(CONFIG_MACH_Q1_BD)
+			.start = 0x67200000,
+#else
+			.start = 0,
+#endif
+		},
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_MFC
                 {
@@ -7642,23 +7761,29 @@ static void __init exynos4_reserve_mem(void)
                 },
 #endif
 #ifdef CONFIG_VIDEO_SAMSUNG_MEMSIZE_TVOUT
-                {
-                        .name = "tvout",
-                        .size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_TVOUT * SZ_1K,
-                        .start = 0,
-                },
+		{
+			.name = "tvout",
+			.size = CONFIG_VIDEO_SAMSUNG_MEMSIZE_TVOUT * SZ_1K,
+#ifdef CONFIG_USE_TVOUT_CMA
+			.start = 0x65800000,
+			.reserved = 1,
+#else
+			.start = 0,
 #endif
-                {
-                        .size = 0,
-                },
-        };
+		},
+#endif
+		{
+			.size = 0,
+		},
+	};
 
-        static const char map[] __initconst =
-                "android_pmem.0=pmem;android_pmem.1=pmem_gpu1;"
-                "s3cfb.0=fimd;exynos4-fb.0=fimd;"
-                "s3c-fimc.0=fimc0;s3c-fimc.1=fimc1;s3c-fimc.2=fimc2;"
-                "exynos4210-fimc.0=fimc0;exynos4210-fimc.1=fimc1;"
-                "exynos4210-fimc.2=fimc2;exynos4210-fimc3=fimc3;"
+	static const char map[] __initconst =
+		"android_pmem.0=pmem;android_pmem.1=pmem_gpu1;"
+		"s3cfb.0=fimd;exynos4-fb.0=fimd;samsung-pd.1=fimd;"
+		"s3c-fimc.0=fimc0;s3c-fimc.1=fimc1;s3c-fimc.2=fimc2;s3c-fimc.3=fimc3;"
+		"exynos4210-fimc.0=fimc0;exynos4210-fimc.1=fimc1;"
+		"exynos4210-fimc.2=fimc2;exynos4210-fimc.3=fimc3;"
+
 #ifdef CONFIG_ION_EXYNOS
                 "ion-exynos=ion;"
 #endif
@@ -7680,6 +7805,25 @@ static void __init exynos4_reserve_mem(void)
 
 }
 #endif
+
+static void __init exynos_reserve(void)
+{
+#ifdef CONFIG_USE_TVOUT_CMA
+	if (dma_declare_contiguous(&s5p_device_tvout.dev,
+			CONFIG_VIDEO_SAMSUNG_MEMSIZE_TVOUT * SZ_1K,
+			0x65800000, 0))
+		printk(KERN_ERR "%s: failed to reserve contiguous "
+			"memory region for TVOUT\n", __func__);
+#endif
+
+#ifdef CONFIG_USE_MFC_CMA
+	if (dma_declare_contiguous(&s5p_device_mfc.dev,
+			SZ_1M * 40, 0x67800000, 0))
+		printk(KERN_ERR "%s: failed to reserve contiguous "
+			"memory region for MFC0/1\n", __func__);
+#endif
+}
+
 
 static void __init exynos_sysmmu_init(void)
 {
@@ -7909,10 +8053,15 @@ static void __init smdkc210_machine_init(void)
 #endif
 #ifdef CONFIG_S3C_DEV_I2C17_EMUL
 #ifdef CONFIG_USBHUB_USB3803
-        i2c_register_board_info(17, i2c_devs17_emul,
-                                                ARRAY_SIZE(i2c_devs17_emul));
+	i2c_register_board_info(17, i2c_devs17_emul,
+						ARRAY_SIZE(i2c_devs17_emul));
 #endif
 #endif
+#endif
+
+#if defined(CONFIG_WIMAX_CMC)
+	i2c_register_board_info(18, wmxeeprom_i2c_devices,
+			ARRAY_SIZE(wmxeeprom_i2c_devices));
 #endif
 
 
@@ -8121,11 +8270,12 @@ static void __init exynos_init_reserve(void)
 #endif
 
 MACHINE_START(SMDKC210, MODEL_NAME)
-        /* Maintainer: Kukjin Kim <kgene.kim@samsung.com> */
-        .boot_params        = S5P_PA_SDRAM + 0x100,
-        .init_irq        = exynos4_init_irq,
-        .map_io                = smdkc210_map_io,
-        .init_machine        = smdkc210_machine_init,
-        .timer                = &exynos4_timer,
-        .init_early        = &exynos_init_reserve,
+	/* Maintainer: Kukjin Kim <kgene.kim@samsung.com> */
+	.boot_params	= S5P_PA_SDRAM + 0x100,
+	.init_irq	= exynos4_init_irq,
+	.map_io		= smdkc210_map_io,
+	.init_machine	= smdkc210_machine_init,
+	.timer		= &exynos4_timer,
+	.init_early	= &exynos_init_reserve,
+	.reserve	= &exynos_reserve,
 MACHINE_END

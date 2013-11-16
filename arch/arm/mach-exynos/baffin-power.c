@@ -321,6 +321,10 @@ static struct regulator_consumer_supply ldo12_supply[] = {
 	REGULATOR_SUPPLY("votg_3.0v", NULL),
 };
 
+static struct regulator_consumer_supply ldo13_supply[] = {
+	REGULATOR_SUPPLY("tdmb_1.8v", NULL),
+};
+
 static struct regulator_consumer_supply ldo14_supply[] = {
 	REGULATOR_SUPPLY("vabb2_1.95v", NULL),
 };
@@ -428,6 +432,8 @@ REGULATOR_INIT(ldo11, "VABB1_1.95V", 1950000, 1950000, 1,
 	       REGULATOR_CHANGE_STATUS, 1);
 REGULATOR_INIT(ldo12, "VUOTG_3.0V", 3000000, 3000000, 1,
 	       REGULATOR_CHANGE_STATUS, 0);
+REGULATOR_INIT(ldo13, "tdmb_1.8v", 1800000, 1800000, 0,
+	       REGULATOR_CHANGE_STATUS, 1);
 REGULATOR_INIT(ldo14, "VABB2_1.95V", 1950000, 1950000, 1,
 	       REGULATOR_CHANGE_STATUS, 1);
 #if defined(CONFIG_MACH_SUPERIOR_KOR_SKT)

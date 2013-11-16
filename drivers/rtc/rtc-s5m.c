@@ -25,10 +25,12 @@
 #include <linux/reboot.h>
 #endif
 
-
 #if defined(CONFIG_RTC_POWER_OFF)
 extern bool fake_shut_down;
 #endif
+
+#define BCD_ALARM	0
+#define BCD_TIME	1
 
 struct s5m_rtc_info {
 	struct device		*dev;
@@ -45,7 +47,7 @@ struct s5m_rtc_info {
 #endif
 	int device_type;
 	int rtc_24hr_mode;
-	bool wtsr_smpl;
+	struct s5m_wtsr_smpl *wtsr_smpl;
 	bool alarm_enabled;
 };
 
@@ -81,21 +83,50 @@ static void s5m8767_data_to_tm(u8 *data, struct rtc_time *tm,
 	tm->tm_isdst = 0;
 }
 
-static void s5m8767_tm_to_data(struct rtc_time *tm, u8 *data)
+static int s5m8767_tm_to_data(struct device *dev, struct rtc_time *tm, u8 *data, int set_mode)	
 {
-	data[RTC_SEC] = tm->tm_sec;
-	data[RTC_MIN] = tm->tm_min;
+	struct s5m_rtc_info *info = dev_get_drvdata(dev);
+	int bcd_mode = 0;
 
-	if (tm->tm_hour >= 12)
-		data[RTC_HOUR] = tm->tm_hour | HOUR_PM_MASK;
-	else
-		data[RTC_HOUR] = tm->tm_hour & ~HOUR_PM_MASK;
+	if ((tm->tm_sec == 56 || tm->tm_sec == 57 ||
+				tm->tm_min == 56 || tm->tm_min == 57
+				|| tm->tm_year == 56 || tm->tm_year == 57)
+				&& set_mode) {
+		data[RTC_SEC] = bin2bcd(tm->tm_sec);
+		data[RTC_MIN] = bin2bcd(tm->tm_min);
+
+		if (tm->tm_hour >= 12)
+			data[RTC_HOUR] = bin2bcd(tm->tm_hour) | HOUR_PM_MASK;
+		else
+			data[RTC_HOUR] = bin2bcd(tm->tm_hour) & ~HOUR_PM_MASK;
+
+		data[RTC_DATE] = bin2bcd(tm->tm_mday);
+		data[RTC_MONTH] = bin2bcd(tm->tm_mon + 1);
+		data[RTC_YEAR1] = bin2bcd(tm->tm_year % 100);
+
+		s5m_reg_update(info->rtc, S5M87XX_ALARM1_CONF,
+			BCD_EN_MASK, BCD_EN_MASK);
+		bcd_mode = 1;
+	} else {
+		data[RTC_SEC] = tm->tm_sec;
+		data[RTC_MIN] = tm->tm_min;
+
+		if (tm->tm_hour >= 12)
+			data[RTC_HOUR] = tm->tm_hour | HOUR_PM_MASK;
+		else
+			data[RTC_HOUR] = tm->tm_hour & ~HOUR_PM_MASK;
+
+		data[RTC_DATE] = tm->tm_mday;
+		data[RTC_MONTH] = tm->tm_mon + 1;
+		data[RTC_YEAR1] = tm->tm_year % 100;
+		bcd_mode = 0;
+	}
+
 
 	data[RTC_WEEKDAY] = 1 << tm->tm_wday;
-	data[RTC_DATE] = tm->tm_mday;
-	data[RTC_MONTH] = tm->tm_mon + 1;
-	data[RTC_YEAR1] = tm->tm_year % 100;
 	data[RTC_YEAR2] = bin2bcd((tm->tm_year + 1900) / 100);
+
+	return bcd_mode;
 }
 
 static inline int s5m8767_rtc_set_time_reg(struct s5m_rtc_info *info)
@@ -139,8 +170,10 @@ static inline int s5m8767_rtc_set_alarm_reg(struct s5m_rtc_info *info)
 	if (ret < 0) {
 		dev_err(info->dev, "%s: fail to write update reg(%d)\n",
 				__func__, ret);
+#if defined(CONFIG_RTC_POWER_OFF)
 	} else if (fake_shut_down) {
 		mdelay(1);
+#endif
 	} else
 		usleep_range(1000, 1000);
 	return ret;
@@ -218,14 +251,15 @@ static int s5m_rtc_set_time(struct device *dev, struct rtc_time *tm)
 {
 	struct s5m_rtc_info *info = dev_get_drvdata(dev);
 	u8 data[8];
-	int ret, i;
+	int i;
+	int ret, bcd_mode = 0;	
 
 	switch (info->device_type) {
 	case S5M8763X:
 		s5m8763_tm_to_data(tm, data);
 		break;
 	case S5M8767X:
-		s5m8767_tm_to_data(tm, data);
+		bcd_mode = s5m8767_tm_to_data(dev, tm, data, BCD_TIME);		
 		break;
 	default:
 		return -EINVAL;
@@ -244,6 +278,9 @@ static int s5m_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	for (i = 0; i < 2; i++)
 		ret = s5m8767_rtc_set_time_reg(info);
 
+	if (bcd_mode)
+		s5m_reg_update(info->rtc, S5M87XX_ALARM1_CONF,
+		~BCD_EN_MASK, BCD_EN_MASK);
 out:
 	mutex_unlock(&info->lock);
 	return ret;
@@ -536,7 +573,7 @@ static int s5m_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 		break;
 
 	case S5M8767X:
-		s5m8767_tm_to_data(&alrm->time, data);
+		s5m8767_tm_to_data(dev, &alrm->time, data, BCD_ALARM);	
 		break;
 
 	default:
@@ -979,7 +1016,7 @@ static int __devinit s5m_rtc_probe(struct platform_device *pdev)
 	info->s5m87xx = s5m87xx;
 	info->rtc = s5m87xx->rtc;
 	info->device_type = s5m87xx->device_type;
-	info->wtsr_smpl = s5m87xx->wtsr_smpl;
+	info->wtsr_smpl = pdata->wtsr_smpl;
 
 	switch (pdata->device_type) {
 	case S5M8763X:
@@ -1007,8 +1044,8 @@ static int __devinit s5m_rtc_probe(struct platform_device *pdev)
 	ret = s5m8767_rtc_init_reg(info);
 
 	if (info->wtsr_smpl) {
-		s5m_rtc_enable_wtsr(info, true);
-		s5m_rtc_enable_smpl(info, true);
+		s5m_rtc_enable_wtsr(info, info->wtsr_smpl->wtsr_en);
+		s5m_rtc_enable_smpl(info, info->wtsr_smpl->smpl_en);
 	}
 
 	device_init_wakeup(&pdev->dev, 1);
@@ -1067,7 +1104,7 @@ static void s5m_rtc_shutdown(struct platform_device *pdev)
 	struct s5m_rtc_info *info = platform_get_drvdata(pdev);
 	int i;
 	u8 val = 0;
-	if (info->wtsr_smpl) {
+	if (info->wtsr_smpl->wtsr_en) {
 		for (i = 0; i < 3; i++) {
 			s5m_rtc_enable_wtsr(info, false);
 			s5m_reg_read(info->rtc, S5M87XX_WTSR_SMPL_CNTL, &val);

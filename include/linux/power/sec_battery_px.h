@@ -41,10 +41,11 @@ struct sec_battery_platform_data {
 #if defined(CONFIG_SMB347_CHARGER)
 	int (*get_aicl_current)(void);
 	int (*get_input_current)(void);
+	void (*set_aicl_state)(int);
 #endif
 
 	void (*init_charger_gpio) (void);
-#if defined(CONFIG_MACH_P4NOTE)
+#if defined(CONFIG_MACH_P4NOTE) || defined(CONFIG_MACH_SP7160LTE) || defined(CONFIG_MACH_KONA) || defined(CONFIG_MACH_TAB3)
 	void (*inform_charger_connection) (int, int);
 #else
 	void (*inform_charger_connection) (int);

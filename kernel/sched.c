@@ -87,6 +87,7 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
 
+
 /*
  * Convert user-nice values [ -20 ... 0 ... 19 ]
  * to static priority [ MAX_RT_PRIO..MAX_PRIO-1 ],
@@ -3413,6 +3414,14 @@ unsigned long this_cpu_load(void)
  *
  *  This covers the NO_HZ=n code, for extra head-aches, see the comment below.
  */
+
+#ifdef CONFIG_ZRAM_FOR_ANDROID
+unsigned long this_cpu_loadx(int i)
+{
+	struct rq *this = this_rq();
+	return this->cpu_load[i];
+}
+#endif /* CONFIG_ZRAM_FOR_ANDROID */
 
 /* Variables and functions for calc_load */
 static atomic_long_t calc_load_tasks;

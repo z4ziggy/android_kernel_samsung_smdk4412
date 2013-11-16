@@ -181,6 +181,16 @@ static void notify_change_of_temperature(struct sec_therm_info *info)
 		siop_level =
 		    info->pdata->get_siop_level(info->curr_temperature);
 
+	/* Disable siop temporary by checking h/w revision */
+#if defined(CONFIG_MACH_KONA_EUR_OPEN) ||\
+	defined(CONFIG_MACH_KONA_EUR_WIFI) || defined(CONFIG_MACH_KONA_KOR_WIFI)
+		if (system_rev < 5)
+			siop_level = 0;
+#elif defined(CONFIG_MACH_KONA_EUR_LTE)
+		if (system_rev < 3)
+			siop_level = 0;
+#endif
+
 	if (siop_level >= 0) {
 		snprintf(siop_buf, sizeof(siop_buf), "SIOP_LEVEL=%d",
 			 siop_level);

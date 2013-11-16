@@ -2435,7 +2435,8 @@ EXPORT_SYMBOL(remap_pfn_range);
  * NOTE! Some drivers might want to tweak vma->vm_page_prot first to get
  * whatever write-combining details or similar.
  */
-int vm_iomap_memory(struct vm_area_struct *vma, phys_addr_t start, unsigned long len)
+int vm_iomap_memory(struct vm_area_struct *vma, phys_addr_t start,
+							unsigned long len)
 {
 	unsigned long vm_len, pfn, pages;
 
@@ -2465,7 +2466,8 @@ int vm_iomap_memory(struct vm_area_struct *vma, phys_addr_t start, unsigned long
 		return -EINVAL;
 
 	/* Ok, let it rip */
-	return io_remap_pfn_range(vma, vma->vm_start, pfn, vm_len, vma->vm_page_prot);
+	return io_remap_pfn_range(vma, vma->vm_start, pfn, vm_len,
+							vma->vm_page_prot);
 }
 EXPORT_SYMBOL(vm_iomap_memory);
 

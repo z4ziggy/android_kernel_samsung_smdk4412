@@ -196,21 +196,16 @@ CP -> AP Intr : 2Byte
 static void mdm_vbus_on(void);
 static void mdm_vbus_off(void);
 
-static struct modemlink_dpram_control mdm_edpram_ctrl = {
-	.dp_type = EXT_DPRAM,
+static struct modemlink_dpram_data mdm_edpram = {
+	.type = EXT_DPRAM,
 	.disabled = true,
 
-	.dpram_irq = IRQ_EINT(8),
-	.dpram_irq_flags = IRQF_TRIGGER_FALLING,
-
-	.max_ipc_dev = IPC_RFS,
 	.ipc_map = &mdm_ipc_map,
 
 	.boot_size_offset = DP_BOOT_SIZE_OFFSET,
 	.boot_tag_offset = DP_BOOT_TAG_OFFSET,
 	.boot_count_offset = DP_BOOT_COUNT_OFFSET,
 	.max_boot_frame_size = DP_BOOT_FRAME_SIZE_LIMIT,
-
 };
 
 /*
@@ -372,7 +367,10 @@ static struct modem_data cdma_modem_data = {
 	.gpio_cp_on = GPIO_PHONE_ON,
 	.gpio_cp_reset = GPIO_CP_RST,
 	.gpio_pda_active = GPIO_PDA_ACTIVE,
+
 	.gpio_phone_active = GPIO_PHONE_ACTIVE,
+	.irq_phone_active = IRQ_EINT(14),
+
 	.gpio_cp_reset_msm = GPIO_CP_RST_MSM,
 	.gpio_boot_sw_sel = GPIO_BOOT_SW_SEL,
 	.vbus_on = mdm_vbus_on,
@@ -381,32 +379,30 @@ static struct modem_data cdma_modem_data = {
 	.gpio_cp_dump_int   = 0,
 	.gpio_cp_warm_reset = 0,
 
+	.gpio_ipc_int2ap = GPIO_DPRAM_INT_N,
+	.irq_ipc_int2ap = IRQ_EINT(8),
+	.irqf_ipc_int2ap = IRQF_TRIGGER_FALLING,
+
+	.use_handover = false,
+
 	.modem_net = CDMA_NETWORK,
 	.modem_type = QC_MDM6600,
 	.link_types = LINKTYPE(LINKDEV_DPRAM),
 	.link_name  = "mdm6600_edpram",
-	.dpram_ctl  = &mdm_edpram_ctrl,
+	.dpram = &mdm_edpram,
 
 	.ipc_version = SIPC_VER_41,
+	.max_ipc_dev = (IPC_RAW + 1),
 
 	.num_iodevs = ARRAY_SIZE(cdma_io_devices),
 	.iodevs = cdma_io_devices,
 };
 
-static struct resource cdma_modem_res[] = {
-	[0] = {
-		.name  = "cp_active_irq",
-		.start = IRQ_EINT(14),
-		.end   = IRQ_EINT(14),
-		.flags = IORESOURCE_IRQ,
-	},
-};
-
 static struct platform_device cdma_modem = {
 	.name = "modem_if",
 	.id = 2,
-	.num_resources = ARRAY_SIZE(cdma_modem_res),
-	.resource = cdma_modem_res,
+	.num_resources = 0,
+	.resource = NULL,
 	.dev = {
 		.platform_data = &cdma_modem_data,
 	},
@@ -480,6 +476,7 @@ static void config_cdma_modem_gpio(void)
 	unsigned gpio_phone_active = cdma_modem_data.gpio_phone_active;
 	unsigned gpio_cp_reset_mdm = cdma_modem_data.gpio_cp_reset_msm;
 	unsigned gpio_boot_sw_sel = cdma_modem_data.gpio_boot_sw_sel;
+	unsigned gpio_ipc_int2ap = cdma_modem_data.gpio_ipc_int2ap;
 
 	pr_info("[MDM] <%s>\n", __func__);
 
@@ -543,16 +540,27 @@ static void config_cdma_modem_gpio(void)
 		s3c_gpio_setpull(gpio_phone_active, S3C_GPIO_PULL_NONE);
 	}
 
+	if (gpio_ipc_int2ap) {
+		err = gpio_request(gpio_ipc_int2ap, "MSM_DPRAM_INT");
+		if (err) {
+			pr_err("fail to request gpio %s\n", "MSM_DPRAM_INT");
+		} else {
+			/* Configure as a wake-up source */
+			s3c_gpio_cfgpin(gpio_ipc_int2ap, S3C_GPIO_SFN(0xF));
+			s3c_gpio_setpull(gpio_ipc_int2ap, S3C_GPIO_PULL_NONE);
+		}
+	}
+
 	printk(KERN_INFO "<%s> done\n", __func__);
 }
 
 
 static u8 *mdm_edpram_remap_mem_region(struct sromc_cfg *cfg)
 {
-	int			      dp_addr = 0;
-	int			      dp_size = 0;
-	u8 __iomem                   *dp_base = NULL;
-	struct mdm_edpram_ipc_cfg    *ipc_map = NULL;
+	int dp_addr = 0;
+	int dp_size = 0;
+	u8 __iomem *dp_base = NULL;
+	struct mdm_edpram_ipc_cfg *ipc_map = NULL;
 	struct dpram_ipc_device *dev = NULL;
 
 	dp_addr = cfg->addr;
@@ -564,8 +572,8 @@ static u8 *mdm_edpram_remap_mem_region(struct sromc_cfg *cfg)
 	}
 	pr_info("[MDM] <%s> DPRAM VA=0x%08X\n", __func__, (int)dp_base);
 
-	mdm_edpram_ctrl.dp_base = (u8 __iomem *)dp_base;
-	mdm_edpram_ctrl.dp_size = dp_size;
+	mdm_edpram.base = (u8 __iomem *)dp_base;
+	mdm_edpram.size = dp_size;
 
 	/* Map for IPC */
 	ipc_map = (struct mdm_edpram_ipc_cfg *)dp_base;
@@ -674,6 +682,10 @@ static void config_dpram_port_gpio(void)
 
 	/* Config LBn, UBn */
 	s3c_gpio_cfgrange_nopull(GPIO_DPRAM_LBN, 2, S3C_GPIO_SFN(2));
+
+	/* Config BUSY */
+	s3c_gpio_cfgpin(GPIO_DPRAM_BUSY, S3C_GPIO_SFN(2));
+
 }
 
 static void init_sromc(void)
@@ -731,7 +743,6 @@ static int __init init_modem(void)
 	struct sromc_access_cfg *acc_cfg = NULL;
 
 	mdm_edpram_cfg.csn = 0;
-	mdm_edpram_ctrl.dpram_irq = IRQ_EINT(8);
 	mdm_edpram_cfg.addr = SROM_CS0_BASE + (SROM_WIDTH * mdm_edpram_cfg.csn);
 	mdm_edpram_cfg.end  = mdm_edpram_cfg.addr + mdm_edpram_cfg.size - 1;
 

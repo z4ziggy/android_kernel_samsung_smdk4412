@@ -253,7 +253,7 @@ static void input_handle_event(struct input_dev *dev,
 		    !!test_bit(code, dev->key) != value) {
 
 #ifdef CONFIG_TOUCH_WAKE
-      if (code == KEY_POWER && !device_is_suspended() && !PSTN_ON_HOOK ) {
+      if (code == KEY_POWER && !device_is_suspended()) {
         if (value == 1) {
           powerkey_pressed();
         }

@@ -47,7 +47,12 @@
 #include <plat/usb-phy.h>
 #endif
 
-#define C1ATT_REV_0_7	9	/* rev0.7 == system_rev:9 */
+#if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT)
+#ifdef CONFIG_CMC_MODEM_HSIC_SYSREV
+#undef CONFIG_CMC_MODEM_HSIC_SYSREV
+#define CONFIG_CMC_MODEM_HSIC_SYSREV 15
+#endif
+#endif
 
 static int __init init_modem(void);
 static void setup_dpram_access_timing(enum dpram_speed speed);
@@ -242,30 +247,23 @@ static struct sromc_timing_cfg cmc_idpram_timing_cfg[] = {
 	},
 };
 
-static struct modemlink_dpram_control cmc_idpram_ctrl = {
-	.dp_type = CP_IDPRAM,
-	.dpram_irq_flags = (IRQF_NO_SUSPEND | IRQF_TRIGGER_RISING),
+static struct modemlink_dpram_data cmc_idpram = {
+	.type = CP_IDPRAM,
 	.setup_speed = setup_dpram_access_timing,
 };
 
 static struct resource umts_modem_res[] = {
-	[RES_CP_ACTIVE_IRQ_ID] = {
-		.name = STR_CP_ACTIVE_IRQ,
-		.start = LTE_ACTIVE_IRQ,
-		.end = LTE_ACTIVE_IRQ,
-		.flags = IORESOURCE_IRQ,
-	},
 	[RES_DPRAM_MEM_ID] = {
 		.name = STR_DPRAM_BASE,
 		.start = CMC_IDPRAM_BASE,
 		.end = CMC_IDPRAM_BASE + (CMC_IDPRAM_SIZE - 1),
 		.flags = IORESOURCE_MEM,
 	},
-	[RES_DPRAM_IRQ_ID] = {
-		.name = STR_DPRAM_IRQ,
-		.start = CMC_IDPRAM_INT_IRQ_00,
-		.end = CMC_IDPRAM_INT_IRQ_00,
-		.flags = IORESOURCE_IRQ,
+	[RES_DPRAM_SFR_ID] = {
+		.name = STR_DPRAM_SFR_BASE,
+		.start = CMC_IDPRAM_SFR_BASE,
+		.end = CMC_IDPRAM_SFR_BASE + (CMC_IDPRAM_SIZE - 1),
+		.flags = IORESOURCE_MEM,
 	},
 	[RES_DPRAM_SFR_ID] = {
 		.name = STR_DPRAM_SFR_BASE,
@@ -280,27 +278,34 @@ static struct modem_data umts_modem_data = {
 
 	.gpio_cp_on = CP_CMC221_PMIC_PWRON,
 	.gpio_cp_reset = CP_CMC221_CPU_RST,
-	.gpio_phone_active = GPIO_LTE_ACTIVE,
 #if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT) || \
 defined(CONFIG_MACH_BAFFIN_KOR_SKT) || defined(CONFIG_MACH_BAFFIN_KOR_KT) || \
 defined(CONFIG_MACH_SUPERIOR_KOR_SKT)
 	.gpio_pda_active   = GPIO_PDA_ACTIVE,
 #endif
 
-	.gpio_dpram_int = GPIO_CMC_IDPRAM_INT_00,
-	.gpio_dpram_status = GPIO_CMC_IDPRAM_STATUS,
-	.gpio_dpram_wakeup = GPIO_CMC_IDPRAM_WAKEUP,
+	.gpio_phone_active = GPIO_LTE_ACTIVE,
+	.irq_phone_active = LTE_ACTIVE_IRQ,
+
+	.gpio_ipc_int2ap = GPIO_CMC_IDPRAM_INT_00,
+	.irq_ipc_int2ap = CMC_IDPRAM_INT_IRQ_00,
+	.irqf_ipc_int2ap = (IRQF_NO_SUSPEND | IRQF_TRIGGER_RISING),
+
+	.gpio_cp_wakeup = GPIO_CMC_IDPRAM_WAKEUP,
+	.gpio_cp_status = GPIO_CMC_IDPRAM_STATUS,
 
 	.gpio_slave_wakeup = GPIO_IPC_SLAVE_WAKEUP,
 	.gpio_host_active = GPIO_ACTIVE_STATE,
 	.gpio_host_wakeup = GPIO_IPC_HOST_WAKEUP,
-	.gpio_dynamic_switching = GPIO_AP2CMC_INT2,
+	.gpio_hub_suspend = GPIO_IPC_HUB_SUSPEND,
+
+	.gpio_link_switch = GPIO_AP2CMC_INT2,
 
 	.modem_net = UMTS_NETWORK,
 	.modem_type = SEC_CMC221,
 	.link_types = LINKTYPE(LINKDEV_DPRAM) | LINKTYPE(LINKDEV_USB),
 	.link_name = "cmc221_idpram",
-	.dpram_ctl = &cmc_idpram_ctrl,
+	.dpram = &cmc_idpram,
 
 	.num_iodevs = ARRAY_SIZE(umts_io_devices),
 	.iodevs = umts_io_devices,
@@ -308,7 +313,6 @@ defined(CONFIG_MACH_SUPERIOR_KOR_SKT)
 	.use_handover = false,
 
 	.ipc_version = SIPC_VER_50,
-	.use_mif_log = true,
 };
 
 static struct platform_device umts_modem = {
@@ -333,12 +337,12 @@ static void config_umts_modem_gpio(void)
 	unsigned gpio_phone_active = umts_modem_data.gpio_phone_active;
 	unsigned gpio_active_state = umts_modem_data.gpio_host_active;
 	unsigned gpio_host_wakeup = umts_modem_data.gpio_host_wakeup;
+	unsigned gpio_hub_suspend = umts_modem_data.gpio_hub_suspend;
 	unsigned gpio_slave_wakeup = umts_modem_data.gpio_slave_wakeup;
-	unsigned gpio_dpram_int = umts_modem_data.gpio_dpram_int;
-	unsigned gpio_dpram_status = umts_modem_data.gpio_dpram_status;
-	unsigned gpio_dpram_wakeup = umts_modem_data.gpio_dpram_wakeup;
-	unsigned gpio_dynamic_switching =
-			umts_modem_data.gpio_dynamic_switching;
+	unsigned gpio_ipc_int2ap = umts_modem_data.gpio_ipc_int2ap;
+	unsigned gpio_cp_status = umts_modem_data.gpio_cp_status;
+	unsigned gpio_cp_wakeup = umts_modem_data.gpio_cp_wakeup;
+	unsigned gpio_link_switch = umts_modem_data.gpio_link_switch;
 
 	if (gpio_cp_on) {
 		err = gpio_request(gpio_cp_on, "CMC_ON");
@@ -417,50 +421,59 @@ static void config_umts_modem_gpio(void)
 		}
 	}
 
-	if (gpio_dpram_int) {
-		err = gpio_request(gpio_dpram_int, "CMC_DPRAM_INT");
+	if (gpio_hub_suspend) {
+		err = gpio_request(gpio_hub_suspend, "HUB_STATE_SUSPEND");
+		if (err) {
+			mif_err("ERR: fail to request gpio %s\n", "HUB_STATE_SUSPEND");
+		} else {
+			gpio_direction_output(gpio_hub_suspend, 0);
+			s3c_gpio_setpull(gpio_hub_suspend, S3C_GPIO_PULL_NONE);
+		}
+	}
+
+	if (gpio_ipc_int2ap) {
+		err = gpio_request(gpio_ipc_int2ap, "CMC_DPRAM_INT");
 		if (err) {
 			mif_err("ERR: fail to request gpio %s\n",
 				"CMC_DPRAM_INT");
 		} else {
 			/* Configure as a wake-up source */
-			gpio_direction_input(gpio_dpram_int);
-			s3c_gpio_setpull(gpio_dpram_int, S3C_GPIO_PULL_NONE);
-			s3c_gpio_cfgpin(gpio_dpram_int, S3C_GPIO_SFN(0xF));
+			gpio_direction_input(gpio_ipc_int2ap);
+			s3c_gpio_setpull(gpio_ipc_int2ap, S3C_GPIO_PULL_NONE);
+			s3c_gpio_cfgpin(gpio_ipc_int2ap, S3C_GPIO_SFN(0xF));
 		}
 	}
 
-	if (gpio_dpram_status) {
-		err = gpio_request(gpio_dpram_status, "CMC_DPRAM_STATUS");
+	if (gpio_cp_status) {
+		err = gpio_request(gpio_cp_status, "CMC_DPRAM_STATUS");
 		if (err) {
 			mif_err("ERR: fail to request gpio %s\n",
 				"CMC_DPRAM_STATUS");
 		} else {
-			gpio_direction_input(gpio_dpram_status);
-			s3c_gpio_setpull(gpio_dpram_status, S3C_GPIO_PULL_NONE);
+			gpio_direction_input(gpio_cp_status);
+			s3c_gpio_setpull(gpio_cp_status, S3C_GPIO_PULL_NONE);
 		}
 	}
 
-	if (gpio_dpram_wakeup) {
-		err = gpio_request(gpio_dpram_wakeup, "CMC_DPRAM_WAKEUP");
+	if (gpio_cp_wakeup) {
+		err = gpio_request(gpio_cp_wakeup, "CMC_DPRAM_WAKEUP");
 		if (err) {
 			mif_err("ERR: fail to request gpio %s\n",
 				"CMC_DPRAM_WAKEUP");
 		} else {
-			gpio_direction_output(gpio_dpram_wakeup, 1);
-			s3c_gpio_setpull(gpio_dpram_wakeup, S3C_GPIO_PULL_NONE);
+			gpio_direction_output(gpio_cp_wakeup, 1);
+			s3c_gpio_setpull(gpio_cp_wakeup, S3C_GPIO_PULL_NONE);
 		}
 	}
 
-	if (gpio_dynamic_switching) {
-		err = gpio_request(gpio_dynamic_switching, "DYNAMIC_SWITCHING");
+	if (gpio_link_switch) {
+		err = gpio_request(gpio_link_switch, "DYNAMIC_SWITCHING");
 		if (err) {
 			mif_err("ERR: fail to request gpio %s\n",
 					"DYNAMIC_SWITCHING\n");
 		} else {
-			gpio_direction_input(gpio_dynamic_switching);
-			s3c_gpio_setpull(gpio_dynamic_switching,
-					S3C_GPIO_PULL_DOWN);
+			gpio_direction_input(gpio_link_switch);
+			s3c_gpio_setpull(gpio_link_switch, S3C_GPIO_PULL_DOWN);
 		}
 	}
 
@@ -480,6 +493,7 @@ static struct modemlink_pm_data umts_link_pm_data = {
 	.gpio_link_active    = GPIO_ACTIVE_STATE,
 	.gpio_link_hostwake  = GPIO_IPC_HOST_WAKEUP,
 	.gpio_link_slavewake = GPIO_IPC_SLAVE_WAKEUP,
+	.gpio_hub_suspend    = GPIO_IPC_HUB_SUSPEND,
 
 	.port_enable = host_port_enable,
 /*
@@ -490,8 +504,6 @@ static struct modemlink_pm_data umts_link_pm_data = {
 	.freq_unlock = exynos_frequency_unlock,
 
 	.autosuspend_delay_ms = 2000,
-
-	.has_usbhub = true, /* change this in init_modem if C1-ATT >= rev0.7 */
 };
 
 static struct modemlink_pm_link_activectl active_ctl;
@@ -737,8 +749,17 @@ static struct platform_device s3c_device_i2c20 = {
 static int host_port_enable(int port, int enable)
 {
 	int err;
+	static int pre_state = -1;
 
-	mif_info("port(%d) control(%d)\n", port, enable);
+	mif_info("port(%d) control(%d -> %d) by <%pf>\n", 
+			port, pre_state, enable, __builtin_return_address(0));
+
+	if (!enable && !pre_state) {
+		mif_info("hub state not changed. Skip state change !!!\n");
+		return 0;
+	}
+
+	pre_state = enable;
 
 	if (enable) {
 		if (modem_using_hub()) {
@@ -768,6 +789,7 @@ static int host_port_enable(int port, int enable)
 		}
 	}
 
+	mif_info("> H-ACT %d\n", enable);
 	err = gpio_direction_output(umts_modem_data.gpio_host_active, enable);
 	mif_info("active state err(%d), en(%d), level(%d)\n",
 		err, enable, gpio_get_value(umts_modem_data.gpio_host_active));
@@ -797,17 +819,22 @@ static int __init init_modem(void)
 
 	mif_err("System Revision = %d\n", system_rev);
 
-#ifdef CONFIG_MACH_C1_USA_ATT
-	/* check C1-ATT rev >=0.7
-	 * <=rev0.6: <EXYNOS>--hsic--<HUB>--usb--<CMC221S>
-	 * >=rev0.7: <EXYNOS>--hsic--------------<CMC221D>
+	/*
+	 * old: <EXYNOS>--hsic--<HUB>--usb--<CMC221S>
+	 * new: <EXYNOS>--hsic--------------<CMC221D>
 	 */
-	if (system_rev >= C1ATT_REV_0_7)
-		umts_link_pm_data.has_usbhub = false;
+
+	umts_link_pm_data.has_usbhub = false;
+
+#ifdef CONFIG_CMC_MODEM_HSIC_SYSREV
+	if (system_rev < CONFIG_CMC_MODEM_HSIC_SYSREV)
+		umts_link_pm_data.has_usbhub = true;
 #endif
+
 #ifdef CONFIG_MACH_BAFFIN
 		umts_link_pm_data.has_usbhub = false;
 #endif
+
 #if defined(CONFIG_MACH_C1_KOR_SKT) || defined(CONFIG_MACH_C1_KOR_KT)
 	if (system_rev >= 15)
 		umts_link_pm_data.has_usbhub = false;

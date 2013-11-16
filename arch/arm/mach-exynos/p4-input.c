@@ -345,7 +345,11 @@ static int ts_power_reset(void)
 	Configuration for MXT1664-S
 */
 #define MXT1664S_CONFIG_DATE		"N80XX_ATM_0703"
+#if defined(CONFIG_MACH_P4NOTELTE_USA_VZW)
+#define MXT1664S_CONFIG_DATE_FOR_OVER_HW9	"I925_ATM_1121"
+#else
 #define MXT1664S_CONFIG_DATE_FOR_OVER_HW9	"N80XX_LTE_ATM_0905"
+#endif
 
 #define MXT1664S_MAX_MT_FINGERS	10
 #define MXT1664S_BLEN_BATT		112
@@ -555,8 +559,10 @@ static void switch_config(u32 rev)
 		t9_config_s[7] = 116;
 		t9_config_s[8] = 55;
 		t9_config_s[14] = 50;
+		t9_config_s[24] = 0;
 		t9_config_s[27] = 64;
 
+		t40_config_s[3] = 15;
 		t40_config_s[4] = 2;
 		t40_config_s[5] = 2;
 
@@ -590,6 +596,11 @@ static void switch_config(u32 rev)
 		t62_config_s[14] = 1;
 		t62_config_s[20] = 136;
 		t62_config_s[22] = 35;
+#if defined(CONFIG_MACH_P4NOTELTE_USA_VZW)
+		t62_config_s[23] = 48;
+		t62_config_s[26] = 24;
+		t62_config_s[27] = 24;
+#endif
 		t62_config_s[35] = 80;
 		t62_config_s[36] = 40;
 		t62_config_s[38] = 5;
@@ -619,30 +630,42 @@ void __init p4_tsp_init(u32 system_rev)
 	printk(KERN_DEBUG "[TSP] TSP IC : %s\n",
 		(5 <= hw_rev) ? "Atmel" : "Synaptics");
 
-	gpio = GPIO_TSP_RST;
-	gpio_request(gpio, "TSP_RST");
-	gpio_direction_output(gpio, 1);
-	gpio_export(gpio, 0);
-
-	gpio = GPIO_TSP_LDO_ON;
-	gpio_request(gpio, "TSP_LDO_ON");
-	gpio_direction_output(gpio, 1);
-	gpio_export(gpio, 0);
-
 	if (5 <= hw_rev) {
-		gpio = GPIO_TSP_LDO_ON1;
-		gpio_request(gpio, "TSP_LDO_ON1");
-		gpio_direction_output(gpio, 1);
-		gpio_export(gpio, 0);
-
 		gpio = GPIO_TSP_LDO_ON2;
 		gpio_request(gpio, "TSP_LDO_ON2");
-		gpio_direction_output(gpio, 1);
+		gpio_direction_output(gpio, 0);
+		gpio_export(gpio, 0);
+
+		gpio = GPIO_TSP_LDO_ON1;
+		gpio_request(gpio, "TSP_LDO_ON1");
+		gpio_direction_output(gpio, 0);
+		gpio_export(gpio, 0);
+
+		gpio = GPIO_TSP_LDO_ON;
+		gpio_request(gpio, "TSP_LDO_ON");
+		gpio_direction_output(gpio, 0);
+		gpio_export(gpio, 0);
+
+		gpio = GPIO_TSP_RST;
+		gpio_request(gpio, "TSP_RST");
+		gpio_direction_output(gpio, 0);
 		gpio_export(gpio, 0);
 
 		switch_config(hw_rev);
-	} else if (1 <= hw_rev)
-		have_tsp_ldo = true;
+	} else {
+		gpio = GPIO_TSP_RST;
+		gpio_request(gpio, "TSP_RST");
+		gpio_direction_output(gpio, 1);
+		gpio_export(gpio, 0);
+
+		gpio = GPIO_TSP_LDO_ON;
+		gpio_request(gpio, "TSP_LDO_ON");
+		gpio_direction_output(gpio, 1);
+		gpio_export(gpio, 0);
+
+		if (1 <= hw_rev)
+			have_tsp_ldo = true;
+	}
 
 	gpio = GPIO_TSP_INT;
 	gpio_request(gpio, "TSP_INT");
@@ -789,7 +812,10 @@ static int wacom_early_suspend_hw(void)
 
 static int wacom_late_resume_hw(void)
 {
+	gpio_direction_output(GPIO_PEN_PDCT_18V, 1);
 	gpio_set_value(GPIO_PEN_LDO_EN, 1);
+	msleep(20);
+	gpio_direction_input(GPIO_PEN_PDCT_18V);
 	return 0;
 }
 

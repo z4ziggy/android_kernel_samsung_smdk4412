@@ -749,6 +749,19 @@ struct s5m_opmode_data s5m8767_opmode_data[S5M8767_REG_MAX] = {
 	[S5M8767_LDO19] = {S5M8767_LDO19, S5M_OPMODE_STANDBY},
 };
 
+#if defined(CONFIG_MACH_GC1_USA_VZW) || defined(CONFIG_MACH_GC1_KOR_SKT) || \
+	defined(CONFIG_MACH_GC1_KOR_KT) || defined(CONFIG_MACH_GC1_KOR_LGT)
+struct s5m_wtsr_smpl wtsr_smpl_data = {
+	.wtsr_en = true,
+	.smpl_en = false,
+};
+#else
+struct s5m_wtsr_smpl wtsr_smpl_data = {
+	.wtsr_en = true,
+	.smpl_en = true,
+};
+#endif
+
 struct s5m_platform_data exynos4_s5m8767_info = {
 	.device_type	= S5M8767X,
 	.num_regulators = ARRAY_SIZE(s5m8767_regulators),
@@ -761,7 +774,7 @@ struct s5m_platform_data exynos4_s5m8767_info = {
 	.wakeup		= 1,
 
 	.opmode_data = s5m8767_opmode_data,
-	.wtsr_smpl		= 1,
+	.wtsr_smpl	= &wtsr_smpl_data,
 
 	.buck2_voltage[0] = 1100000,	/* 1.1V */
 	.buck2_voltage[1] = 1100000,	/* 1.1V */

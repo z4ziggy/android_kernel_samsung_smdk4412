@@ -516,6 +516,7 @@ static int rmnet_usb_probe(struct usb_interface *iface,
 	unsigned int		iface_num;
 	static int		first_rmnet_iface_num = -EINVAL;
 	int			status = 0;
+	int			ret = 0;
 
 	udev = interface_to_usbdev(iface);
 	iface_num = iface->cur_altsetting->desc.bInterfaceNumber;
@@ -558,8 +559,12 @@ static int rmnet_usb_probe(struct usb_interface *iface,
 	status = rmnet_usb_ctrl_probe(iface, unet->status,
 		(struct rmnet_ctrl_dev *)unet->data[1]);
 	if (status) {
-		if (status == -EPIPE)
+		if (status == -EPIPE) {
+			ret = set_qmicm_mode(rmnet_pm_dev);
+			if (ret < 0)
+				goto out;
 			return status;
+		}
 		else
 			goto out;
 	}

@@ -79,6 +79,10 @@ struct rmnet_ctrl_dev {
 	/* reset handler */
 	struct notifier_block	reset_notifier_block;
 	bool			tx_block;
+
+	/* tx work */
+	struct usb_anchor	tx_ready;
+	struct work_struct	tx_work;
 };
 
 extern struct rmnet_ctrl_dev *ctrl_dev[];

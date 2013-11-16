@@ -66,6 +66,74 @@ static const char const *modem_state_name[] = {
 
 static int rx_iodev_skb(struct io_device *iod);
 
+static ssize_t show_waketime(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	unsigned int msec;
+	char *p = buf;
+	struct miscdevice *miscdev = dev_get_drvdata(dev);
+	struct io_device *iod = container_of(miscdev, struct io_device,
+			miscdev);
+
+	msec = jiffies_to_msecs(iod->waketime);
+
+	p += sprintf(buf, "raw waketime : %ums\n", msec);
+
+	return p - buf;
+}
+
+static ssize_t store_waketime(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	unsigned long msec;
+	int ret;
+	struct miscdevice *miscdev = dev_get_drvdata(dev);
+	struct io_device *iod = container_of(miscdev, struct io_device,
+			miscdev);
+
+	ret = strict_strtoul(buf, 10, &msec);
+	if (ret)
+		return count;
+
+	iod->waketime = msecs_to_jiffies(msec);
+
+	return count;
+}
+
+static struct device_attribute attr_waketime =
+	__ATTR(waketime, S_IRUGO | S_IWUSR, show_waketime, store_waketime);
+
+/*
+static ssize_t show_loopback(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct miscdevice *miscdev = dev_get_drvdata(dev);
+	struct modem_shared *msd =
+		container_of(miscdev, struct io_device, miscdev)->msd;
+	unsigned char *ip = (unsigned char *)&msd->loopback_ipaddr;
+	char *p = buf;
+
+	p += sprintf(buf, "%u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
+
+	return p - buf;
+}
+
+static ssize_t store_loopback(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct miscdevice *miscdev = dev_get_drvdata(dev);
+	struct modem_shared *msd =
+		container_of(miscdev, struct io_device, miscdev)->msd;
+
+	msd->loopback_ipaddr = ipv4str_to_be32(buf, count);
+
+	return count;
+}
+
+static struct device_attribute attr_loopback =
+	__ATTR(loopback, S_IRUGO | S_IWUSR, show_loopback, store_loopback);
+*/
+
 static int get_header_size(struct io_device *iod)
 {
 	switch (iod->format) {
@@ -541,6 +609,9 @@ static int io_dev_recv_data_from_link_dev(struct io_device *iod,
 	case IPC_RAW:
 	case IPC_RFS:
 	case IPC_MULTI_RAW:
+		if (iod->waketime)
+			wake_lock_timeout(&iod->wakelock, iod->waketime);
+
 		err = rx_hdlc_packet(iod, data, len);
 		if (err < 0)
 			pr_err("MIF: fail process hdlc fram\n");
@@ -559,11 +630,11 @@ static int io_dev_recv_data_from_link_dev(struct io_device *iod,
 			return -ENOMEM;
 		}
 
-		pr_info("MIF: boot/ramdump len : %d\n", len);
+		pr_debug("MIF: boot/ramdump len : %d\n", len);
 
 		memcpy(skb_put(skb, len), data, len);
 		skb_queue_tail(&iod->sk_rx_q, skb);
-		pr_info("MIF: skb len : %d\n", skb->len);
+		pr_debug("MIF: skb len : %d\n", skb->len);
 
 		wake_up(&iod->wq);
 		return len;
@@ -609,6 +680,10 @@ static int misc_release(struct inode *inode, struct file *filp)
 		iod->link->terminate_comm(iod->link, iod);
 
 	skb_queue_purge(&iod->sk_rx_q);
+
+	if (iod->format == IPC_FMT)
+		iod->mc->phone_state = STATE_BOOTING;
+
 	return 0;
 }
 
@@ -641,6 +716,7 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long _arg)
 	switch (cmd) {
 	case IOCTL_MODEM_ON:
 		pr_info("MIF: misc_ioctl : IOCTL_MODEM_ON\n");
+		iod->mc->ops.modem_reset(iod->mc);
 		return iod->mc->ops.modem_on(iod->mc);
 
 	case IOCTL_MODEM_OFF:
@@ -656,7 +732,7 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long _arg)
 		return iod->mc->ops.modem_force_crash_exit(iod->mc);
 
 	case IOCTL_MODEM_DUMP_RESET:
-		pr_info("MIF: misc_ioctl : MODEM_FORCE_CRASH_EXIT\n");
+		pr_info("MIF: misc_ioctl : IOCTL_MODEM_DUMP_RESET\n");
 		return iod->mc->ops.modem_dump_reset(iod->mc);
 
 	case IOCTL_MODEM_BOOT_ON:
@@ -667,7 +743,6 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long _arg)
 		pr_info("MIF: misc_ioctl : IOCTL_MODEM_BOOT_OFF\n");
 		return iod->mc->ops.modem_boot_off(iod->mc);
 
-	/* TODO - will remove this command after ril updated */
 	case IOCTL_MODEM_START:
 		pr_info("MIF: misc_ioctl : IOCTL_MODEM_START\n");
 		return 0;
@@ -982,6 +1057,28 @@ int init_io_device(struct io_device *iod)
 	case IODEV_DUMMY:
 		skb_queue_head_init(&iod->sk_rx_q);
 		INIT_DELAYED_WORK(&iod->rx_work, rx_iodev_work);
+
+		iod->miscdev.minor = MISC_DYNAMIC_MINOR;
+		iod->miscdev.name = iod->name;
+		iod->miscdev.fops = &misc_io_fops;
+
+		ret = misc_register(&iod->miscdev);
+		if (ret)
+			mif_err("failed to register misc io device : %s\n",
+				iod->name);
+		ret = device_create_file(iod->miscdev.this_device,
+			&attr_waketime);
+		if (ret)
+			mif_err("failed to create `waketime' file : %s\n",
+				iod->name);
+
+		/*
+		ret = device_create_file(iod->miscdev.this_device,
+			&attr_loopback);
+		if (ret)
+			mif_err("failed to create `loopback file' : %s\n",
+				iod->name);
+		*/
 
 		break;
 

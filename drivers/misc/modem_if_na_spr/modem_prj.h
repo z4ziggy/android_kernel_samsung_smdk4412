@@ -19,6 +19,7 @@
 #include <linux/wait.h>
 #include <linux/miscdevice.h>
 #include <linux/skbuff.h>
+#include <linux/wakelock.h>
 
 
 #define MAX_LINK_DEVTYPE 3
@@ -138,6 +139,9 @@ struct io_device {
 	struct link_device *link;
 	struct modem_ctl *mc;
 
+	struct wake_lock wakelock;
+	long waketime;
+
 	void *private_data;
 };
 #define to_io_device(misc) container_of(misc, struct io_device, miscdev)
@@ -208,6 +212,7 @@ struct modem_ctl {
 
 	int phone_state;
 	bool ramdump_active;
+	bool power_off_in_progress;
 
 	unsigned gpio_cp_on;
 	unsigned gpio_reset_req_n;
@@ -218,6 +223,7 @@ struct modem_ctl {
 	unsigned gpio_flm_uart_sel;
 	unsigned gpio_cp_warm_reset;
 	unsigned gpio_cp_off;
+	unsigned gpio_mbx_intr;
 
 	int irq_phone_active;
 
@@ -238,9 +244,7 @@ struct modem_ctl {
 	int irq[3];
 #endif /*CONFIG_LTE_MODEM_CMC221*/
 
-#ifdef CONFIG_INTERNAL_MODEM_IF
 	void (*clear_intr)(void);
-#endif
 	struct modemctl_ops ops;
 	struct io_device *iod;
 };

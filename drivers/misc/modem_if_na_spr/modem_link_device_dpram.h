@@ -21,17 +21,10 @@
 #define RAW_IDX			1
 #define MAX_IDX			2
 
-#ifdef CONFIG_CDMA_MODEM_QSC6085
 #define DP_FMT_OUT_BUFF_SIZE		1020
 #define DP_RAW_OUT_BUFF_SIZE		7160
 #define DP_FMT_IN_BUFF_SIZE		1020
 #define DP_RAW_IN_BUFF_SIZE		7160
-#else
-#define DP_FMT_OUT_BUFF_SIZE		2044
-#define DP_RAW_OUT_BUFF_SIZE		6128
-#define DP_FMT_IN_BUFF_SIZE		2044
-#define DP_RAW_IN_BUFF_SIZE		6128
-#endif
 
 struct dpram_circ {
 	u16 head;
@@ -62,16 +55,8 @@ struct dpram_map {
 	struct dpram_circ raw_in;
 	u8	raw_in_buff[DP_RAW_IN_BUFF_SIZE];
 
-#ifndef CONFIG_CDMA_MODEM_QSC6085
-	u8	padding[16];
-#endif
-#ifdef CONFIG_INTERNAL_MODEM_IF
 	u16	mbx_ap2cp;
 	u16	mbx_cp2ap;
-#else
-	u16	mbx_cp2ap;
-	u16	mbx_ap2cp;
-#endif
 } __packed;
 
 struct dpram_device {
@@ -89,20 +74,12 @@ struct dpram_device {
 };
 
 struct ul_header {
-#ifdef CONFIG_INTERNAL_MODEM_IF
 	u16 bop;
 	u16 total_frame;
 	u16 curr_frame;
 	u16 len;
-#else
-	u8 bop;
-	u16 total_frame;
-	u16 curr_frame;
-	u16 len;
-#endif
 };
 
-#ifdef CONFIG_INTERNAL_MODEM_IF
 enum idpram_link_pm_states {
 	IDPRAM_PM_SUSPEND_PREPARE,
 	IDPRAM_PM_DPRAM_POWER_DOWN,
@@ -133,8 +110,6 @@ struct idpram_link_pm_data {
 	struct wake_lock hold_wlock;
 	struct wake_lock wakeup_wlock;
 };
-#endif
-
 
 struct dpram_link_device {
 	struct link_device ld;
@@ -161,14 +136,11 @@ struct dpram_link_device {
 	struct completion ramdump_cmd_done;
 
 	int irq;
-#ifdef CONFIG_INTERNAL_MODEM_IF
+
 	void (*clear_interrupt)(void);
 	int (*board_ota_reset) (void);
 	struct idpram_link_pm_data *link_pm_data;
 	int (*init_magic_num)(struct dpram_link_device *dpld);
-#else
-	void (*clear_interrupt)(struct dpram_link_device *);
-#endif
 };
 
 /* converts from struct link_device* to struct xxx_link_device* */

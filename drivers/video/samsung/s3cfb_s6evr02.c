@@ -525,7 +525,7 @@ static int s6evr02_set_elvss(struct lcd_info *lcd, u8 force)
 	case 240 ... 250:
 		elvss_level = ELVSS_STATUS_240;
 		break;
-	case 255 ... 299:
+	case 299:
 		elvss_level = ELVSS_STATUS_300;
 		break;
 	}
@@ -740,6 +740,9 @@ static int update_brightness(struct lcd_info *lcd, u8 force)
 
 	brightness = lcd->bd->props.brightness;
 
+	if (unlikely(!lcd->auto_brightness && brightness > 250))
+		brightness = 250;
+
 	lcd->bl = get_backlight_level_from_brightness(brightness);
 
 	if ((force) || ((lcd->ldi_enable) && (lcd->current_bl != lcd->bl))) {
@@ -757,8 +760,9 @@ static int update_brightness(struct lcd_info *lcd, u8 force)
 	}
 
 #ifdef CONFIG_FB_S5P_MDNIE_CONTROL
-	mdnie_update_brightness(brightness, lcd->auto_brightness, false);
+  mdnie_update_brightness(brightness, lcd->auto_brightness, false);
 #endif
+
 	mutex_unlock(&lcd->bl_lock);
 
 	return 0;
@@ -929,10 +933,9 @@ static int s6evr02_get_brightness(struct backlight_device *bd)
 
 static int s6evr02_check_fb(struct lcd_device *ld, struct fb_info *fb)
 {
-	struct s3cfb_window *win = fb->par;
 	struct lcd_info *lcd = lcd_get_data(ld);
 
-	dev_info(&lcd->ld->dev, "%s, fb%d\n", __func__, win->id);
+	dev_info(&lcd->ld->dev, "%s, fb%d\n", __func__, fb->node);
 
 	return 0;
 }

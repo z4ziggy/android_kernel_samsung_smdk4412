@@ -211,7 +211,7 @@ struct mmc_card {
 /* MoviNAND secure issue */
 #define MMC_QUIRK_MOVINAND_SECURE (1<<8)
 /* MoviNAND "sudden death" issue */
-#define MMC_QUIRK_MOVINAND_SDS	(1<<9)
+#define MMC_QUIRK_MOVINAND_TLC	(1<<31)		/* Check the moviNAND TLC */
 
 	unsigned int    poweroff_notify_state;	/* eMMC4.5 notify feature */
 #define MMC_NO_POWER_NOTIFICATION	0
@@ -251,6 +251,7 @@ struct mmc_card {
 	unsigned int		movi_fwdate;
 };
 
+#define MMC_MOVI_VER_VHX2	(1<<3)
 #define MMC_MOVI_VER_VHX0	(1<<4)
 #define MMC_MOVI_VER_VMX0	(1<<5)
 /*

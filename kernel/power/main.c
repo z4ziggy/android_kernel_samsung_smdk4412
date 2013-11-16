@@ -18,13 +18,29 @@
 #endif
 
 #if defined(CONFIG_CPU_EXYNOS4210)
-#define CONFIG_GPU_LOCK
+#define CONFIG_EXYNOS4_GPU_LOCK
 #define CONFIG_ROTATION_BOOSTER_SUPPORT
+#endif
+
+#if defined(CONFIG_CPU_EXYNOS4412) && defined(CONFIG_MALI_VER_BEFORE_R3P2) && defined(CONFIG_MALI_400MP_UMP_DVFS)
+#define CONFIG_EXYNOS4_GPU_LOCK
+#else
+#if defined(CONFIG_CPU_EXYNOS4412) && defined(CONFIG_MALI_DVFS)
+#define CONFIG_EXYNOS4_GPU_LOCK
+#endif
 #endif
 
 #ifdef CONFIG_DVFS_LIMIT
 #include <linux/cpufreq.h>
 #include <mach/cpufreq.h>
+#endif
+
+#ifdef CONFIG_EXYNOS4_GPU_LOCK
+#include <mach/gpufreq.h>
+#endif
+
+#ifdef CONFIG_FAST_BOOT
+#include <linux/fake_shut_down.h>
 #endif
 
 #include "power.h"
@@ -179,11 +195,24 @@ static ssize_t state_show(struct kobject *kobj, struct kobj_attribute *attr,
 #endif
 	return (s - buf);
 }
+
 #ifdef CONFIG_FAST_BOOT
-bool fake_shut_down = false;
+bool fake_shut_down;
 EXPORT_SYMBOL(fake_shut_down);
 
-extern void wakelock_force_suspend(void);
+RAW_NOTIFIER_HEAD(fsd_notifier_list);
+
+int register_fake_shut_down_notifier(struct notifier_block *nb)
+{
+	return raw_notifier_chain_register(&fsd_notifier_list, nb);
+}
+EXPORT_SYMBOL(register_fake_shut_down_notifier);
+
+int unregister_fake_shut_down_notifier(struct notifier_block *nb)
+{
+	return raw_notifier_chain_unregister(&fsd_notifier_list, nb);
+}
+EXPORT_SYMBOL(unregister_fake_shut_down_notifier);
 #endif
 
 static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
@@ -220,7 +249,10 @@ static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
 	if (len == 4 && !strncmp(buf, "dmem", len)) {
 		pr_info("%s: fake shut down!!!\n", __func__);
 		fake_shut_down = true;
+		raw_notifier_call_chain(&fsd_notifier_list,
+				FAKE_SHUT_DOWN_CMD_ON, NULL);
 		state = PM_SUSPEND_MEM;
+		error = 0;
 	}
 #endif
 
@@ -230,10 +262,6 @@ static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
 			error = 0;
 			request_suspend_state(state);
 		}
-#ifdef CONFIG_FAST_BOOT
-		if (fake_shut_down)
-			wakelock_force_suspend();
-#endif
 #else
 		error = enter_state(state);
 #endif
@@ -556,9 +584,7 @@ static inline void rotation_booster_on(void)
 {
 	exynos_cpufreq_lock(DVFS_LOCK_ID_ROTATION_BOOSTER, L4);
 	exynos4_busfreq_lock(DVFS_LOCK_ID_ROTATION_BOOSTER, BUS_L0);
-#ifndef CONFIG_CPU_EXYNOS4210
-	exynos_gpufreq_lock();
-#endif
+	exynos_gpufreq_lock(1);
 }
 
 static inline void rotation_booster_off(void)
@@ -626,6 +652,52 @@ static inline void rotation_booster_on(void){}
 static inline void rotation_booster_off(void){}
 #endif /* CONFIG_ROTATION_BOOSTER_SUPPORT */
 
+#ifdef CONFIG_EXYNOS4_GPU_LOCK
+static int gpu_lock_val;
+static int gpu_lock_cnt;
+DEFINE_MUTEX(gpu_lock_mutex);
+
+static ssize_t gpu_lock_show(struct kobject *kobj,
+					struct kobj_attribute *attr,
+					char *buf)
+{
+	return sprintf(buf, "level = %d, count = %d\n",
+			gpu_lock_val, gpu_lock_cnt);
+}
+
+static ssize_t gpu_lock_store(struct kobject *kobj,
+					struct kobj_attribute *attr,
+					const char *buf, size_t n)
+{
+	int val;
+	ssize_t ret = -EINVAL;
+
+	mutex_lock(&gpu_lock_mutex);
+
+	if (sscanf(buf, "%d", &val) != 1) {
+		pr_info("%s: Invalid gpu lock format\n", __func__);
+		goto out;
+	}
+
+	if (val == 0) {	/* unlock */
+		gpu_lock_cnt = exynos_gpufreq_unlock();
+		if (gpu_lock_cnt == 0)
+			gpu_lock_val = 0;
+	} else if (val > 0 && val < 5) { /* lock with level */
+		gpu_lock_cnt = exynos_gpufreq_lock(val);
+		if (gpu_lock_val < val)
+			gpu_lock_val = val;
+	} else {
+		pr_info("%s: Lock request is invalid\n", __func__);
+	}
+
+	ret = n;
+out:
+	mutex_unlock(&gpu_lock_mutex);
+	return ret;
+}
+power_attr(gpu_lock);
+#endif
 
 static struct attribute * g[] = {
 	&state_attr.attr,
@@ -649,6 +721,11 @@ static struct attribute * g[] = {
 	&cpufreq_max_limit_attr.attr,
 	&cpufreq_min_limit_attr.attr,
 #endif
+
+#ifdef CONFIG_EXYNOS4_GPU_LOCK
+	&gpu_lock_attr.attr,
+#endif
+
 #ifdef CONFIG_ROTATION_BOOSTER_SUPPORT
 	&rotation_booster_attr.attr,
 #endif
