@@ -4625,6 +4625,7 @@ need_resched:
 #endif
 		++*switch_count;
 
+
 		context_switch(rq, prev, next); /* unlocks the rq */
 		/*
 		 * The context switch have flipped the stack from under us

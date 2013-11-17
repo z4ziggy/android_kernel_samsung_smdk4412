@@ -21,7 +21,7 @@ CUSTOM_PATH=note
 MODE=DUAL	
 fi
 
-displayversion=Devil2-1.0.7
+displayversion=Devil2-1.0.9
 version=$displayversion-$TARGET-$MODE-$(date +%Y%m%d)
 
 if [ -e boot.img ]; then
@@ -54,7 +54,7 @@ MODULES="$KERNEL_PATH/ramdisks/modules"
 
 defconfig=cyanogenmod_"$TARGET"_defconfig
 
-export LOCALVERSION="$displayversion"
+export LOCALVERSION="-$displayversion"
 export KERNELDIR=$KERNEL_PATH
 
 export USE_SEC_FIPS_MODE=true
