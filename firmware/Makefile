@@ -231,8 +231,8 @@ fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_W) += tsp_melfas/w/PRIV.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_W) += tsp_melfas/w/PUBL.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_W) += tsp_melfas/w/mms_ts_w.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_W) += tsp_melfas/w/mms_ts_w_config.fw
-else
-$(warning '$(TSPFIRMWARE_DIRECTORY)' directory dose not exist)
+#else
+#$(warning '$(TSPFIRMWARE_DIRECTORY_MEL_W)' directory dose not exist)
 endif
 
 TSPFIRMWARE_DIRECTORY_MEL_NOTE = firmware/tsp_melfas/note
@@ -253,8 +253,8 @@ fw-shipped-$(CONFIG_TOUCHSCREEN_MMS152_TAB3) += tsp_melfas/tab3/BOOT.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_MMS152_TAB3) += tsp_melfas/tab3/CORE.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_MMS152_TAB3) += tsp_melfas/tab3/CONF.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_MMS152_TAB3) += tsp_melfas/tab3/mms_boot.fw
-else
-$(warning '$(TSPFIRMWARE_DIRECTORY)' directory dose not exist)
+#else
+#$(warning '$(TSPFIRMWARE_DIRECTORY_MEL_TAB3)' directory dose not exist)
 endif
 
 TSPFIRMWARE_DIRECTORY_MEL_MMS252 = firmware/tsp_melfas/lt
@@ -262,8 +262,8 @@ ifeq ($(shell test -d $(TSPFIRMWARE_DIRECTORY_MEL_MMS252) && echo yes),yes)
 fw-shipped-$(CONFIG_TOUCHSCREEN_MMS252) += tsp_melfas/lt/melfas_yf.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_MMS252) += tsp_melfas/lt/melfas_wt.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_MMS252) += tsp_melfas/lt/melfas_ij.fw
-else
-$(warning '$(TSPFIRMWARE_DIRECTORY)' directory dose not exist)
+#else
+#$(warning '$(TSPFIRMWARE_DIRECTORY_MEL_MMS252)' directory dose not exist)
 endif
 
 TSPFIRMWARE_DIRECTORY_MEL_GD2 = firmware/tsp_melfas/gd2
@@ -272,9 +272,8 @@ fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_GD2) += tsp_melfas/gd2/melfas.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_GD2) += tsp_melfas/gd2/BOOT.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_GD2) += tsp_melfas/gd2/CORE.fw
 fw-shipped-$(CONFIG_TOUCHSCREEN_MELFAS_GD2) += tsp_melfas/gd2/CONF.fw
->>>>>>> f4ef398... update12: firmware
-else
-$(warning '$(TSPFIRMWARE_DIRECTORY)' directory dose not exist)
+#else
+#$(warning '$(TSPFIRMWARE_DIRECTORY_MEL_GD2)' directory dose not exist)
 endif
 
 fw-shipped-$(CONFIG_AUDIENCE_ES305) += audience/es305_fw.bin
