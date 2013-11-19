@@ -73,10 +73,8 @@ $BB echo "setprop persist.sys.usb.config mtp,adb" >> /system/etc/init.d/11setpro
 $BB chmod a+x /system/etc/init.d/11setprop
 fi
 
-if [ "$CM102" == 1 ]; then
-echo "using cm-10.2 initramfs"
-$BB mv -f /roms/cm102/* /
-$BB cp -r -f /mali/* /system/
+if [ "$SAMMY43" != 1 ]; then
+$BB cp -r -f /misc/mali/* /system/
 $BB chown root:root /system/lib/egl/libEGL_mali.so
 $BB chown root:root /system/lib/egl/libGLESv1_CM_mali.so
 $BB chown root:root /system/lib/egl/libGLESv2_mali.so
@@ -87,6 +85,11 @@ $BB chown root:root /system/lib/libMali.so
 $BB chown root:root /system/lib/libUMP.so
 $BB chmod 644 /system/lib/libMali.so
 $BB chmod 644 /system/lib/libUMP.so
+fi
+
+if [ "$CM102" == 1 ]; then
+echo "using cm-10.2 initramfs"
+$BB mv -f /roms/cm102/* /
    if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
   	# low power mode
  	echo 0 > /proc/sys/kernel/rom_feature_set
@@ -154,5 +157,6 @@ $BB umount -f /.secondrom
 ####### cleaning ###########
 $BB rm -rf /roms
 $BB rm -rf /lib/prop_modules
+$BB rm -rf /misc
 #############################
 exec /sbin/init.2

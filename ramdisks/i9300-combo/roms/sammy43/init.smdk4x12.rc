@@ -487,12 +487,6 @@ service bugreport /system/bin/bugmailer.sh -v
 on property:ro.dumpstate.dmesg=1
     write /proc/sys/kernel/dmesg_restrict 0
 
-# Runtime Compcache
-service rtccd /system/bin/rtccd2 -a 300M
-    class core
-    user root
-    oneshot
-
 # Secure Storage startup
 service prepare-ssdaemon /system/bin/sh /system/bin/ss-presetup.sh
     class core
