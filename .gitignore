@@ -61,7 +61,6 @@ scripts/kconfig/zconf.hash.c
 scripts/kconfig/zconf.tab.c
 scripts/mod/elfconfig.h
 scripts/genksyms/*
-firmware/*
 
 #
 # Top-level generic files
