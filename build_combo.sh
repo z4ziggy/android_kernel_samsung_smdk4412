@@ -21,7 +21,7 @@ CUSTOM_PATH=note
 MODE=DUAL	
 fi
 
-displayversion=Devil2-1.0.22
+displayversion=Devil2-1.1.0
 version=$displayversion-$TARGET-$MODE-$(date +%Y%m%d)
 
 if [ -e boot.img ]; then
