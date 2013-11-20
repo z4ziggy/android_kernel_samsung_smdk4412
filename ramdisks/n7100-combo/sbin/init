@@ -138,6 +138,7 @@ $BB mv -f /roms/cm11/* /
 else
 echo "using sammy 4.3 initramfs"
 $BB mv -f /roms/sammy43/* /
+$BB mv -f /misc/sbin2/* /sbin/
    if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
   	# low power mode
  	echo 0 > /proc/sys/kernel/rom_feature_set
