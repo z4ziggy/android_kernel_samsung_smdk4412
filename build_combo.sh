@@ -2,12 +2,12 @@
 
 TARGET=$1
 if [ "$TARGET" != "" ]; then
-	echo "starting your build for $TARGET"
+        echo "starting your build for $TARGET"
 else
-	echo ""
-	echo "you need to define your device target!"
-	echo "example: build_sammy.sh n7100"
-	exit 1
+        echo ""
+        echo "you need to define your device target!"
+        echo "example: build_sammy.sh n7100"
+        exit 1
 fi
 
 if [ "$TARGET" = "i9300" ] ; then
@@ -18,24 +18,22 @@ CUSTOM_PATH=i9100
 MODE=CM
 else
 CUSTOM_PATH=note
-MODE=DUAL	
+MODE=DUAL        
 fi
 
-
-displayversion=Devil2-1.2.2
-
+displayversion=Devil2-1.3.8
 version=$displayversion-$TARGET-$MODE-$(date +%Y%m%d)
 
 if [ -e boot.img ]; then
-	rm boot.img
+        rm boot.img
 fi
 
 if [ -e compile.log ]; then
-	rm compile.log
+        rm compile.log
 fi
 
 if [ -e ramdisk.cpio ]; then
-	rm ramdisk.cpio
+        rm ramdisk.cpio
 fi
 
 # Set Default Path
@@ -43,19 +41,13 @@ KERNEL_PATH=$PWD
 
 # Set toolchain and root filesystem path
 if [ "$(whoami)" == "dominik" ]; then
-	#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin"
-	#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-toolchain-eabi-4.8-2013.07/bin"
-	TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-toolchain-eabi-4.8-2013.09/bin"
-	#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.7.2/bin"
+        TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-toolchain-eabi-4.8-2013.09/bin"
 elif [ "$(whoami)" == "rollus" ]; then
-	TOOLCHAIN_PATH="/home/rollus/android-toolchain-eabi/bin/"
+        TOOLCHAIN_PATH="/home/rollus/android-toolchain-eabi/bin/"
 fi
 TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
 ROOTFS_PATH="$KERNEL_PATH/ramdisks/$TARGET-combo"
-MODULESDIR="$KERNEL_PATH/ramdisks/modules"
-MODULES="$KERNEL_PATH/ramdisks/modules/lib/modules"
-
-
+MODULES="$ROOTFS_PATH/lib/modules"
 
 defconfig=cyanogenmod_"$TARGET"_defconfig
 
@@ -75,7 +67,7 @@ chmod 750 $ROOTFS_PATH/sbin/init*
 
 if [ "$2" = "clean" ]; then
 echo "Cleaning latest build"
-make -j`grep 'processor' /proc/cpuinfo | wc -l` mrproper
+make ARCH=arm CROSS_COMPILE=$TOOLCHAIN -j`grep 'processor' /proc/cpuinfo | wc -l` mrproper
 fi
 # Cleaning old kernel and modules
 find -name '*.ko' -exec rm -rf {} \;
@@ -84,16 +76,22 @@ rm -rf $KERNEL_PATH/arch/arm/boot/zImage
 # Making our .config
 make $defconfig
 
-make -j`grep 'processor' /proc/cpuinfo | wc -l` || exit -1
+# make the modules
+make modules -j`grep 'processor' /proc/cpuinfo | wc -l` || exit -1
 # Copying and stripping kernel modules
-if [ "$TARGET" == "i9100" ] ; then
-MODULES=releasetools/$CUSTOM_PATH/zip/system/lib/modules
-fi
-
+if [ "$TARGET" != "i9100" ] ; then
 mkdir -p $MODULES
 find -name '*.ko' -exec cp -av {} $MODULES \;
-        "$TOOLCHAIN"strip --strip-unneeded $MODULES/*
+        for i in $MODULES/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
+else
+MODULES=releasetools/$CUSTOM_PATH/zip/system/lib/modules
+mkdir -p $MODULES
+find -name '*.ko' -exec cp -av {} $MODULES \;
+        for i in $MODULES/*; do $TOOLCHAIN_PATH/arm-eabi-strip --strip-unneeded $i;done;\
+fi
 
+# make the kernel
+make zImage -j`grep 'processor' /proc/cpuinfo | wc -l` || exit -1
 
 # Copy Kernel Image
 rm -f $KERNEL_PATH/releasetools/$CUSTOM_PATH/tar/$version.tar
@@ -102,12 +100,13 @@ cp -f $KERNEL_PATH/arch/arm/boot/zImage .
 
 if [ "$TARGET" != "i9100" ] ; then
 # Create ramdisk.cpio archive
-cd $MODULESDIR
-find . | cpio -o -H newc > $KERNEL_PATH/ramdisk.cpio
+cd $KERNEL_PATH/usr/fakeramdisk
+RAMDISK=ramdisk.cpio
+find . | cpio -o -H newc > $KERNEL_PATH/$RAMDISK
 cd $KERNEL_PATH
 
 # Make boot.img
-./mkbootimg --kernel zImage --ramdisk ramdisk.cpio --board smdk4x12 --base 0x10000000 --pagesize 2048 --ramdiskaddr 0x11000000 -o $KERNEL_PATH/boot.img
+./mkbootimg --kernel zImage --ramdisk $RAMDISK --board smdk4x12 --base 0x10000000 --pagesize 2048 --ramdiskaddr 0x11000000 -o $KERNEL_PATH/boot.img
 
 # Copy boot.img
 cp boot.img $KERNEL_PATH/releasetools/$CUSTOM_PATH/zip
