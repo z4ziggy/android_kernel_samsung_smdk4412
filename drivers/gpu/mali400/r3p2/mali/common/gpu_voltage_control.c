@@ -20,26 +20,25 @@
 
 #include "gpu_voltage_control.h"
 
-#define MIN_VOLTAGE_GPU  600000
+#define MIN_VOLTAGE_GPU  800000
 #define MAX_VOLTAGE_GPU 1200000
+#define MALI_STEPS 5
 
 typedef struct mali_dvfs_tableTag{
     unsigned int clock;
     unsigned int freq;
     unsigned int vol;
+    unsigned int downthreshold;
+    unsigned int upthreshold;
 }mali_dvfs_table;
-typedef struct mali_dvfs_thresholdTag{
-        unsigned int downthreshold;
-        unsigned int upthreshold;
-}mali_dvfs_threshold_table;
-extern mali_dvfs_table mali_dvfs[5];
-extern mali_dvfs_threshold_table mali_dvfs_threshold[4];
 
-unsigned int gv[5];
+extern mali_dvfs_table mali_dvfs[MALI_STEPS];
+
+unsigned int gv[MALI_STEPS];
 
 static ssize_t gpu_voltage_show(struct device *dev, struct device_attribute *attr, char *buf) {
         return sprintf(buf, "Step1: %d\nStep2: %d\nStep3: %d\nStep4: %d\nStep5: %d\n",
-            mali_dvfs[0].vol, mali_dvfs[1].vol,mali_dvfs[2].vol, mali_dvfs[3].vol, mali_dvfs[4].vol);
+                       mali_dvfs[0].vol, mali_dvfs[1].vol,mali_dvfs[2].vol, mali_dvfs[3].vol, mali_dvfs[4].vol);
 }
 
 static ssize_t gpu_voltage_store(struct device *dev, struct device_attribute *attr, const char *buf,
@@ -47,18 +46,18 @@ static ssize_t gpu_voltage_store(struct device *dev, struct device_attribute *at
         unsigned int ret = -EINVAL;
         int i = 0;
 
-  ret = sscanf(buf, "%d %d %d %d", &gv[0], &gv[1], &gv[2], &gv[3], &gv[4]);
-  if(ret!=5) return -EINVAL;
+        ret = sscanf(buf, "%d %d %d %d %d", &gv[0], &gv[1], &gv[2], &gv[3], &gv[4]);
+        if(ret!=MALI_STEPS) return -EINVAL;
 
         /* safety floor and ceiling - netarchy */
-        for( i = 0; i < 5; i++ ) {
+        for( i = 0; i < MALI_STEPS; i++ ) {
                 if (gv[i] < MIN_VOLTAGE_GPU) {
                     gv[i] = MIN_VOLTAGE_GPU;
                 }
                 else if (gv[i] > MAX_VOLTAGE_GPU) {
                     gv[i] = MAX_VOLTAGE_GPU;
                 }
-                if(ret==5)
+                if(ret==MALI_STEPS)
                     mali_dvfs[i].vol=gv[i];
         }
         return count;
