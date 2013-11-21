@@ -1,5 +1,5 @@
 /*
- * gpu_clock_control.h -- a clock control interface for the sgs2
+ * gpu_control.h -- a control interface for the sgs3 and note2
  *
  *  Copyright (C) 2011 Michael Wodkins
  *  twitter - @xdanetarchy
@@ -11,4 +11,4 @@
  *
  */
 
-void gpu_clock_control_start(void);
+void gpu_control_start(void);

@@ -125,8 +125,7 @@ ifneq ($(MALI_PLATFORM_FILES),)
 endif
 
 ifeq ($(CONFIG_GPU_CLOCK_CONTROL),y)
-mali-y += common/gpu_clock_control.o
-mali-y += common/gpu_voltage_control.o
+mali-y += common/gpu_control.o
 endif
 
 mali-$(CONFIG_MALI400_PROFILING) += linux/mali_ukk_profiling.o
