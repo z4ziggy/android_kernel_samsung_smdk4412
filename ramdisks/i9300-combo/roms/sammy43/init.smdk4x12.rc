@@ -103,6 +103,10 @@ on post-fs-data
     chmod 0664 /data/.frameburst.info
     chmod 0664 /data/.txbf.info
 
+    # Run sysinit
+    start sysinit
+
+
 on boot
 # SISO-ANDR_PERF :: START Changing scheduler to noop during boot
     write /sys/block/mmcblk0/queue/scheduler noop
@@ -498,6 +502,12 @@ service scranton_RD /system/bin/scranton_RD
     user root
     disabled
     oneshot
+
+# sysinit (/system/etc/init.d)
+service sysinit /system/bin/sysinit
+    user root
+    oneshot
+    disabled
 
 # start for TZPR provisioning version check app
 on property:sys.mobicoredaemon.enable=true

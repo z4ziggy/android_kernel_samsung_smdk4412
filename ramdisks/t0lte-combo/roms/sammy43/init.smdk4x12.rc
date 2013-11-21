@@ -116,6 +116,9 @@ on post-fs-data
     chown system radio /sys/devices/platform/mdm_hsic_pm0/waketime
     chmod 0660 /sys/devices/platform/mdm_hsic_pm0/waketime
 
+    # Run sysinit
+    start sysinit
+
 on boot
 # for AT distributor 
     chown system radio /sys/module/cpuidle_exynos4/parameters/enable_mask
@@ -626,6 +629,12 @@ service secure_storage /system/bin/secure_storage_daemon
     class core
     user system
     group system
+    disabled
+
+# sysinit (/system/etc/init.d)
+service sysinit /system/bin/sysinit
+    user root
+    oneshot
     disabled
 
 on property:sys.mobicoredaemon.enable=true

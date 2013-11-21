@@ -108,6 +108,9 @@ on post-fs-data
     chown system radio /sys/module/cpuidle_exynos4/parameters/enable_mask
     chmod 0664 /sys/module/cpuidle_exynos4/parameters/enable_mask
 
+    # Run sysinit
+    start sysinit
+
 on boot
 # SISO-ANDR_PERF :: START Changing scheduler to noop during boot
     write /sys/block/mmcblk0/queue/scheduler noop
@@ -508,6 +511,12 @@ service secure_storage /system/bin/secure_storage_daemon
     class core
     user system
     group system
+    disabled
+
+# sysinit (/system/etc/init.d)
+service sysinit /system/bin/sysinit
+    user root
+    oneshot
     disabled
 
 on property:ro.securestorage.ready=true
