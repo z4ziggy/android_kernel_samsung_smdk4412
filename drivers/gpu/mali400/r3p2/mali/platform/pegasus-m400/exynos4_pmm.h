@@ -109,6 +109,11 @@ int mali_dvfs_bottom_lock_pop(void);
 #endif
 #endif
 
+// Yank555.lu : Add a frequency lookup table for GPU
+#define GPU_FREQ_STEPS 20
+#define GPU_FREQ_END_OF_TABLE 0
+extern unsigned int gpu_freq_table[GPU_FREQ_STEPS+1];
+
 #if MALI_VOLTAGE_LOCK
 int mali_voltage_lock_push(int lock_vol);
 int mali_voltage_lock_pop(void);

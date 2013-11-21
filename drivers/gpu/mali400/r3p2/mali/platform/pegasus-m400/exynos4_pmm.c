@@ -110,6 +110,31 @@ mali_dvfs_table mali_dvfs[MALI_DVFS_STEPS]={
 #define ASV_LEVEL_4210_12	8
 #define ASV_LEVEL_4210_14	5
 
+// Yank555.lu : Lookup table for possible frequencies
+unsigned int gpu_freq_table[GPU_FREQ_STEPS+1] = {
+   54,
+  108,
+  160,
+  200,
+  266,
+  275,
+  300,
+  333,
+  350,
+  400,
+  440,
+  500,
+  533,
+  600,
+  640,
+  666,
+  700,
+  733,
+  750,
+  800,
+  GPU_FREQ_END_OF_TABLE
+  };
+
 #if defined(CONFIG_CPU_EXYNOS4212) || defined(CONFIG_CPU_EXYNOS4412)
 static unsigned int asv_3d_volt_9_table_1ghz_type[MALI_DVFS_STEPS-1][ASV_LEVEL] = {
 	{  975000,  950000,  950000,  950000,  925000,  925000,  925000,  900000,  900000,  900000,  900000,  875000},  /* L3(160Mhz) */
