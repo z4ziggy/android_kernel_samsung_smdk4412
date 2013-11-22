@@ -53,8 +53,8 @@
 #define TOUCHKEY_LED_ENABLED	1
 
 // Yank555.lu : Add cleartext status settings for kernel / ROM handling h/w key LED
-#define TOUCHKEY_LED_ROM	1
-#define TOUCHKEY_LED_KERNEL	0
+#define TOUCHKEY_LED_ROM	0
+#define TOUCHKEY_LED_KERNEL	1
 
 // Yank555.lu : Add cleartext status settings for h/w key pressed
 #define TOUCHKEY_HW_TIMEDOUT	0
@@ -805,8 +805,7 @@ static irqreturn_t touchkey_interrupt(int irq, void *dev_id)
 
 			// Yank555.lu : enable lights on h/w key pressed
 			touchkey_pressed = TOUCHKEY_HW_PRESSED;
-			if (touchkey_led_status       == TK_CMD_LED_OFF	       &&
-			    touch_led_on_screen_touch == TOUCHKEY_LED_DISABLED   ) {
+			if (touchkey_led_status       == TK_CMD_LED_OFF) {
 				pr_debug("[Touchkey] %s: enabling touchled\n", __func__);
 				i2c_touchkey_write(tkey_i2c->client, (u8 *) &ledCmd[0], 1);
 				touchkey_led_status = TK_CMD_LED_ON;
@@ -1252,10 +1251,12 @@ static ssize_t touchkey_led_control(struct device *dev,
 	struct touchkey_i2c *tkey_i2c = dev_get_drvdata(dev);
 	int data;
 	int ret;
+	int rom = 0;
 	static int ledCmd[] = {TK_CMD_LED_OFF, TK_CMD_LED_ON};
 AOSPROM {
 	ledCmd[0] = TK_CMD_LED_ON;
 	ledCmd[1] = TK_CMD_LED_OFF;
+	rom = 1;
 }
 
 #if defined(CONFIG_TARGET_LOCALE_KOR)
@@ -1282,16 +1283,14 @@ AOSPROM {
 	}
 }
 
-	if (data == 2 && touch_led_handling == TOUCHKEY_LED_ROM)
+	if (data == 2)
 		touchkey_pressed = TOUCHKEY_HW_TIMEDOUT; // Yank555.lu : h/w light disabled, consider timeout reached
-
 	if (touchkey_led_status 	== TK_CMD_LED_OFF	 &&
 	    touchkey_pressed 		== TOUCHKEY_HW_TIMEDOUT  &&
-	    touch_led_handling		== TOUCHKEY_LED_ROM   &&
+	    (touch_led_handling		== TOUCHKEY_LED_ROM      ||
+	     rom			== 1) 			 &&
 	    touch_led_on_screen_touch	== TOUCHKEY_LED_DISABLED    ) {
-
 		data = TK_CMD_LED_OFF;
-
 	} else {
 
 #if defined(CONFIG_TARGET_LOCALE_NA)
