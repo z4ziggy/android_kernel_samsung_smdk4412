@@ -10,6 +10,5 @@
  *  Free Software Foundation;
  *
  */
-#include "../platform/pegasus-m400/exynos4_pmm.h"
 
 void gpu_control_start(void);
