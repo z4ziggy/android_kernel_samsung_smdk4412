@@ -70,6 +70,6 @@ $BB chown -R media_rw.media_rw /data/media/*
 echo ""
 $BB mount
 
-logcat_log
-dmesg_log
+#logcat_log
+#dmesg_log
 
