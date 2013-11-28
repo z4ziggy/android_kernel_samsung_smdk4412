@@ -57,6 +57,14 @@ SAMMY43=0
 
 if $BB grep -q ro.build.version.release=4.4 /system/build.prop; then
    CM11=1
+   if $BB grep -q cyanogenmod /system/build.prop ||
+      $BB grep -q ro.cm.version /system/build.prop; then
+	echo "rom seems to be cm based"
+   else
+	echo "rom does not seem to based off cm"	
+   	CM11=0
+	OMNI=1
+   fi
 elif $BB [ -f /system/framework/smartfaceservice.jar ]; then
    SAMMY43=1
 else
@@ -88,10 +96,38 @@ $BB chmod 644 /system/lib/libMali.so
 $BB chmod 644 /system/lib/libUMP.so
 fi
 
-
 if [ "$CM102" == 1 ]; then
 echo "using cm-10.2 initramfs"
 $BB mv -f /roms/cm102/* /
+   if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
+  	# low power mode
+ 	echo 0 > /proc/sys/kernel/rom_feature_set
+ 	$BB cp -f lpm.rc init.rc
+  	$BB rm -f init.smdk4x12.rc
+   else
+   	echo 7 > /proc/sys/kernel/rom_feature_set
+	$BB mkdir -p /system/lib/modules
+	$BB mv /lib/modules/* /system/lib/modules/
+
+	if [ "$SECONDARYBOOT" == "1" ];then
+	  echo "secondary boot"
+  	  $BB mv /init.mount.rc2 /init.mount.rc
+  	  $BB mv /fstab.smdk4x12.2 /fstab.smdk4x12
+
+	  $BB echo "#!/system/bin/sh" > /system/etc/init.d/10sd_mount
+	  $BB echo "/system/bin/sdcard /.secondrom/media /mnt/shell/emulated 1023 1023" >> /system/etc/init.d/10sd_mount
+	  $BB chmod a+x /system/etc/init.d/10sd_mount
+	fi
+   fi
+elif [ "$OMNI" == 1 ]; then
+echo "using omni initramfs"
+$BB mv -f /roms/omni/* /
+#if $BB grep -q ro.zygote.disable_gl_preload /system/build.prop; then
+#   echo "build.prop already modified"
+#else
+#   echo "ro.zygote.disable_gl_preload=true" >> /system/build.prop
+#fi
+
    if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
   	# low power mode
  	echo 0 > /proc/sys/kernel/rom_feature_set
@@ -131,7 +167,7 @@ $BB mv -f /roms/cm11/* /
   	  $BB mv /fstab.smdk4x12.2 /fstab.smdk4x12
 
 	  $BB echo "#!/system/bin/sh" > /system/etc/init.d/10sd_mount
-	  $BB echo "/system/bin/sdcard /.secondrom/media /mnt/shell/emulated 1023 1023" >> /system/etc/init.d/10sd_mount
+	  $BB echo "/system/bin/sdcard -u 1023 -g 1023 -l /data/media /mnt/shell/emulated" >> /system/etc/init.d/10sd_mount
 	  $BB chmod a+x /system/etc/init.d/10sd_mount
 	fi
    fi
