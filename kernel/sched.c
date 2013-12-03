@@ -87,6 +87,7 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/sched.h>
 
+//#include <linux/cpufreq_slp.h>
 
 /*
  * Convert user-nice values [ -20 ... 0 ... 19 ]
@@ -4625,6 +4626,8 @@ need_resched:
 #endif
 		++*switch_count;
 
+//		slp_store_task_history(cpu, prev);
+
 		context_switch(rq, prev, next); /* unlocks the rq */
 		/*
 		 * The context switch have flipped the stack from under us
@@ -6206,6 +6209,7 @@ void sched_show_task(struct task_struct *p)
 			get_mm_counter(p->mm, MM_ANONPAGES),
 			get_mm_counter(p->mm, MM_ANON_LOWPAGES));
 #endif
+
 	show_stack(p, NULL);
 }
 
