@@ -192,6 +192,11 @@ $BB chmod a+x /system/bin/sysinit
    fi
 fi
 
+$BB echo "#!/system/bin/sh" > /system/etc/init.d/15sensors
+$BB echo "echo 0 > /sys/class/sensors/proximity_sensor/prox_cal" >> /system/etc/init.d/15sensors
+$BB echo "echo 1 > /sys/class/sensors/proximity_sensor/prox_cal" >> /system/etc/init.d/15sensors
+$BB chmod a+x /system/etc/init.d/15sensors
+
 $BB umount -f /system
 $BB umount -f /.secondrom
 
