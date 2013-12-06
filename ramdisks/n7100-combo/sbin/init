@@ -83,7 +83,7 @@ fi
 
 
 if [ "$SAMMY43" != 1 ]; then
-$BB cp -r -f /misc/mali/* /system/
+$BB cp -r -f /misc/libs/* /system/
 $BB chown root:root /system/lib/egl/libEGL_mali.so
 $BB chown root:root /system/lib/egl/libGLESv1_CM_mali.so
 $BB chown root:root /system/lib/egl/libGLESv2_mali.so
@@ -94,6 +94,8 @@ $BB chown root:root /system/lib/libMali.so
 $BB chown root:root /system/lib/libUMP.so
 $BB chmod 644 /system/lib/libMali.so
 $BB chmod 644 /system/lib/libUMP.so
+$BB chmod 644 /system/lib/hw/sensors.smdk4x12.so
+$BB chown root:root /system/lib/hw/sensors.smdk4x12.so
 fi
 
 if [ "$CM102" == 1 ]; then

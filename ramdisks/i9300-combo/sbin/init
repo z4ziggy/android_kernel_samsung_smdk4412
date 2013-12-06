@@ -83,7 +83,7 @@ $BB chmod a+x /system/etc/init.d/11setprop
 fi
 
 if [ "$SAMMY43" != 1 ]; then
-$BB cp -r -f /misc/mali/* /system/
+$BB cp -r -f /misc/libs/* /system/
 $BB chown root:root /system/lib/egl/libEGL_mali.so
 $BB chown root:root /system/lib/egl/libGLESv1_CM_mali.so
 $BB chown root:root /system/lib/egl/libGLESv2_mali.so
