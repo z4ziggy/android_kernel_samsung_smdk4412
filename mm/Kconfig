@@ -411,6 +411,8 @@ config ZSWAP
 	bool "In-kernel swap page compression"
 	depends on FRONTSWAP && CRYPTO
 	select CRYPTO_LZ4
+	select ZBUD
+	select VNSWAP
 	default n
 	help
 	  Zswap is a backend for the frontswap mechanism in the VMM.
@@ -425,13 +427,22 @@ config ZSWAP_PSEUDO_BLKDEV
 	bool "Emulate a pseudo blk-dev based on zswap(previous zram)"
 	depends on ZSWAP && ZSMALLOC
 	default n
-
 	help
 	  Enable this option will emulate a pseudo block swapdev /dev/zram0
 	  with size zswap.max_pool_percent of total ram size. All writes to this
 	  block device will be compressed and cached by zswap as a result no
 	  real IO disk operations will happen.
 	  This feature can be used to replace drivers/staging/zram.
+
+config ZBUD
+	tristate
+	default n
+	help
+	  A special purpose allocator for storing compressed pages.
+	  It is designed to store up to two compressed pages per physical
+	  page.  While this design limits storage density, it has simple and
+	  deterministic reclaim properties that make it preferable to a higher
+	  density approach when reclaim will be used.
 
 config DISABLE_LUMPY_RECLAIM
 	bool "Disable lumpy reclaim"
