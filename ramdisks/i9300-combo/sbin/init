@@ -55,6 +55,7 @@ CM11=0
 OMNI=0
 CM102=0
 SAMMY43=0
+SAMMY41=0
 
 if $BB grep -q ro.build.version.release=4.4 /system/build.prop; then
    CM11=1
@@ -68,8 +69,10 @@ if $BB grep -q ro.build.version.release=4.4 /system/build.prop; then
    fi
 elif $BB [ -f /system/framework/smartfaceservice.jar ]; then
    SAMMY43=1
-else
+elif $BB [ -f /system/framework/telephony-common.jar ]; then
    CM102=1
+else
+   SAMMY41=1
 fi
 
 if $BB [ ! -f /system/etc/init.d/11setprop ]; then
