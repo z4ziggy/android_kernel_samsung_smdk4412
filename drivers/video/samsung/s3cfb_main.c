@@ -435,7 +435,8 @@ static int s3cfb_wait_for_vsync_thread(void *data)
 				fbdev->vsync_info.timestamp) &&
 				fbdev->vsync_info.active);
 
-#if defined(CONFIG_FB_S5P_VSYNC_SEND_UEVENTS)
+OLDMALI {
+	SAMSUNGROM {
                         char *envp[2];
                         char buf[64];
                         snprintf(buf, sizeof(buf), "VSYNC=%llu",
@@ -444,7 +445,8 @@ static int s3cfb_wait_for_vsync_thread(void *data)
                         envp[1] = NULL;
                         kobject_uevent_env(&fbdev->dev->kobj, KOBJ_CHANGE,
                                                         envp);
-#endif
+	}
+}
 		SAMSUNGROM {
 		sysfs_notify(&fbdev->fb[pdata->default_win]->dev->kobj,
 				NULL, "vsync_event");
