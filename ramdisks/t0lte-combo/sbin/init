@@ -78,7 +78,6 @@ $BB chown root:root /system/lib/hw/sensors.smdk4x12.so
 }
 
 
-
 ######### copy initramfs ###############################################
 rom() {
 echo "using $1 initramfs"
@@ -109,10 +108,6 @@ $BB mv -f /roms/$1/* /
 	  echo "secondary boot"
   	  $BB mv /init.mount.rc2 /init.mount.rc
   	  $BB mv /fstab.smdk4x12.2 /fstab.smdk4x12
-
-	  #$BB echo "#!/system/bin/sh" > /system/etc/init.d/10sd_mount
-	  #$BB echo "/system/bin/sdcard /.secondrom/media /mnt/shell/emulated 1023 1023" >> /system/etc/init.d/10sd_mount
-	  #$BB chmod a+x /system/etc/init.d/10sd_mount
 	fi
    fi
 }
