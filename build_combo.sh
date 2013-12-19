@@ -22,7 +22,7 @@ MODE=DUAL
 fi
 
 
-displayversion=Devil2-2.0.4
+displayversion=Devil2-2.1.2
 
 version=$displayversion-$TARGET-$MODE-$(date +%Y%m%d)
 
@@ -54,8 +54,6 @@ TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
 ROOTFS_PATH="$KERNEL_PATH/ramdisks/$TARGET-combo"
 MODULESDIR="$KERNEL_PATH/ramdisks/modules"
 MODULES="$KERNEL_PATH/ramdisks/modules/lib/modules"
-
-
 
 defconfig=cyanogenmod_"$TARGET"_defconfig
 
