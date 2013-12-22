@@ -131,3 +131,7 @@ obj-$(CONFIG_PSTORE)		+= pstore/
 obj-$(CONFIG_YAFFS_FS)		+= yaffs2/
 
 obj-$(CONFIG_DYNAMIC_FSYNC)	+= dyn_sync_cntrl.o
+
+ifeq (1, $(shell if [ -d ./fs/exfat ]; then echo 1; fi))
+obj-y	+= exfat/
+endif
