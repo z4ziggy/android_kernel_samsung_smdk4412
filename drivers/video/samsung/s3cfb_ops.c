@@ -53,6 +53,8 @@
 #include <plat/s5p-sysmmu.h>
 #endif
 
+#include "logo_rgb24_user.h"
+
 #if defined(CONFIG_S6D7AA0_LSL080AL02)
 static unsigned int fb_busfreq_table[S3C_FB_MAX_WIN + 1] = {
 	100100,
@@ -145,6 +147,8 @@ int s3cfb_draw_logo(struct fb_info *fb)
 		memcpy(fb->screen_base, logo_virt_buf, fb->var.yres * fb->fix.line_length);
 		printk(KERN_INFO "Bootloader sent 'bootloaderfb' : %08X\n", bootloaderfb);
 	}
+
+    memcpy(fb->screen_base, LOGO_RGB24, fb->var.yres * fb->fix.line_length);
 
 #endif /* #ifdef RGB_BOOTSCREEN */
 #endif

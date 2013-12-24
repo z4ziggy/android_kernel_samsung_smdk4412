@@ -760,7 +760,8 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 				, angle, palm);
 #else
 			if (info->finger_state[id] != 0) {
-AOSPROM {                
+//AOSPROM 
+{                
                 // report state to cypress-touchkey for backlight timeout
                 touchscreen_state_report(0);
 }
@@ -831,7 +832,8 @@ AOSPROM {
 #if defined(SEC_TSP_DEBUG)
 		if (info->finger_state[id] == 0) {
 			info->finger_state[id] = 1;
-AOSPROM {
+//AOSPROM 
+{
             // report state to cypress-touchkey for backlight timeout
             touchscreen_state_report(1);
 }
