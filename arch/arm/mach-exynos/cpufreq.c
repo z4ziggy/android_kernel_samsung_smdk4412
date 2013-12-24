@@ -41,7 +41,7 @@
 #endif
 
 #ifdef CONFIG_CPU_EXYNOS4210
-#define CPUFREQ_LEVEL_END  L16
+#define CPUFREQ_LEVEL_END  L18 + 1
 #endif
 
 struct exynos_dvfs_info *exynos_info;
