@@ -77,7 +77,9 @@ int get_init_arg(struct mfc_inst_ctx *ctx, void *arg)
 	else
 		enc_ctx->framemap = 0;	/* Default is Linear mode */
 #if SUPPORT_SLICE_ENCODING
+_SUPPORT_SLICE_ENCODING {
 	enc_ctx->outputmode = init_arg->cmn.in_output_mode ? 1 : 0;
+}
 #endif
 
 	/* width */
@@ -104,8 +106,10 @@ int get_init_arg(struct mfc_inst_ctx *ctx, void *arg)
 		write_reg(0, MFC_ENC_MSLICE_BIT);
 	}
 #if SUPPORT_SLICE_ENCODING
+_SUPPORT_SLICE_ENCODING {
 	/* slice interface */
 	write_reg((enc_ctx->outputmode) << 31, MFC_ENC_SI_CH1_INPUT_FLUSH);
+}
 #endif
 
 	/* cyclic intra refresh */
@@ -1417,8 +1421,10 @@ int mfc_init_encoding(struct mfc_inst_ctx *ctx, union mfc_args *args)
 	}
 
 #if SUPPORT_SLICE_ENCODING
+_SUPPORT_SLICE_ENCODING {
 	if (init_arg->cmn.in_output_mode == 1)
 		ctx->slice_flag = 1;
+}
 #endif
 	/*
 	 * get init. argumnets
@@ -1713,7 +1719,9 @@ static int mfc_encoding_frame(struct mfc_inst_ctx *ctx, struct mfc_enc_exe_arg *
 		write_reg(0, MFC_ENC_NV21_SEL);
 #endif
 #if SUPPORT_SLICE_ENCODING
+_SUPPORT_SLICE_ENCODING {
 	write_reg((enc_ctx->outputmode) << 31, MFC_ENC_SI_CH1_INPUT_FLUSH);
+}
 #endif
 
 	write_reg(enc_ctx->streamaddr >> 11, MFC_ENC_SI_CH1_SB_ADR);
@@ -1805,7 +1813,7 @@ static int mfc_encoding_frame(struct mfc_inst_ctx *ctx, struct mfc_enc_exe_arg *
 	}
 
 #if SUPPORT_SLICE_ENCODING
-	if (enc_ctx->outputmode == 0) { /* frame */
+	if ((SAMSUNGROMEXPR && enc_ctx->outputmode == 0) || !SAMSUNGROMEXPR) { /* frame */
 #endif
 		ret = mfc_cmd_frame_start(ctx);
 		if (ret < 0)
@@ -1843,7 +1851,7 @@ static int mfc_encoding_frame(struct mfc_inst_ctx *ctx, struct mfc_enc_exe_arg *
 		}
 #endif
 #if SUPPORT_SLICE_ENCODING
-	} else {			/* slice */
+	} else if (SAMSUNGROMEXPR) {			/* slice */
 		ret = mfc_cmd_slice_start(ctx);
 		if (ret < 0)
 			return ret;
@@ -1880,7 +1888,7 @@ static int mfc_encoding_frame(struct mfc_inst_ctx *ctx, struct mfc_enc_exe_arg *
 					return MFC_ENC_EXE_ERR;
 				}
 			} else {
-#endif
+#endif // CONFIG_SLP_DMABUF
 				exe_arg->out_Y_addr = mfc_mem_addr_ofs
 					(read_reg(MFC_ENCODED_Y_ADDR) << 11, 1);
 				exe_arg->out_CbCr_addr = mfc_mem_addr_ofs
@@ -1894,7 +1902,7 @@ static int mfc_encoding_frame(struct mfc_inst_ctx *ctx, struct mfc_enc_exe_arg *
 	mfc_dbg("frame type: %d, encoded size: %d, slice size: %d, stream size: %d\n",
 		exe_arg->out_frame_type, exe_arg->out_encoded_size,
 		enc_ctx->slicesize, read_reg(MFC_ENC_SI_STRM_SIZE));
-#endif
+#endif //SUPPORT_SLICE_ENCODING
 
 	/* Get Frame Tag top and bottom */
 	exe_arg->out_frametag_top = read_shm(ctx, GET_FRAME_TAG_TOP);
