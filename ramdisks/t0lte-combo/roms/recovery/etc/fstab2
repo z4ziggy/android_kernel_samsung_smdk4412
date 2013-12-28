@@ -1,3 +1,0 @@
-/.secondrom/media/.secondrom/system.img   /system   ext4 rw
-/dev/block/mmcblk0p14   /cache    ext4 rw
-/.secondrom/media/.secondrom/data   	/data     ext4 rw
