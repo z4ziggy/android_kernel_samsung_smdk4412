@@ -92,9 +92,7 @@ $BB mv -f /roms/$1/* /
  	$BB cp -f lpm.rc init.rc
   	$BB rm -f init.smdk4x12.rc
    else
-	if [ "$1" == "recovery" ] ; then
- 	echo 0 > /proc/sys/kernel/rom_feature_set
-	elif [ "$1" == "sammy43" ] ; then
+	if [ "$1" == "sammy43" ] ; then
    	echo 4 > /proc/sys/kernel/rom_feature_set
 	$BB mv -f /roms/sammy43/* /
 	$BB mv -f /misc/sbin2/* /sbin/
@@ -119,12 +117,7 @@ $BB mv -f /roms/$1/* /
 }
 
 
-if $BB [ -f /.secondrom/.recoveryboot ] ; then
-	rm -rf /.secondrom/.recoveryboot
-	echo "booting to recovery"
-	SECONDARYBOOT=0
-	rom recovery
-elif $BB grep -q ro.build.version.release=4.4 /system/build.prop; then
+if $BB grep -q ro.build.version.release=4.4 /system/build.prop; then
    if $BB grep -q cyanogenmod /system/build.prop ||
       $BB grep -q ro.cm.version /system/build.prop; then
 	echo "rom seems to be cm based"
