@@ -31,9 +31,6 @@ on init
     mkdir /tombstones
     symlink /efs /factory
 
-    setenforce 0
-    setprop ro.boot.selinux 0
-
 # ko files for FM Radio
     insmod /system/lib/modules/Si4709_driver.ko
 

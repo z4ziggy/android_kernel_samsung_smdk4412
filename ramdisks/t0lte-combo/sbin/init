@@ -77,6 +77,7 @@ $BB chmod 644 /system/lib/hw/sensors.smdk4x12.so
 $BB chown root:root /system/lib/hw/sensors.smdk4x12.so
 }
 
+
 ######### copy initramfs ###############################################
 rom() {
 echo "using $1 initramfs"
@@ -91,7 +92,9 @@ $BB mv -f /roms/$1/* /
  	$BB cp -f lpm.rc init.rc
   	$BB rm -f init.smdk4x12.rc
    else
-	if [ "$1" == "sammy43" ] ; then
+	if [ "$1" == "recovery" ] ; then
+ 	echo 0 > /proc/sys/kernel/rom_feature_set
+	elif [ "$1" == "sammy43" ] ; then
    	echo 4 > /proc/sys/kernel/rom_feature_set
 	$BB mv -f /roms/sammy43/* /
 	$BB mv -f /misc/sbin2/* /sbin/
@@ -107,12 +110,21 @@ $BB mv -f /roms/$1/* /
 	  echo "secondary boot"
   	  $BB mv /init.mount.rc2 /init.mount.rc
   	  $BB mv /fstab.smdk4x12.2 /fstab.smdk4x12
+
+	  $BB echo "#!/system/bin/sh" > /system/etc/init.d/10sd_mount
+	  $BB echo "/system/bin/sdcard /.secondrom/media /mnt/shell/emulated 1023 1023" >> /system/etc/init.d/10sd_mount
+	  $BB chmod a+x /system/etc/init.d/10sd_mount
 	fi
    fi
 }
 
 
-if $BB grep -q ro.build.version.release=4.4 /system/build.prop; then
+if $BB [ -f /.secondrom/.recoveryboot ] ; then
+	rm -rf /.secondrom/.recoveryboot
+	echo "booting to recovery"
+	SECONDARYBOOT=0
+	rom recovery
+elif $BB grep -q ro.build.version.release=4.4 /system/build.prop; then
    if $BB grep -q cyanogenmod /system/build.prop ||
       $BB grep -q ro.cm.version /system/build.prop; then
 	echo "rom seems to be cm based"
