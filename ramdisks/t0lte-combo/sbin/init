@@ -113,12 +113,13 @@ $BB mv -f /roms/$1/* /
   	  $BB mv /fstab.smdk4x12.2 /fstab.smdk4x12
 
 	  $BB echo "#!/system/bin/sh" > /system/etc/init.d/10sd_mount
-	  $BB echo "/system/bin/sdcard /.secondrom/media /mnt/shell/emulated 1023 1023" >> /system/etc/init.d/10sd_mount
+	  $BB echo "/system/bin/sdcard /.secondrom/media /mnt/shell/emulated 1023 1023 &" >> /system/etc/init.d/10sd_mount
 	  $BB chmod a+x /system/etc/init.d/10sd_mount
 	fi
    fi
 }
 
+setproperties
 
 if $BB [ -f /.secondrom/.recoveryboot ] ; then
 	rm -rf /.secondrom/.recoveryboot
@@ -144,8 +145,6 @@ $BB echo "#!/system/bin/sh" > /system/etc/init.d/15sensors
 $BB echo "echo 0 > /sys/class/sensors/proximity_sensor/prox_cal" >> /system/etc/init.d/15sensors
 $BB echo "echo 1 > /sys/class/sensors/proximity_sensor/prox_cal" >> /system/etc/init.d/15sensors
 $BB chmod a+x /system/etc/init.d/15sensors
-
-setproperties
 
 $BB mv /.secondrom/media/0/boot.txt /.secondrom/media/0/boot.old
 $BB cp /boot.txt /.secondrom/media/0/boot.txt
