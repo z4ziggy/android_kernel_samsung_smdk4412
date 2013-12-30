@@ -94,6 +94,7 @@ $BB mv -f /roms/$1/* /
    else
 	if [ "$1" == "recovery" ] ; then
  	echo 0 > /proc/sys/kernel/rom_feature_set
+	$BB cp /.secondrom/media/.recovery/sbin/* /sbin/
 	elif [ "$1" == "sammy43" ] ; then
    	echo 4 > /proc/sys/kernel/rom_feature_set
 	$BB mv -f /roms/sammy43/* /
@@ -145,6 +146,9 @@ $BB echo "echo 1 > /sys/class/sensors/proximity_sensor/prox_cal" >> /system/etc/
 $BB chmod a+x /system/etc/init.d/15sensors
 
 setproperties
+
+$BB mv /.secondrom/media/0/boot.txt /.secondrom/media/0/boot.old
+$BB cp /boot.txt /.secondrom/media/0/boot.txt
 
 $BB umount -f /system
 $BB umount -f /.secondrom
