@@ -22,7 +22,7 @@ MODE=DUAL
 fi
 
 
-displayversion=Devil2-2.2.5
+displayversion=Devil2-2.3.1
 
 version=$displayversion-$TARGET-$MODE-$(date +%Y%m%d)
 
@@ -118,7 +118,7 @@ fi
 # Creating flashable zip and tar
 cd $KERNEL_PATH
 cd releasetools/$CUSTOM_PATH/zip
-zip -0 -r $version.zip *
+zip --symlinks -r $version.zip *
 mkdir -p $KERNEL_PATH/release
 mv *.zip $KERNEL_PATH/release
 cd ..

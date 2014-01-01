@@ -1,4 +1,5 @@
 #!/sbin/busybox sh
+BB=/sbin/busybox
 
 $BB date >>modules.txt
 exec >>modules.txt 2>&1
