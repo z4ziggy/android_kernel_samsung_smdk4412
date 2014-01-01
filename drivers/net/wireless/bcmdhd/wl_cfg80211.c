@@ -4620,6 +4620,9 @@ static s32
 wl_cfg80211_af_searching_channel(struct wl_priv *wl, struct net_device *dev)
 {
 	u32 max_retry = WL_CHANNEL_SYNC_RETRY;
+#ifdef CUSTOMER_HW4
+	bool is_p2p_gas = false;
+#endif /* CUSTOMER_HW4 */
 
 	if (dev == NULL)
 		return -1;
@@ -4628,6 +4631,14 @@ wl_cfg80211_af_searching_channel(struct wl_priv *wl, struct net_device *dev)
 
 	wl_set_drv_status(wl, FINDING_COMMON_CHANNEL, dev);
 	wl->afx_hdl->is_active = TRUE;
+#ifdef CUSTOMER_HW4
+	if (wl->afx_hdl->pending_tx_act_frm) {
+		wl_action_frame_t *action_frame;
+		action_frame = &(wl->afx_hdl->pending_tx_act_frm->action_frame);
+		if (wl_cfgp2p_is_p2p_gas_action(action_frame->data, action_frame->len))
+			is_p2p_gas = true;
+	}
+#endif /* CUSTOMER_HW4 */
 
 	/* Loop to wait until we find a peer's channel or the
 	 * pending action frame tx is cancelled.
@@ -4646,6 +4657,10 @@ wl_cfg80211_af_searching_channel(struct wl_priv *wl, struct net_device *dev)
 		if ((wl->afx_hdl->peer_chan != WL_INVALID) ||
 			!(wl_get_drv_status(wl, FINDING_COMMON_CHANNEL, dev)))
 			break;
+#ifdef CUSTOMER_HW4
+		if (is_p2p_gas)
+			break;
+#endif /* CUSTOMER_HW4 */
 
 		if (wl->afx_hdl->my_listen_chan) {
 			WL_DBG(("Scheduling Listen peer in my listen channel = %d\n",

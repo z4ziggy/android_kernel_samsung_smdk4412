@@ -166,8 +166,6 @@ source "drivers/iommu/Kconfig"
 # FELICA
 source "drivers/felica/Kconfig"
 
-# Authentec
-source "drivers/interceptor/Kconfig"
 
 source "drivers/j4fs/Kconfig"
 

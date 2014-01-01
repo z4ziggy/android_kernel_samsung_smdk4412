@@ -106,8 +106,8 @@
 
 #undef WRITE_MACADDR
 #undef READ_MACADDR
-#if defined(CONFIG_BCM4334) || defined(CONFIG_BCM4335) \
-	|| defined(CONFIG_BCM4334_MODULE) || defined(CONFIG_BCM4335_MODULE)
+
+#if defined(CONFIG_BCM4334) ||defined (CONFIG_BCM4334_MODULE)
 #define READ_MACADDR
 #else
 #define RDWR_MACADDR

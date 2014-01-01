@@ -4643,6 +4643,7 @@ need_resched:
 #endif
 		++*switch_count;
 
+
 		context_switch(rq, prev, next); /* unlocks the rq */
 		/*
 		 * The context switch have flipped the stack from under us
@@ -6224,6 +6225,7 @@ void sched_show_task(struct task_struct *p)
 			get_mm_counter(p->mm, MM_ANONPAGES),
 			get_mm_counter(p->mm, MM_ANON_LOWPAGES));
 #endif
+
 	show_stack(p, NULL);
 }
 

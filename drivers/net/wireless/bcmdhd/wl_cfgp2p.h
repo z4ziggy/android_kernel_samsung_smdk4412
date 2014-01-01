@@ -188,6 +188,12 @@ extern bool
 wl_cfgp2p_is_p2p_action(void *frame, u32 frame_len);
 extern bool
 wl_cfgp2p_is_gas_action(void *frame, u32 frame_len);
+extern bool
+wl_cfgp2p_find_gas_subtype(u8 subtype, u8* data, u32 len);
+#ifdef CUSTOMER_HW4
+extern bool
+wl_cfgp2p_is_p2p_gas_action(void *frame, u32 frame_len);
+#endif /* CUSTOMER_HW4 */
 extern void
 wl_cfgp2p_print_actframe(bool tx, void *frame, u32 frame_len, u32 channel);
 extern s32
