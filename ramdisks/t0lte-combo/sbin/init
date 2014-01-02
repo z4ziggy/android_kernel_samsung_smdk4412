@@ -81,9 +81,7 @@ $BB chown root:root /system/lib/hw/sensors.smdk4x12.so
 ######### copy initramfs ###############################################
 rom() {
 echo "using $1 initramfs"
-#if [ "$1" != "sammy43" ] ; then
 copy_libs
-#fi
 
 $BB mv -f /roms/$1/* /
    if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
@@ -96,7 +94,6 @@ $BB mv -f /roms/$1/* /
  	echo 0 > /proc/sys/kernel/rom_feature_set
 	elif [ "$1" == "sammy43" ] ; then
    	echo 4 > /proc/sys/kernel/rom_feature_set
-	$BB mv -f /roms/sammy43/* /
 	$BB mv -f /misc/sbin2/* /sbin/
 	$BB mv -f /misc/system/bin/* /system/bin/
 	$BB chmod a+x /system/bin/sysinit
