@@ -1332,10 +1332,6 @@ config IPCAM_01_BD
 config GC2PD_00_BD
 	bool "Galaxy Camera 2 common Board"
 
-config SF2_CAM_REV0
-        bool "SF2 Camera Rev 0"
-
-
 config WRITEBACK_ENABLED
 	bool "Samsung Writeback Enable"
 	help
@@ -1830,10 +1826,6 @@ endif
 if SEC_MODEM
 comment "Samsung Modem Feature"
 
-config LTE_VIA_SWITCH
-	bool
-	default n
-
 choice
 	prompt "SVNET2 version"
 	default SEC_MODEM_PRIMITIVE
@@ -2154,17 +2146,3 @@ config MACH_GD2_SENSOR
 	  K330 / STM
 	  AK8963 / AKM
 	  CM36651 / CAPELLA
-
-config USER_RESET_DEBUG
-	bool "KOR reset reason debug feature in user version"
-	default n
-	help
-	  This option enables debugging log for B10 project.
-	  This option provides reset history log in user version.
-	  This option enable proc/reset_reason support
-	  It's only support KOR Model
-
-config PM_DEBUG_WAKEUP_RESET
-	bool "Log the Power Management debug information"
-	help
-	  This configuratoin is only for debugging the PM interrupt issue.
