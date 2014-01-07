@@ -109,11 +109,7 @@ bool wl_cfgp2p_is_p2p_action(void *frame, u32 frame_len)
 	return false;
 }
 
-/*
-* Currently Action frame just pass to P2P interface regardless real dst.
-* but GAS Action can be used for Hotspot2.0 as well
-* Need to distingush that it's for P2P or HS20
-*/
+#ifdef WL11U
 #define GAS_RESP_LEN		2
 #define DOUBLE_TLV_BODY_OFF	4
 #define GAS_RESP_OFFSET		4
@@ -145,6 +141,7 @@ bool wl_cfgp2p_find_gas_subtype(u8 subtype, u8* data, u32 len)
 
 	return false;
 }
+#endif /* WL11U */
 
 bool wl_cfgp2p_is_gas_action(void *frame, u32 frame_len)
 {
@@ -155,7 +152,7 @@ bool wl_cfgp2p_is_gas_action(void *frame, u32 frame_len)
 		return false;
 
 	sd_act_frm = (wifi_p2psd_gas_pub_act_frame_t *)frame;
-	if (frame_len < (sizeof(wifi_p2psd_gas_pub_act_frame_t) - 1))
+	if (frame_len < sizeof(wifi_p2psd_gas_pub_act_frame_t) - 1)
 		return false;
 	if (sd_act_frm->category != P2PSD_ACTION_CATEGORY)
 		return false;
@@ -185,29 +182,6 @@ bool wl_cfgp2p_is_gas_action(void *frame, u32 frame_len)
 		return false;
 #endif /* WL11U */
 }
-#ifdef CUSTOMER_HW4
-bool wl_cfgp2p_is_p2p_gas_action(void *frame, u32 frame_len)
-{
-
-	wifi_p2psd_gas_pub_act_frame_t *sd_act_frm;
-
-	if (frame == NULL)
-		return false;
-
-	sd_act_frm = (wifi_p2psd_gas_pub_act_frame_t *)frame;
-	if (frame_len < (sizeof(wifi_p2psd_gas_pub_act_frame_t) - 1))
-		return false;
-	if (sd_act_frm->category != P2PSD_ACTION_CATEGORY)
-		return false;
-
-	if (sd_act_frm->action == P2PSD_ACTION_ID_GAS_IREQ)
-		return wl_cfgp2p_find_gas_subtype(P2PSD_GAS_OUI_SUBTYPE,
-			(u8 *)sd_act_frm->query_data,
-			frame_len);
-	else
-		return false;
-}
-#endif /* CUSTOMER_HW4 */
 void wl_cfgp2p_print_actframe(bool tx, void *frame, u32 frame_len, u32 channel)
 {
 	wifi_p2p_pub_act_frame_t *pact_frm;
@@ -967,16 +941,6 @@ wl_cfgp2p_act_frm_search(struct wl_priv *wl, struct net_device *ndev,
 		chan_cnt = AF_PEER_SEARCH_CNT;
 	else
 		chan_cnt = SOCIAL_CHAN_CNT;
-#ifdef CUSTOMER_HW4
-	if (wl->afx_hdl->pending_tx_act_frm && wl->afx_hdl->is_active) {
-		wl_action_frame_t *action_frame;
-		action_frame = &(wl->afx_hdl->pending_tx_act_frm->action_frame);
-		if (wl_cfgp2p_is_p2p_gas_action(action_frame->data, action_frame->len))	{
-			chan_cnt = 1;
-			p2p_scan_purpose = P2P_SCAN_AFX_PEER_REDUCED;
-		}
-	}
-#endif /* CUSTOMER_HW4 */
 	default_chan_list = kzalloc(chan_cnt * sizeof(*default_chan_list), GFP_KERNEL);
 	if (default_chan_list == NULL) {
 		CFGP2P_ERR(("channel list allocation failed \n"));
