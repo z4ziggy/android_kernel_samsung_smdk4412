@@ -20,7 +20,15 @@ $BB mkdir /mnt
 $BB chmod 755 /mnt
 $BB mkdir /.secondrom
 
+$BB mkdir /dev/input
+
 $BB echo "generating device nodes..."
+for i in 0 1 2 3 4 5 6 7 8 9 10 11 12; do
+        event=$((0+$i))
+        minor=$((64+$i))
+        $BB mknod /dev/input/event$event c 13 $minor
+done
+
 $BB mknod /dev/block/mmcblk0 b 179 0
 $BB mknod /dev/block/mmcblk0p13 b 179 13 	# system
 $BB mknod /dev/block/mmcblk0p16 b 259 0		# data and .secondrom
@@ -30,7 +38,10 @@ $BB echo "mounting devices..."
 $BB mount -t proc proc /proc
 $BB mount -t sysfs sysfs /sys
 
+$BB echo "trying to mount .secondrom as ext4:"
 $BB mount -t ext4 /dev/block/mmcblk0p16 /.secondrom
+$BB echo "trying to mount .secondrom as f2fs"
+$BB mount -t f2fs /dev/block/mmcblk0p16 /.secondrom
 
 SECONDARYBOOT=0
 if $BB [ -f /.secondrom/.secondaryboot ] && $BB [ -f /.secondrom/media/.secondrom/system.img ] ; then
@@ -39,8 +50,10 @@ fi
 
 if $BB [ "$SECONDARYBOOT" == 1 ]; then
   $BB mount -t ext4 /.secondrom/media/.secondrom/system.img /system
+  $BB mount -t f2fs /.secondrom/media/.secondrom/system.img /system
 else
    $BB mount -t ext4 /dev/block/mmcblk0p13 /system
+   $BB mount -t f2fs /dev/block/mmcblk0p13 /system
 fi
 
 #move .secondrom folder back to the original location if android moved it to a subfolder
@@ -128,6 +141,10 @@ $BB mv -f /roms/$1/* /
 	fi
    fi
 }
+
+echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
+sleep 0.3
+echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
 
 if $BB [ -f /.secondrom/.recoveryboot ] ; then
 	rm -rf /.secondrom/.recoveryboot
