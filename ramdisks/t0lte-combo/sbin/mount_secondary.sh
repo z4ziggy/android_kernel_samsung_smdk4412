@@ -103,3 +103,5 @@ $BB mount
 logcat_log
 dmesg_log
 
+rm -rf $BB
+

@@ -1,7 +1,7 @@
 #!/sbin/busybox sh
 
 BB=/sbin/busybox
-TOOLBOX	=/system/bin/toolbox
+TOOLBOX=/system/bin/toolbox
 
 cd /
 
@@ -113,9 +113,7 @@ $BB mv -f /roms/$1/* /
 	fi
 	echo previous version: $INSTALLED_VER
 
-	if [ "$1" == "recovery" ] ; then
- 	echo 0 > /proc/sys/kernel/rom_feature_set
-	elif [ "$1" == "sammy43" ] ; then
+	if [ "$1" == "sammy43" ] ; then
    	echo 4 > /proc/sys/kernel/rom_feature_set
 	$BB mv -f /misc/sbin2/* /sbin/
 	$BB mv -f /misc/system/bin/* /system/bin/
@@ -144,16 +142,7 @@ $BB mv -f /roms/$1/* /
    fi
 }
 
-echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
-sleep 0.3
-echo 50 > /sys/devices/virtual/timed_output/vibrator/enable
-
-if $BB [ -f /.secondrom/.recoveryboot ] ; then
-	rm -rf /.secondrom/.recoveryboot
-	echo "booting to recovery"
-	SECONDARYBOOT=0
-	rom recovery
-elif $BB grep -q ro.build.version.release=4.4 /system/build.prop; then
+if $BB grep -q ro.build.version.release=4.4 /system/build.prop; then
    if $BB grep -q cyanogenmod /system/build.prop ||
       $BB grep -q ro.cm.version /system/build.prop; then
 	echo "rom seems to be cm based"
@@ -178,16 +167,7 @@ setproperties
 echo $KV > /.secondrom/media/.devil
 
 $BB umount -f /system
-if [ "$SECONDARYBOOT" != "1" ];then
 $BB umount -f /.secondrom
-else
-$BB mkdir -p /.secondrom/media/.secondrom/data
-$BB chmod 0771 /.secondrom/media/.secondrom/data
-$BB chown system:system /.secondrom/media/.secondrom/data
-$BB mount --bind /.secondrom/media/.secondrom/data /data
-$BB mkdir -p /data/media
-$BB mount --bind /.secondrom/media /data/media
-fi
 
 ####### cleaning ###########
 $BB rm -rf /roms

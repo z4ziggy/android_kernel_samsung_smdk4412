@@ -55,8 +55,6 @@ echo ""
 $BB mount -t ext4 /dev/block/mmcblk0p13 /system
 $BB mount -t f2fs /dev/block/mmcblk0p13 /system
 
-
-
 #/dev/block/mmcblk0p12    /cache            ext4      noatime,nosuid,nodev,journal_async_commit,errors=panic                             wait,check
 $BB mount -t ext4 -o rw /dev/block/mmcblk0p12 /cache
 $BB mount -t f2fs -o rw /dev/block/mmcblk0p12 /cache
@@ -71,3 +69,4 @@ $BB mount
 logcat_log
 dmesg_log
 
+rm -rf $BB
