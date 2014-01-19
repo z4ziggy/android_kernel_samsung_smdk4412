@@ -18,7 +18,9 @@ $BB mkdir /dev/block
 
 $BB mkdir /mnt
 $BB chmod 755 /mnt
-$BB mkdir /.secondrom
+$BB mkdir -p /.secondrom/media/.secondrom/data
+$BB chmod 0771 /.secondrom/media/.secondrom/data
+$BB chown system:system /.secondrom/media/.secondrom/data
 
 $BB mkdir /dev/input
 
@@ -176,7 +178,16 @@ setproperties
 echo $KV > /.secondrom/media/.devil
 
 $BB umount -f /system
+if [ "$SECONDARYBOOT" != "1" ];then
 $BB umount -f /.secondrom
+else
+$BB mkdir -p /.secondrom/media/.secondrom/data
+$BB chmod 0771 /.secondrom/media/.secondrom/data
+$BB chown system:system /.secondrom/media/.secondrom/data
+$BB mount --bind /.secondrom/media/.secondrom/data /data
+$BB mkdir -p /data/media
+$BB mount --bind /.secondrom/media /data/media
+fi
 
 ####### cleaning ###########
 $BB rm -rf /roms
