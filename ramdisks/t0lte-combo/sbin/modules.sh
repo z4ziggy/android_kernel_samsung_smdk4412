@@ -14,6 +14,3 @@ if [ -f /lib/modules/exfat_core.ko ] ; then
     insmod /lib/modules/exfat_core.ko
     insmod /lib/modules/exfat_fs.ko
 fi
-
-# usb connection workaround, neeed because of broken default.prop execution
-setprop persist.sys.usb.config mtp,adb
