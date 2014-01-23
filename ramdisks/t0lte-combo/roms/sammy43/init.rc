@@ -924,7 +924,7 @@ on property:init.svc.bootanim=stopped
     restorecon /data/media
     restorecon /data/media/obb
     start freshsebool   
-    setenforce 1 
+    setenforce 1
 
 # SA, System SW, SAMSUNG 
 on property:ro.dumpstate.dmesg=1 

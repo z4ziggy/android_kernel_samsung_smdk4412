@@ -39,59 +39,31 @@ fi
 done
 }
 
-$BB mount -t ext4 -o rw,seclabel,errors=continue,user_xattr,acl,barrier =1,data=ordered,noauto_da_alloc /dev/block/mmcblk0p14 /cache
-if ! $BB grep -q /cache /proc/mounts ; then
-echo "mounting /cache with ext4 failed, trying f2fs..."
-$BB mount -t f2fs -o rw,seclabel,errors=continue,user_xattr,acl,barrier =1,data=ordered,noauto_da_alloc /dev/block/mmcblk0p14 /cache
-fi
-$BB date >/cache/mount_secondary.txt
-exec >>/cache/mount_secondary.txt 2>&1
+if $BB grep -q /cache /proc/mounts ; then
+	$BB date >/cache/mount.txt
+	exec >>/cache/mount.txt 2>&1
+else
+#/dev/block/mmcblk0p12    /cache            ext4      noatime,nosuid,nodev,journal_async_commit,errors=panic                             wait,check
+	$BB mount -t ext4 -o rw /dev/block/mmcblk0p14 /cache
+	if ! $BB grep -q /cache /proc/mounts ; then
+		echo "mounting /cache with ext4 failed, trying f2fs..."
+		$BB mount -t f2fs -o rw /dev/block/mmcblk0p14 /cache
+	fi
+$BB date >/cache/mount.txt
+exec >>/cache/mount.txt 2>&1
 
-echo "first mount:"
-$BB mount
-echo ""
-
-$BB mount -t ext4 -o rw /dev/block/mmcblk0p16 /.secondrom
-if ! $BB grep -q /.secondrom /proc/mounts ; then
-echo "mounting /.secondrom with ext4 failed, trying f2fs..."
-$BB mount -t f2fs -o rw /dev/block/mmcblk0p16 /.secondrom
-fi
-
-#### system
-$BB mkdir -p /system
-$BB losetup /dev/block/loop0 /.secondrom/media/.secondrom/system.img
-$BB mount -t ext4 -o ro /.secondrom/media/.secondrom/system.img /system
-
-if ! $BB grep -q /system /proc/mounts ; then
-echo "mounting /system with ext4 failed, trying f2fs..."
-$BB mount -t f2fs -o ro /.secondrom/media/.secondrom/system.img /system
+echo "/cache wasn't mounted"
 fi
 
 DEBUG_FILE=/cache/dmesg.txt
 DEBUG_FILE_LOGCAT=/cache/logcat.txt
 
-$BB cp /boot.txt /cache/boot.txt
+$BB cp -f /cache/boot.txt /cache/boot.txt.old
+$BB cp -f /boot.txt /cache/boot.txt
+
 
 #check_mount
 
-#### data
-$BB mkdir -p /.secondrom/media/.secondrom/data
-$BB chmod 0771 /.secondrom/media/.secondrom/data
-$BB chown system:system /.secondrom/media/.secondrom/data
-$BB mount --bind /.secondrom/media/.secondrom/data /data
-$BB mkdir -p /data/media
-$BB mount --bind /.secondrom/media /data/media
-
-
-layout_version=`$BB cat /data/.layout_version`
-if $BB [ -d /data/media/0 ] && $BB [ "$layout_version" != 2 ] ; then
-	echo "preparing layout_version"
-	echo 2 > /data/.layout_version
-fi
-
-echo "permissions of data/media"
-$BB chown media_rw.media_rw /data/media
-$BB chown -R media_rw.media_rw /data/media/*
 
 echo ""
 $BB mount
@@ -100,4 +72,3 @@ $BB mount
 #dmesg_log
 
 rm -rf $BB
-

@@ -39,40 +39,31 @@ fi
 done
 }
 
-echo "first mount:"
-$BB mount
-echo ""
-
+if $BB grep -q /cache /proc/mounts ; then
+	$BB date >/cache/mount.txt
+	exec >>/cache/mount.txt 2>&1
+else
 #/dev/block/mmcblk0p12    /cache            ext4      noatime,nosuid,nodev,journal_async_commit,errors=panic                             wait,check
-$BB mount -t ext4 -o rw /dev/block/mmcblk0p12 /cache
-if ! $BB grep -q /cache /proc/mounts ; then
-echo "mounting /cache with ext4 failed, trying f2fs..."
-$BB mount -t f2fs -o rw /dev/block/mmcblk0p12 /cache
-fi
-
+	$BB mount -t ext4 -o rw /dev/block/mmcblk0p12 /cache
+	if ! $BB grep -q /cache /proc/mounts ; then
+		echo "mounting /cache with ext4 failed, trying f2fs..."
+		$BB mount -t f2fs -o rw /dev/block/mmcblk0p12 /cache
+	fi
 $BB date >/cache/mount.txt
 exec >>/cache/mount.txt 2>&1
+
+echo "/cache wasn't mounted"
+fi
 
 DEBUG_FILE=/cache/dmesg.txt
 DEBUG_FILE_LOGCAT=/cache/logcat.txt
 
-$BB cp /boot.txt /cache/boot.txt
+$BB cp -f /cache/boot.txt /cache/boot.txt.old
+$BB cp -f /boot.txt /cache/boot.txt
 
 
 #check_mount
-#/dev/block/mmcblk0p13    /system           ext4      ro                                                                                 wait
-$BB mount -t ext4 /dev/block/mmcblk0p13 /system
-if ! $BB grep -q /system /proc/mounts ; then
-echo "mounting /system with ext4 failed, trying f2fs..."
-$BB mount -t f2fs /dev/block/mmcblk0p13 /system
-fi
 
-#/dev/block/mmcblk0p16    /data             ext4      noatime,nosuid,nodev,discard,noauto_da_alloc,journal_async_commit,errors=panic     wait,check,encryptable=footer
-$BB mount -t ext4 -o rw /dev/block/mmcblk0p16 /data
-if ! $BB grep -q /data /proc/mounts ; then
-echo "mounting /data with ext4 failed, trying f2fs..."
-$BB mount -t f2fs -o rw /dev/block/mmcblk0p16 /data
-fi
 
 echo ""
 $BB mount
