@@ -266,7 +266,7 @@ rom_feature_set_sysctl(struct ctl_table *table, int write,
                 printk("Initializing USB with rom_feature_set: %d\n", rom_feature_set);
                 late_init_android_gadget(rom_feature_set);
 
-		if (rom_feature_set == 2)
+		if ((rom_feature_set == 2) || (rom_feature_set == 5))
 			selinux_disable();
 /*
 #ifdef CONFIG_MALI_CM

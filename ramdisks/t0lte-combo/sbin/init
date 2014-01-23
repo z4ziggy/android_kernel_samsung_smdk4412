@@ -134,7 +134,13 @@ copy_libs
 	    $BB mv -f /misc/system/bin/* /system/bin/
 	    $BB chmod a+x /system/bin/sysinit
 	else
-   	    echo 7 > /proc/sys/kernel/rom_feature_set
+	    if $BB grep -q f2fs /proc/mounts && $BB [ ! -f /.secondrom/.selinux ] && [ "$1" == "omni" ]; then
+   	    	echo 5 > /proc/sys/kernel/rom_feature_set
+		echo "found f2fs filesystem(s)"
+	    else
+   	    	echo 7 > /proc/sys/kernel/rom_feature_set
+	    fi
+
 	    $BB mkdir -p /system/lib/modules
 	    if $BB [ "`$BB grep $KV /system/lib/modules/dhd.ko`" ] && $BB [ "$KV" = "$INSTALLED_VER" ]; then
 		echo "kernel files already installed, nothing to do"
