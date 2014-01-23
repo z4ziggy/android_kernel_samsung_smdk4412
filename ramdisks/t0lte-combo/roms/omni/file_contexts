@@ -289,15 +289,12 @@
 
 # Audio related
 /data/local/audio(/.*)?         u:object_r:volume_data_file:s0
-#line 1 "vendor/omni/sepolicy/file_contexts"
-###########################
-# OmniROM common sepolicy
-#
-
-# cache
+#line 1 "vendor/cm/sepolicy/file_contexts"
 /cache/dalvik-cache(/.*)? u:object_r:dalvikcache_data_file:s0
 
-# performance-related sysfs files
+#############################
+# performance-related sysfs files (CM)
 /sys/kernel/mm/ksm(/.*)?       --          u:object_r:sysfs_writable:s0
 /sys/devices/system/cpu.*/cpufreq(/.*)? --  u:object_r:sysfs_writable:s0
 /sys/block/mmcblk0/queue/scheduler  --    u:object_r:sysfs_writable:s0
+
