@@ -18,6 +18,7 @@ on early-init
     # Set the security context for the init process.
     # This should occur before anything else (e.g. ueventd) is started.
     setcon u:r:init:s0
+    setenforce 0
 
     start ueventd
 
@@ -924,7 +925,7 @@ on property:init.svc.bootanim=stopped
     restorecon /data/media
     restorecon /data/media/obb
     start freshsebool   
-    setenforce 1
+    setenforce 0
 
 # SA, System SW, SAMSUNG 
 on property:ro.dumpstate.dmesg=1 

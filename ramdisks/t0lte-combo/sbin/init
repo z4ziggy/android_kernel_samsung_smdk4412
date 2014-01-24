@@ -124,9 +124,13 @@ copy_libs
 	echo previous version: $INSTALLED_VER
 
 	if [ "$1" == "sammy43" ] ; then
-	    if $BB grep -q f2fs /proc/mounts && $BB [ ! -f /.secondrom/.selinux ]; then
+	    if $BB grep -q f2fs /proc/mounts ; then
+		$BB mv -f /f2fs_selinux/* /
+	    fi
+
+	    if $BB [ -f /.secondrom/.selinux_disable ] ; then
    	    	echo 2 > /proc/sys/kernel/rom_feature_set
-		echo "found f2fs filesystem(s)"
+		echo "disabled selinux"
 	    else
    	    	echo 4 > /proc/sys/kernel/rom_feature_set
 	    fi
@@ -232,5 +236,6 @@ fi
 $BB rm -rf /roms
 $BB rm -rf /lib/prop_modules
 $BB rm -rf /misc
+$BB rm -rf /f2fs_selinux
 #############################
 exec /sbin/init.2
