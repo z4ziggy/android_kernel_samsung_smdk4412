@@ -18,6 +18,7 @@ on early-init
     # Set the security context for the init process.
     # This should occur before anything else (e.g. ueventd) is started.
     setcon u:r:init:s0
+    setenforce 0
 
     start ueventd
 
@@ -197,7 +198,7 @@ on post-fs
 
 on post-fs-data
     # Reload SE Policy
-    setprop selinux.reload_policy 0
+    setprop selinux.reload_policy 1
     # We chown/chmod /data again so because mount is run as root + defaults
     chown system system /data
     chmod 0771 /data
@@ -701,7 +702,7 @@ on property:vold.decrypt=trigger_shutdown_framework
     class_reset late_start
     class_reset main
 
-on property:selinux.reload_policy=0
+on property:selinux.reload_policy=1
 
     chown system system /sys/fs/selinux/enforce
     chown -R system system /sys/fs/selinux/booleans
@@ -924,6 +925,7 @@ on property:init.svc.bootanim=stopped
     restorecon /data/media
     restorecon /data/media/obb
     start freshsebool   
+    setenforce 0
 
 # SA, System SW, SAMSUNG 
 on property:ro.dumpstate.dmesg=1 
@@ -958,11 +960,10 @@ service drs /system/bin/drs
 	user root
 	oneshot
 
-on property:persist.sys.drs.enforce=0
+on property:persist.sys.drs.enforce=1
 	restorecon -r /data
 	start drs
 	exec /system/bin/sh /init.selinux_restore_set.sh
-	setenforce 0 
 	
 on property:persist.sys.drs.enforce=0
 	start auditd

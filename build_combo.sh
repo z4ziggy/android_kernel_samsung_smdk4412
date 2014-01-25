@@ -22,7 +22,7 @@ MODE=DUAL
 fi
 
 
-displayversion=Devil2-2.2.5
+displayversion=Devil2-2.4.5b
 
 version=$displayversion-$TARGET-$MODE-$(date +%Y%m%d)
 
@@ -38,6 +38,10 @@ if [ -e ramdisk.cpio ]; then
 	rm ramdisk.cpio
 fi
 
+if [ -e ramdisk.cpio.gz ]; then
+	rm ramdisk.cpio.gz
+fi
+
 # Set Default Path
 KERNEL_PATH=$PWD
 
@@ -45,7 +49,7 @@ KERNEL_PATH=$PWD
 if [ "$(whoami)" == "dominik" ]; then
 	#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin"
 	#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-toolchain-eabi-4.8-2013.07/bin"
-	TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-toolchain-eabi-4.8-2013.09/bin"
+	TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-toolchain-eabi-4.8-2013.12/bin"
 	#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.7.2/bin"
 elif [ "$(whoami)" == "rollus" ]; then
 	TOOLCHAIN_PATH="/home/rollus/android-toolchain-eabi/bin/"
@@ -101,11 +105,13 @@ cp -f $KERNEL_PATH/arch/arm/boot/zImage .
 if [ "$TARGET" != "i9100" ] ; then
 # Create ramdisk.cpio archive
 cd $MODULESDIR
-find . | cpio -o -H newc > $KERNEL_PATH/ramdisk.cpio
+find . | fakeroot cpio -o -H newc > $KERNEL_PATH/ramdisk.cpio 2>/dev/null
+ls -lh $KERNEL_PATH/ramdisk.cpio
+gzip -9 $KERNEL_PATH/ramdisk.cpio
 cd $KERNEL_PATH
 
 # Make boot.img
-./mkbootimg --kernel zImage --ramdisk ramdisk.cpio --board smdk4x12 --base 0x10000000 --pagesize 2048 --ramdiskaddr 0x11000000 -o $KERNEL_PATH/boot.img
+./mkbootimg --kernel zImage --ramdisk ramdisk.cpio.gz --board smdk4x12 --base 0x10000000 --pagesize 2048 --ramdiskaddr 0x11000000 -o $KERNEL_PATH/boot.img
 
 # Copy boot.img
 cp boot.img $KERNEL_PATH/releasetools/$CUSTOM_PATH/zip

@@ -1,6 +1,6 @@
-#!/sbin/busybox sh
+#!/system/bin/sh
 
-$BB date >>modules.txt
+date >>modules.txt
 exec >>modules.txt 2>&1
 
 #  try ko files for exfat

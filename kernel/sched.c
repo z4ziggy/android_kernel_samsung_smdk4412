@@ -89,8 +89,6 @@
 
 ATOMIC_NOTIFIER_HEAD(migration_notifier_head);
 
-//#include <linux/cpufreq_slp.h>
-
 /*
  * Convert user-nice values [ -20 ... 0 ... 19 ]
  * to static priority [ MAX_RT_PRIO..MAX_PRIO-1 ],

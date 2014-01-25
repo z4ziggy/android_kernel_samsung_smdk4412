@@ -1,3 +1,0 @@
-/dev/block/mmcblk0p13   /system   ext4 rw
-/dev/block/mmcblk0p12   /cache    ext4 rw
-/.secondrom    		/data     ext4 rw

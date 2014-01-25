@@ -232,6 +232,7 @@ int sysctl_legacy_va_layout;
 
 extern int late_init_android_gadget(int romtype);
 extern int mfc_late_init(void);
+extern int selinux_disable(void);
 #ifdef CONFIG_CPU_EXYNOS4210
 extern int u1_gps_ntt_init(void);
 #endif
@@ -264,6 +265,9 @@ rom_feature_set_sysctl(struct ctl_table *table, int write,
                 rom_feature_set_save = rom_feature_set;
                 printk("Initializing USB with rom_feature_set: %d\n", rom_feature_set);
                 late_init_android_gadget(rom_feature_set);
+
+		if ((rom_feature_set == 2) || (rom_feature_set == 5))
+			selinux_disable();
 /*
 #ifdef CONFIG_MALI_CM
                 if(!OLDMALIEXPR) new_late_mali_driver_init();
@@ -1672,17 +1676,12 @@ void sysctl_head_get(struct ctl_table_header *head)
         spin_unlock(&sysctl_lock);
 }
 
-static void free_head(struct rcu_head *rcu)
-{
-        kfree(container_of(rcu, struct ctl_table_header, rcu));
-}
-
 void sysctl_head_put(struct ctl_table_header *head)
 {
-        spin_lock(&sysctl_lock);
-        if (!--head->count)
-                call_rcu(&head->rcu, free_head);
-        spin_unlock(&sysctl_lock);
+	spin_lock(&sysctl_lock);
+	if (!--head->count)
+		kfree_rcu(head, rcu);
+	spin_unlock(&sysctl_lock);
 }
 
 struct ctl_table_header *sysctl_head_grab(struct ctl_table_header *head)
@@ -2049,15 +2048,15 @@ void unregister_sysctl_table(struct ctl_table_header * header)
         if (header == NULL)
                 return;
 
-        spin_lock(&sysctl_lock);
-        start_unregistering(header);
-        if (!--header->parent->count) {
-                WARN_ON(1);
-                call_rcu(&header->parent->rcu, free_head);
-        }
-        if (!--header->count)
-                call_rcu(&header->rcu, free_head);
-        spin_unlock(&sysctl_lock);
+	spin_lock(&sysctl_lock);
+	start_unregistering(header);
+	if (!--header->parent->count) {
+		WARN_ON(1);
+		kfree_rcu(header->parent, rcu);
+	}
+	if (!--header->count)
+		kfree_rcu(header, rcu);
+	spin_unlock(&sysctl_lock);
 }
 
 int sysctl_is_seen(struct ctl_table_header *p)

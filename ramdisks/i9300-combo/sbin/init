@@ -80,9 +80,7 @@ $BB chown root:root /system/lib/hw/sensors.smdk4x12.so
 ######### copy initramfs ###############################################
 rom() {
 echo "using $1 initramfs"
-if [ "$1" != "sammy43" ] ; then
 copy_libs
-fi
 
 $BB mv -f /roms/$1/* /
    if $BB grep -q 1 /sys/class/power_supply/battery/batt_lp_charging ; then
@@ -91,16 +89,31 @@ $BB mv -f /roms/$1/* /
  	$BB cp -f lpm.rc init.rc
   	$BB rm -f init.smdk4x12.rc
    else
-	if [ "$1" == "sammy43" ] ; then
+	INSTALLED_VER=nothing
+	KV=`$BB uname -r`
+	echo "kernelversion: $KV"
+	if $BB [ -f /.secondrom/media/.devil ] ; then
+	INSTALLED_VER=$($BB cat /.secondrom/media/.devil)
+	fi
+	echo previous version: $INSTALLED_VER
+
+	if [ "$1" == "recovery" ] ; then
+ 	echo 0 > /proc/sys/kernel/rom_feature_set
+	elif [ "$1" == "sammy43" ] ; then
    	echo 4 > /proc/sys/kernel/rom_feature_set
-	$BB mv -f /roms/sammy43/* /
 	$BB mv -f /misc/sbin2/* /sbin/
 	$BB mv -f /misc/system/bin/* /system/bin/
 	$BB chmod a+x /system/bin/sysinit
 	else
    	echo 7 > /proc/sys/kernel/rom_feature_set
 	$BB mkdir -p /system/lib/modules
-	$BB mv /lib/modules/* /system/lib/modules/
+	    if $BB [ "`$BB grep $KV /system/lib/modules/dhd.ko`" ] && $BB [ "$KV" = "$INSTALLED_VER" ]; then
+		echo "kernel files already installed, nothing to do"
+	    else
+		echo "updating modules..."
+		$BB rm -rf system/lib/modules/*
+		$BB mv /lib/modules/* /system/lib/modules/
+	    fi
 	fi
 
 	if [ "$SECONDARYBOOT" == "1" ];then
@@ -109,14 +122,18 @@ $BB mv -f /roms/$1/* /
   	  $BB mv /fstab.smdk4x12.2 /fstab.smdk4x12
 
 	  $BB echo "#!/system/bin/sh" > /system/etc/init.d/10sd_mount
-	  $BB echo "/system/bin/sdcard /.secondrom/media /mnt/shell/emulated 1023 1023" >> /system/etc/init.d/10sd_mount
+	  $BB echo "/system/bin/sdcard /.secondrom/media /mnt/shell/emulated 1023 1023 &" >> /system/etc/init.d/10sd_mount
 	  $BB chmod a+x /system/etc/init.d/10sd_mount
 	fi
    fi
 }
 
-
-if $BB grep -q ro.build.version.release=4.4 /system/build.prop; then
+if $BB [ -f /.secondrom/.recoveryboot ] ; then
+	rm -rf /.secondrom/.recoveryboot
+	echo "booting to recovery"
+	SECONDARYBOOT=0
+	rom recovery
+elif $BB grep -q ro.build.version.release=4.4 /system/build.prop; then
    if $BB grep -q cyanogenmod /system/build.prop ||
       $BB grep -q ro.cm.version /system/build.prop; then
 	echo "rom seems to be cm based"
@@ -137,6 +154,8 @@ $BB echo "echo 1 > /sys/class/sensors/proximity_sensor/prox_cal" >> /system/etc/
 $BB chmod a+x /system/etc/init.d/15sensors
 
 setproperties
+
+echo $KV > /.secondrom/media/.devil
 
 $BB umount -f /system
 $BB umount -f /.secondrom

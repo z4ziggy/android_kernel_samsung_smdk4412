@@ -29,8 +29,8 @@ on init
     mkdir /storage/extSdCard 0555 root root
 
 # map "real" external storages paths also in same way. backwards compatibility.
-    symlink /storage/extSdCard /mnt/extSdCard
     symlink /storage/extSdCard /extSdCard
+    symlink /storage/extSdCard /mnt/extSdCard
     symlink /storage/UsbDriveA /mnt/UsbDriveA
     symlink /storage/UsbDriveB /mnt/UsbDriveB
     symlink /storage/UsbDriveC /mnt/UsbDriveC
@@ -250,6 +250,10 @@ on boot
 on fs
 
 #MDM requirement
+    mkdir /data/cp_log
+    chown system radio /data/cp_log
+    chmod 0775 /data/cp_log
+
     mkdir /dev/block/modem
     symlink /dev/block/platform/dw_mmc/by-name/m9kefs1 /dev/block/modem/m9kefs1
     symlink /dev/block/platform/dw_mmc/by-name/m9kefs2 /dev/block/modem/m9kefs2
@@ -363,11 +367,11 @@ on property:sys.boot_completed=1
 # SISO-ANDR_PERF :: END
 
 on property:persist.sys.storage_preload=1
-#    mount ext4 /dev/block/mmcblk0p14 /preload nosuid nodev noatime wait ro
+    #mount ext4 /dev/block/mmcblk0p14 /preload nosuid nodev noatime wait ro
     setprop storage.preload.complete 1
 
 on property:persist.sys.storage_preload=0
-    exec /system/bin/umount /preload   
+    #exec /system/bin/umount /preload   
     
 ## Daemon processes to be run by init.
 ##
@@ -481,6 +485,12 @@ service macloader /system/bin/macloader
 	class main
 	disabled
 	oneshot
+
+# sysinit (/system/etc/init.d)
+service sysinit /system/bin/sysinit
+    user root
+    oneshot
+    disabled
 
 on property:sys.mobicoredaemon.enable=true
 	start macloader
@@ -618,12 +628,6 @@ service secure_storage /system/bin/secure_storage_daemon
     class core
     user system
     group system
-    disabled
-
-# sysinit (/system/etc/init.d)
-service sysinit /system/bin/sysinit
-    user root
-    oneshot
     disabled
 
 on property:sys.mobicoredaemon.enable=true

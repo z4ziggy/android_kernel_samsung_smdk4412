@@ -53,12 +53,8 @@
 #endif
 #include "f_acm.c"
 #include "f_adb.c"
-//let's have both mtp units by commenting the following -gm
-//#ifdef CONFIG_USB_ANDROID_SAMSUNG_MTP
 #include "f_mtp_samsung.c"
-//#else
 #include "f_mtp.c"
-//#endif
 #include "f_accessory.c"
 #define USB_ETH_RNDIS y
 #include "f_rndis.c"
@@ -99,7 +95,7 @@ struct android_usb_function {
 	/* Optional: cleanup during gadget unbind */
 	void (*cleanup)(struct android_usb_function *);
 	/* Optional: called when the function is added the list of
-	 *		enabled functions */
+	 * enabled functions */
 	void (*enable)(struct android_usb_function *);
 	/* Optional: called when it is removed */
 	void (*disable)(struct android_usb_function *);
@@ -1898,7 +1894,7 @@ int late_init_android_gadget(int romtype)
 
 static int __init init(void)
 {
-return 0;
+	return 0;
 }
 module_init(init);
 
