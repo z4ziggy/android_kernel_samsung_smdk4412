@@ -128,7 +128,7 @@ copy_libs
 		$BB mv -f /f2fs_selinux/* /
 	    fi
 
-	    if $BB [ -f /.secondrom/.selinux_disable ] ; then
+	    if $BB [ ! -f /.secondrom/.selinux_enable ] && $BB grep -q f2fs /proc/mounts ; then #selinux disabled by default
    	    	echo 2 > /proc/sys/kernel/rom_feature_set
 		echo "disabled selinux"
 	    else
