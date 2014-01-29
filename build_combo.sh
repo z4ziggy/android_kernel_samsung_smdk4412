@@ -18,11 +18,11 @@ CUSTOM_PATH=i9100
 MODE=CM
 else
 CUSTOM_PATH=note
-MODE=DUAL	
+MODE=DUAL
 fi
 
 
-displayversion=Devil2-2.4.5b
+displayversion=Devil2-2.4.6
 
 version=$displayversion-$TARGET-$MODE-$(date +%Y%m%d)
 
@@ -69,11 +69,18 @@ export ARCH=arm
 export USE_SEC_FIPS_MODE=true
 
 # Set ramdisk files permissions
-chmod 750 $ROOTFS_PATH/roms/*/init*
-chmod 644 $ROOTFS_PATH/roms/*/ueventd*
-chmod 644 $ROOTFS_PATH/roms/*/lpm.rc
+cd $ROOTFS_PATH
+ls $ROOTFS_PATH/roms/ | while read ramdisk; do
+	cd $ROOTFS_PATH/roms/$ramdisk
+	echo fixing permisions on $(pwd)
+chmod 644 *.rc
+chmod 750 init*
+chmod 640 fstab*
+chmod 644 default.prop
 chmod 750 $ROOTFS_PATH/sbin/init*
-
+chmod a+x $ROOTFS_PATH/sbin/*.sh
+done
+cd $KERNEL_PATH
 
 if [ "$2" = "clean" ]; then
 echo "Cleaning latest build"
