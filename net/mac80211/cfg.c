@@ -12,7 +12,7 @@
 #include <linux/slab.h>
 #include <net/net_namespace.h>
 #include <linux/rcupdate.h>
-#include <net/cfg80211_new.h>
+#include <net/cfg80211.h>
 #include "ieee80211_i.h"
 #include "driver-ops.h"
 #include "cfg.h"

@@ -25,7 +25,7 @@
 #include <linux/etherdevice.h>
 #include <linux/leds.h>
 #include <net/ieee80211_radiotap.h>
-#include <net/cfg80211_new.h>
+#include <net/cfg80211.h>
 #include <net/mac80211.h>
 #include "key.h"
 #include "sta_info.h"

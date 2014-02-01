@@ -22,7 +22,7 @@ MODE=DUAL
 fi
 
 
-displayversion=Devil2-2.4.6
+displayversion=zKernel-0.1
 
 version=$displayversion-$TARGET-$MODE-$(date +%Y%m%d)
 
@@ -44,22 +44,12 @@ fi
 
 # Set Default Path
 KERNEL_PATH=$PWD
-
-# Set toolchain and root filesystem path
-if [ "$(whoami)" == "dominik" ]; then
-	#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6/bin"
-	#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-toolchain-eabi-4.8-2013.07/bin"
-	TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilt/linux-x86/toolchain/android-toolchain-eabi-4.8-2013.12/bin"
-	#TOOLCHAIN_PATH="/home/dominik/android/android_4.2/prebuilts/gcc/linux-x86/arm/arm-eabi-4.7.2/bin"
-elif [ "$(whoami)" == "rollus" ]; then
-	TOOLCHAIN_PATH="/home/rollus/android-toolchain-eabi/bin/"
-fi
-TOOLCHAIN="$TOOLCHAIN_PATH/arm-eabi-"
+TOOLCHAIN="arm-eabi-"
 ROOTFS_PATH="$KERNEL_PATH/ramdisks/$TARGET-combo"
 MODULESDIR="$KERNEL_PATH/ramdisks/modules"
 MODULES="$KERNEL_PATH/ramdisks/modules/lib/modules"
 
-defconfig=cyanogenmod_"$TARGET"_defconfig
+defconfig=zkernel_"$TARGET"_defconfig
 
 export LOCALVERSION="-$displayversion"
 export KERNELDIR=$KERNEL_PATH

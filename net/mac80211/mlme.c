@@ -21,7 +21,7 @@
 #include <linux/crc32.h>
 #include <linux/slab.h>
 
-#include <net/cfg80211_new.h>
+#include <net/cfg80211.h>
 
 #include <net/mac80211.h>
 #include <asm/unaligned.h>
