@@ -20,6 +20,9 @@
 #include <linux/pm_qos_params.h>
 #include <linux/crc32.h>
 #include <linux/slab.h>
+
+#include <net/cfg80211_new.h>
+
 #include <net/mac80211.h>
 #include <asm/unaligned.h>
 
